@@ -145,9 +145,13 @@ export const generateImagesFromReferalImages = async (params: {
     formData.append("variations", variations.toString());
   }
 
-  return axios.post<any, string[]>("/ai/generate-from-references", formData, {
-    headers: {
-      "Content-Type": "multipart/form-data",
-    },
-  });
+  return axios.post<any, string[]>(
+    "/api/ideas/generate-from-references",
+    formData,
+    {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    }
+  );
 };
