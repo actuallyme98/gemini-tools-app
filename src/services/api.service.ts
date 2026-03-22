@@ -146,7 +146,7 @@ export const generateImagesFromReferalImages = async (params: {
   }
 
   return axios.post<any, string[]>(
-    "/api/ideas/generate-from-references",
+    "/api/ideas/generate-images-from-referal-images",
     formData,
     {
       headers: {
