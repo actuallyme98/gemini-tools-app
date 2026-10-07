@@ -1,3 +1,4 @@
+import { useAIProvider } from "../hooks/use-ai-provider";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Upload, Wand2, X } from "lucide-react";
 import { Card } from "../components/ui/card";
@@ -21,6 +22,7 @@ import {
 import { recordActivity } from "../utils/activity.util";
 
 export function ImageProcessingPage() {
+  const { provider } = useAIProvider();
   const {
     file: productFile,
     preview: productImage,
@@ -93,6 +95,7 @@ export function ImageProcessingPage() {
         referenceImages: references.map((ref) => ref.file),
         variations: enableMultipleOutput ? variations : 1,
         signal: task.signal,
+        provider: provider || undefined,
       });
       if (!isCurrent(task)) return;
       setResultImages(result);

@@ -9,6 +9,7 @@ import {
   Lightbulb,
 } from "lucide-react";
 import { cn } from "./ui/utils";
+import { AIProviderSelect } from "./AIProviderSelect";
 
 interface SidebarProps {
   currentPage: string;
@@ -87,6 +88,7 @@ export function Sidebar({ currentPage, onPageChange }: SidebarProps) {
       </div>
 
       {/* Navigation */}
+      <AIProviderSelect />
       <nav className="flex-1 p-4 overflow-y-auto">
         <div className="space-y-1">
           {menuItems.map((item) => {

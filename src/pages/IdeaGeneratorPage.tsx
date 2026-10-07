@@ -1,3 +1,4 @@
+import { useAIProvider } from "../hooks/use-ai-provider";
 import { useImageInput } from "../hooks/use-image-input";
 import { useRequest } from "../hooks/use-request";
 import { getErrorMessage } from "../services/api.service";
@@ -38,6 +39,7 @@ export interface PromptOptions {
 }
 
 export function IdeaGeneratorPage() {
+  const { provider } = useAIProvider();
   const {
     file: sampleImage,
     preview: samplePreview,
@@ -85,6 +87,7 @@ export function IdeaGeneratorPage() {
       const imageAnalysis = await analyzeProductFromImage(
         sampleImage,
         task.signal,
+        provider || undefined,
       );
       if (!isCurrent(task)) return;
       setAnalysis(imageAnalysis);
@@ -110,6 +113,7 @@ export function IdeaGeneratorPage() {
         promptTemplate,
         ideaCount,
         task.signal,
+        provider || undefined,
       );
       if (!isCurrent(task)) return;
       setIdeas((prev) => [...prev, ...results]);

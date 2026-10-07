@@ -1,3 +1,4 @@
+import { useAIProvider } from "../hooks/use-ai-provider";
 import { useImageInput } from "../hooks/use-image-input";
 import { useRequest } from "../hooks/use-request";
 import { getErrorMessage } from "../services/api.service";
@@ -18,6 +19,7 @@ import {
 } from "../services/api.service";
 
 export function MockupGeneratorPage() {
+  const { provider } = useAIProvider();
   const {
     file: sampleImage,
     preview: samplePreview,
@@ -48,6 +50,7 @@ export function MockupGeneratorPage() {
         sampleImage,
         String(mockupCount),
         task.signal,
+        provider || undefined,
       );
       if (!isCurrent(task)) return;
       setPrompts(generatedPrompts);
@@ -74,6 +77,7 @@ export function MockupGeneratorPage() {
         sampleImage,
         validPrompts,
         task.signal,
+        provider || undefined,
       );
       if (!isCurrent(task)) return;
       setResultUrls(results.map((r) => r.url));

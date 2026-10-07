@@ -37,8 +37,10 @@ export const manualGenerateMockups = async (
   file: File,
   prompts: string[],
   signal?: AbortSignal,
+  provider?: string,
 ) => {
   const formData = new FormData();
+  if (provider) formData.append("provider", provider);
 
   formData.append("image", file);
   formData.append("prompts", JSON.stringify(prompts));
@@ -56,8 +58,10 @@ export const autoGeneratePrompts = async (
   file: File,
   count: string,
   signal?: AbortSignal,
+  provider?: string,
 ) => {
   const formData = new FormData();
+  if (provider) formData.append("provider", provider);
 
   formData.append("image", file);
   formData.append("count", count);
@@ -105,8 +109,10 @@ export type ImageAnalysis = {
 export const analyzeProductFromImage = async (
   file: File,
   signal?: AbortSignal,
+  provider?: string,
 ) => {
   const formData = new FormData();
+  if (provider) formData.append("provider", provider);
   formData.append("image", file);
 
   return (
@@ -126,8 +132,10 @@ export const generateProductIdeas = async (
   basePrompt: string,
   count: number,
   signal?: AbortSignal,
+  provider?: string,
 ) => {
   const formData = new FormData();
+  if (provider) formData.append("provider", provider);
   formData.append("image", file);
   formData.append("basePrompt", basePrompt);
   formData.append("count", String(count));
@@ -146,10 +154,13 @@ export const generateImagesFromReferalImages = async (params: {
   referenceImages?: File[];
   variations?: number;
   signal?: AbortSignal;
+  provider?: string;
 }) => {
-  const { productImage, referenceImages, variations, signal } = params;
+  const { productImage, referenceImages, variations, signal, provider } =
+    params;
 
   const formData = new FormData();
+  if (provider) formData.append("provider", provider);
 
   formData.append("productImage", productImage);
 
@@ -171,3 +182,25 @@ export const generateImagesFromReferalImages = async (params: {
     )
   ).data;
 };
+
+export type AICapability = "text" | "vision" | "image";
+export type AIProviderCatalog = {
+  defaults: Record<AICapability, string>;
+  providers: {
+    id: string;
+    name: string;
+    available: boolean;
+    capabilities: AICapability[];
+    routing: Record<AICapability, string>;
+  }[];
+};
+export async function getAIProviders(
+  signal?: AbortSignal,
+): Promise<AIProviderCatalog> {
+  return (
+    await axios.get<AIProviderCatalog>("/api/ai/providers", {
+      signal,
+      timeout: 15000,
+    })
+  ).data;
+}

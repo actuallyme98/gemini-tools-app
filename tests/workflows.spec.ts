@@ -25,6 +25,39 @@ const analysis = (name: string) => ({
     seasonSuitability: [],
   },
 });
+const providerCatalog = {
+  defaults: { text: "gemini", vision: "gemini", image: "gemini" },
+  providers: [
+    {
+      id: "gemini",
+      name: "Gemini",
+      available: true,
+      capabilities: ["text", "vision", "image"],
+      routing: { text: "gemini", vision: "gemini", image: "gemini" },
+    },
+    {
+      id: "vyceai",
+      name: "VyceAI",
+      available: true,
+      capabilities: ["text"],
+      routing: { text: "vyceai", vision: "gemini", image: "gemini" },
+    },
+    {
+      id: "shopaikey",
+      name: "ShopAIKey",
+      available: true,
+      capabilities: ["text", "vision", "image"],
+      routing: { text: "shopaikey", vision: "shopaikey", image: "shopaikey" },
+    },
+    {
+      id: "offline",
+      name: "Offline",
+      available: false,
+      capabilities: [],
+      routing: { text: "gemini", vision: "gemini", image: "gemini" },
+    },
+  ],
+};
 const runtimeErrors = new WeakMap<Page, string[]>();
 test.afterEach(async ({ page }) => {
   expect(runtimeErrors.get(page)).toEqual([]);
@@ -38,6 +71,9 @@ test.beforeEach(async ({ page }) => {
       status: 400,
       json: { message: "Unexpected mock API request" },
     }),
+  );
+  await page.route("**/api/ai/providers", (route) =>
+    route.fulfill({ json: providerCatalog }),
   );
   await page.route("https://cdn.example/**", (route) =>
     route.fulfill({
@@ -75,6 +111,121 @@ test("mobile menu, deep links and back navigation", async ({ page }) => {
   await expect(page).toHaveURL(/#mockup-generator$/);
   await page.goBack();
   await expect(page).toHaveURL(/#image-editor$/);
+});
+
+test("provider choice persists, explains fallback and shares selection with mobile", async ({
+  page,
+}) => {
+  await page.goto("/#home");
+  const select = page.getByRole("combobox", { name: "Provider AI" });
+  await expect(select).toHaveValue("");
+  await expect(select.locator('option[value="offline"]')).toBeDisabled();
+  await select.selectOption("vyceai");
+  await expect(
+    page.getByText("Văn bản: VyceAI", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Tạo / sửa ảnh: Gemini", { exact: true }),
+  ).toBeVisible();
+  await page.reload();
+  await expect(select).toHaveValue("vyceai");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole("button", { name: "Mở menu" }).click();
+  const mobileSelect = page
+    .getByRole("dialog")
+    .getByRole("combobox", { name: "Provider AI" });
+  await expect(mobileSelect).toHaveValue("vyceai");
+  await mobileSelect.selectOption("shopaikey");
+  await page.keyboard.press("Escape");
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await expect(select).toHaveValue("shopaikey");
+  await select.selectOption("");
+  await page.reload();
+  await expect(select).toHaveValue("");
+});
+
+test("selected provider is captured per request for analysis and idea generation", async ({
+  page,
+}) => {
+  let selectedAnalysis = "";
+  let selectedIdeas = "";
+  let release: () => void = () => {};
+  await page.route("**/api/ideas/analyze-product", async (route) => {
+    selectedAnalysis = route.request().postData() || "";
+    await new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await route.fulfill({ json: analysis("PRODUCT") });
+  });
+  await page.route("**/api/ideas/generate-ideas", async (route) => {
+    selectedIdeas = route.request().postData() || "";
+    await route.fulfill({
+      json: [{ url: "https://cdn.example/good.png", prompt: "summer" }],
+    });
+  });
+  await page.goto("/#idea-generator");
+  const select = page.getByRole("combobox", { name: "Provider AI" });
+  await select.selectOption("shopaikey");
+  await page
+    .getByLabel("Tải Ảnh Sản Phẩm", { exact: true })
+    .setInputFiles(image("product.png"));
+  await page
+    .getByRole("button", { name: "Phân Tích Ảnh", exact: true })
+    .click();
+  await expect
+    .poll(() => selectedAnalysis)
+    .toMatch(/name="provider"\r\n\r\nshopaikey\r\n/);
+  await select.selectOption("vyceai");
+  release();
+  await expect(page.getByText("PRODUCT", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: /Tạo .* Ý Tưởng/ }).click();
+  await expect
+    .poll(() => selectedIdeas)
+    .toMatch(/name="provider"\r\n\r\nvyceai\r\n/);
+});
+
+test("unavailable saved provider and catalog failure use defaults with retry", async ({
+  page,
+}) => {
+  await page.addInitScript(() =>
+    localStorage.setItem("creative-studio.ai-provider", "offline"),
+  );
+  let failing = true;
+  await page.route("**/api/ai/providers", (route) =>
+    route.fulfill(
+      failing
+        ? { status: 503, json: { message: "unavailable" } }
+        : { json: providerCatalog },
+    ),
+  );
+  await page.goto("/#idea-generator");
+  const select = page.getByRole("combobox", { name: "Provider AI" });
+  await expect(
+    page.getByText("Không tải được danh sách. Đang dùng mặc định hệ thống.", {
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(select).toHaveValue("");
+  failing = false;
+  await page.getByRole("button", { name: "Tải lại provider" }).click();
+  await expect(
+    page.getByText(
+      "Provider đã lưu không khả dụng. Đang dùng mặc định hệ thống.",
+      { exact: true },
+    ),
+  ).toBeVisible();
+  await expect(select).toHaveValue("");
+  await page.route("**/api/ideas/analyze-product", async (route) => {
+    expect(route.request().postData()).not.toContain('name="provider"');
+    await route.fulfill({ json: analysis("DEFAULT") });
+  });
+  await page
+    .getByLabel("Tải Ảnh Sản Phẩm", { exact: true })
+    .setInputFiles(image("product.png"));
+  await page
+    .getByRole("button", { name: "Phân Tích Ảnh", exact: true })
+    .click();
+  await expect(page.getByText("DEFAULT", { exact: true })).toBeVisible();
 });
 test("changing an image cancels old analysis and preserves the new result", async ({
   page,
@@ -121,12 +272,18 @@ test("upload limits reject files and auto prompts never exceed 12", async ({
   let requests = 0;
   await page.route("**/api/mockups/generate-prompts", async (route) => {
     requests++;
+    expect(route.request().postData()).toMatch(
+      /name="provider"\r\n\r\nvyceai\r\n/,
+    );
     expect(route.request().postData()).toMatch(/name="count"\r\n\r\n12\r\n/);
     await route.fulfill({
       json: Array.from({ length: 12 }, (_, i) => "prompt " + i),
     });
   });
   await page.goto("/#mockup-generator");
+  await page
+    .getByRole("combobox", { name: "Provider AI" })
+    .selectOption("vyceai");
   const upload = page.getByLabel("Tải Ảnh Mẫu", { exact: true });
   await upload.setInputFiles({
     name: "large.png",
@@ -167,6 +324,9 @@ test("references default to three variations and reject an eleventh image", asyn
   );
   await page.goto("/#image-editor");
   await page
+    .getByRole("combobox", { name: "Provider AI" })
+    .selectOption("vyceai");
+  await page
     .getByLabel("Tải Ảnh sản phẩm", { exact: true })
     .setInputFiles(image("product.png"));
   const refs = page.getByLabel("Tải ảnh tham chiếu", { exact: true });
@@ -188,8 +348,11 @@ test("references default to three variations and reject an eleventh image", asyn
 test("ZIP reports failed downloads, retains page results and updates dashboard", async ({
   page,
 }) => {
-  await page.route("**/api/mockups/generate-mockups", (route) =>
-    route.fulfill({
+  await page.route("**/api/mockups/generate-mockups", (route) => {
+    expect(route.request().postData()).toMatch(
+      /name="provider"\r\n\r\nvyceai\r\n/,
+    );
+    return route.fulfill({
       json: {
         total: 2,
         results: [
@@ -197,9 +360,12 @@ test("ZIP reports failed downloads, retains page results and updates dashboard",
           { index: 1, prompt: "two", url: "https://cdn.example/bad.png" },
         ],
       },
-    }),
-  );
+    });
+  });
   await page.goto("/#mockup-generator");
+  await page
+    .getByRole("combobox", { name: "Provider AI" })
+    .selectOption("vyceai");
   await page
     .getByLabel("Tải Ảnh Mẫu", { exact: true })
     .setInputFiles(image("product.png"));
