@@ -1,6 +1,10 @@
 import { useId } from "react";
 import { ChevronDown } from "lucide-react";
 import { useAIProvider } from "../hooks/use-ai-provider";
+import {
+  DEFAULT_AI_PROVIDER,
+  isAIProviderEnabled,
+} from "../utils/ai-provider.util";
 
 export function AIProviderSelect() {
   const id = useId();
@@ -13,9 +17,9 @@ export function AIProviderSelect() {
     retry,
     savedProviderUnavailable,
   } = useAIProvider();
-  const routing = provider
-    ? catalog?.providers.find((entry) => entry.id === provider)?.routing
-    : catalog?.defaults;
+  const routing = catalog?.providers.find(
+    (entry) => entry.id === provider,
+  )?.routing;
   const name = (id: string | null) =>
     id
       ? catalog?.providers.find((entry) => entry.id === id)?.name || id
@@ -35,17 +39,27 @@ export function AIProviderSelect() {
           aria-describedby={`${id}-status ${id}-help`}
           className="h-11 w-full appearance-none rounded-lg border border-blue-200 bg-gradient-to-r from-blue-50 to-purple-50 pl-3 pr-9 text-base md:text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-60"
         >
-          <option value="">Mặc định hệ thống</option>
           {provider &&
             !catalog?.providers.some((entry) => entry.id === provider) && (
               <option value={provider} disabled>
-                {provider} (chưa xác minh)
+                {provider === DEFAULT_AI_PROVIDER ? "Gemini" : provider} (chưa
+                xác minh)
               </option>
             )}
           {catalog?.providers.map((entry) => (
-            <option key={entry.id} value={entry.id} disabled={!entry.available}>
+            <option
+              key={entry.id}
+              value={entry.id}
+              disabled={!entry.available || !isAIProviderEnabled(entry.id)}
+            >
               {entry.name}
-              {entry.available ? "" : " (chưa cấu hình)"}
+              {!isAIProviderEnabled(entry.id)
+                ? " (tạm ngưng)"
+                : !entry.available
+                  ? " (chưa cấu hình)"
+                  : entry.id === DEFAULT_AI_PROVIDER
+                    ? " (mặc định)"
+                    : ""}
             </option>
           ))}
         </select>

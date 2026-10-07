@@ -113,35 +113,51 @@ test("mobile menu, deep links and back navigation", async ({ page }) => {
   await expect(page).toHaveURL(/#image-editor$/);
 });
 
-test("provider choice persists, explains unsupported tasks and shares selection with mobile", async ({
+test("disabled VyceAI selection migrates to Gemini and shares selection with mobile", async ({
   page,
 }) => {
+  await page.addInitScript(() => {
+    if (!sessionStorage.getItem("provider-migration-test")) {
+      localStorage.setItem("creative-studio.ai-provider", "vyceai");
+      sessionStorage.setItem("provider-migration-test", "1");
+    }
+  });
   await page.goto("/#home");
   const select = page.getByRole("combobox", { name: "Provider AI" });
-  await expect(select).toHaveValue("");
+  await expect(select).toHaveValue("gemini");
+  await expect(select.locator('option[value="vyceai"]')).toBeDisabled();
+  await expect(
+    select.getByRole("option", { name: "Mặc định hệ thống", exact: true }),
+  ).toHaveCount(0);
+  await expect
+    .poll(() =>
+      page.evaluate(() => localStorage.getItem("creative-studio.ai-provider")),
+    )
+    .toBe("gemini");
   await expect(select.locator('option[value="offline"]')).toBeDisabled();
-  await select.selectOption("vyceai");
+  await select.selectOption("gemini");
   await expect(
-    page.getByText("Văn bản: VyceAI", { exact: true }),
+    page.getByText("Văn bản: Gemini", { exact: true }),
   ).toBeVisible();
   await expect(
-    page.getByText("Tạo / sửa ảnh: Chưa hỗ trợ / cấu hình", { exact: true }),
+    page.getByText("Tạo / sửa ảnh: Gemini", { exact: true }),
   ).toBeVisible();
+  await select.selectOption("shopaikey");
   await page.reload();
-  await expect(select).toHaveValue("vyceai");
+  await expect(select).toHaveValue("shopaikey");
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByRole("button", { name: "Mở menu" }).click();
   const mobileSelect = page
     .getByRole("dialog")
     .getByRole("combobox", { name: "Provider AI" });
-  await expect(mobileSelect).toHaveValue("vyceai");
-  await mobileSelect.selectOption("shopaikey");
+  await expect(mobileSelect).toHaveValue("shopaikey");
+  await mobileSelect.selectOption("gemini");
   await page.keyboard.press("Escape");
   await page.setViewportSize({ width: 1280, height: 900 });
-  await expect(select).toHaveValue("shopaikey");
-  await select.selectOption("");
+  await expect(select).toHaveValue("gemini");
+  await select.selectOption("gemini");
   await page.reload();
-  await expect(select).toHaveValue("");
+  await expect(select).toHaveValue("gemini");
 });
 
 test("selected provider is captured per request for analysis and idea generation", async ({
@@ -175,31 +191,30 @@ test("selected provider is captured per request for analysis and idea generation
   await expect
     .poll(() => selectedAnalysis)
     .toMatch(/name="provider"\r\n\r\nshopaikey\r\n/);
-  await select.selectOption("vyceai");
+  await select.selectOption("gemini");
   release();
   await expect(page.getByText("PRODUCT", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: /Tạo .* Ý Tưởng/ }).click();
   await expect
     .poll(() => selectedIdeas)
-    .toMatch(/name="provider"\r\n\r\nvyceai\r\n/);
+    .toMatch(/name="provider"\r\n\r\ngemini\r\n/);
 });
 
-test("unsupported task errors keep the selected provider without a default retry", async ({
+test("provider errors keep the selected provider without a default retry", async ({
   page,
 }) => {
   let requests = 0;
-  const message =
-    "Provider VyceAI chưa hỗ trợ hoặc chưa được cấu hình cho tác vụ phân tích ảnh. Hãy chọn provider khác.";
+  const message = "Provider Gemini không thể xử lý yêu cầu này.";
   await page.route("**/api/ideas/analyze-product", async (route) => {
     requests++;
     expect(route.request().postData()).toMatch(
-      /name="provider"\r\n\r\nvyceai\r\n/,
+      /name="provider"\r\n\r\ngemini\r\n/,
     );
     await route.fulfill({ status: 400, json: { message } });
   });
   await page.goto("/#idea-generator");
   const select = page.getByRole("combobox", { name: "Provider AI" });
-  await select.selectOption("vyceai");
+  await select.selectOption("gemini");
   await page
     .getByLabel("Tải Ảnh Sản Phẩm", { exact: true })
     .setInputFiles(image("product.png"));
@@ -207,7 +222,7 @@ test("unsupported task errors keep the selected provider without a default retry
     .getByRole("button", { name: "Phân Tích Ảnh", exact: true })
     .click();
   await expect(page.getByText(message, { exact: true })).toBeVisible();
-  await expect(select).toHaveValue("vyceai");
+  await expect(select).toHaveValue("gemini");
   expect(requests).toBe(1);
 });
 
@@ -304,7 +319,7 @@ test("upload limits reject files and auto prompts never exceed 12", async ({
   await page.route("**/api/mockups/generate-prompts", async (route) => {
     requests++;
     expect(route.request().postData()).toMatch(
-      /name="provider"\r\n\r\nvyceai\r\n/,
+      /name="provider"\r\n\r\ngemini\r\n/,
     );
     expect(route.request().postData()).toMatch(/name="count"\r\n\r\n12\r\n/);
     await route.fulfill({
@@ -314,7 +329,7 @@ test("upload limits reject files and auto prompts never exceed 12", async ({
   await page.goto("/#mockup-generator");
   await page
     .getByRole("combobox", { name: "Provider AI" })
-    .selectOption("vyceai");
+    .selectOption("gemini");
   const upload = page.getByLabel("Tải Ảnh Mẫu", { exact: true });
   await upload.setInputFiles({
     name: "large.png",
@@ -356,7 +371,7 @@ test("references default to three variations and reject an eleventh image", asyn
   await page.goto("/#image-editor");
   await page
     .getByRole("combobox", { name: "Provider AI" })
-    .selectOption("vyceai");
+    .selectOption("gemini");
   await page
     .getByLabel("Tải Ảnh sản phẩm", { exact: true })
     .setInputFiles(image("product.png"));
@@ -381,7 +396,7 @@ test("ZIP reports failed downloads, retains page results and updates dashboard",
 }) => {
   await page.route("**/api/mockups/generate-mockups", (route) => {
     expect(route.request().postData()).toMatch(
-      /name="provider"\r\n\r\nvyceai\r\n/,
+      /name="provider"\r\n\r\ngemini\r\n/,
     );
     return route.fulfill({
       json: {
@@ -396,7 +411,7 @@ test("ZIP reports failed downloads, retains page results and updates dashboard",
   await page.goto("/#mockup-generator");
   await page
     .getByRole("combobox", { name: "Provider AI" })
-    .selectOption("vyceai");
+    .selectOption("gemini");
   await page
     .getByLabel("Tải Ảnh Mẫu", { exact: true })
     .setInputFiles(image("product.png"));

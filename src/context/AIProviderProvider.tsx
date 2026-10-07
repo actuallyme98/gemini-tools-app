@@ -1,6 +1,10 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { AIProviderContext } from "./ai-provider-context";
 import {
+  DEFAULT_AI_PROVIDER,
+  isAIProviderEnabled,
+} from "../utils/ai-provider.util";
+import {
   getAIProviders,
   type AIProviderCatalog,
 } from "../services/api.service";
@@ -8,9 +12,12 @@ import {
 const STORAGE_KEY = "creative-studio.ai-provider";
 function readSelection() {
   try {
-    return localStorage.getItem(STORAGE_KEY) || "";
+    const saved = localStorage.getItem(STORAGE_KEY);
+    return !saved || saved === "default" || !isAIProviderEnabled(saved)
+      ? DEFAULT_AI_PROVIDER
+      : saved;
   } catch {
-    return "";
+    return DEFAULT_AI_PROVIDER;
   }
 }
 
@@ -20,6 +27,14 @@ export function AIProviderProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [revision, setRevision] = useState(0);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, selection);
+    } catch {
+      // Selection still works when browser storage is unavailable.
+    }
+  }, [selection]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -44,17 +59,12 @@ export function AIProviderProvider({ children }: { children: ReactNode }) {
 
   const selectProvider = (id: string) => {
     if (
-      id &&
+      !id ||
+      !isAIProviderEnabled(id) ||
       !catalog?.providers.some((entry) => entry.id === id && entry.available)
     )
       return;
     setSelection(id);
-    try {
-      if (id) localStorage.setItem(STORAGE_KEY, id);
-      else localStorage.removeItem(STORAGE_KEY);
-    } catch {
-      // Provider selection still works when browser storage is unavailable.
-    }
   };
 
   return (
