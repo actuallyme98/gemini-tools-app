@@ -1,3 +1,5 @@
+import { downloadImage, downloadZip } from "../../utils/download.util";
+import { getErrorMessage } from "../../services/api.service";
 import { Download, ImageIcon } from "lucide-react";
 import { Button } from "../ui/button";
 import {
@@ -8,10 +10,8 @@ import {
   CardTitle,
 } from "../ui/card";
 import { useState } from "react";
-import JSZip from "jszip";
-import { toast } from "sonner";
 
-import { fetchWithRetry } from "../../utils/image.util";
+import { toast } from "sonner";
 
 interface ResultSectionProps {
   imageUrls: string[];
@@ -22,16 +22,10 @@ export function ResultSection({ imageUrls }: ResultSectionProps) {
 
   const handleDownloadSingle = async (url: string, index: number) => {
     try {
-      const response = await fetch(url);
-      const blob = await response.blob();
-      const link = document.createElement("a");
-      link.href = URL.createObjectURL(blob);
-      link.download = `mockup-${index + 1}.png`;
-      link.click();
-      URL.revokeObjectURL(link.href);
+      await downloadImage(url, `mockup-${index + 1}.png`);
       toast.success(`Đã tải xuống mockup ${index + 1}`);
     } catch (error) {
-      toast.error("Không thể tải xuống ảnh");
+      toast.error(getErrorMessage(error));
     }
   };
 
@@ -40,29 +34,14 @@ export function ResultSection({ imageUrls }: ResultSectionProps) {
 
     setDownloading(true);
     try {
-      const zip = new JSZip();
-
-      const imagePromises = imageUrls.map(async (url, index) => {
-        try {
-          const blob = await fetchWithRetry(url, 5, 1000);
-          zip.file(`mockup-${index + 1}.png`, blob);
-        } catch (error) {
-          console.error(`Failed after retry image ${index + 1}:`, error);
-        }
-      });
-
-      await Promise.all(imagePromises);
-
-      const zipBlob = await zip.generateAsync({ type: "blob" });
-      const link = document.createElement("a");
-      link.href = URL.createObjectURL(zipBlob);
-      link.download = `mockups-${Date.now()}.zip`;
-      link.click();
-      URL.revokeObjectURL(link.href);
-
-      toast.success(`Đã tải xuống ${imageUrls.length} mockup`);
+      const { downloaded, failed } = await downloadZip(imageUrls, "mockups");
+      if (failed)
+        toast.warning(
+          `Đã tải ${downloaded}/${imageUrls.length} ảnh; ${failed} ảnh bị lỗi.`,
+        );
+      else toast.success(`Đã tải xuống ${downloaded} ảnh`);
     } catch (error) {
-      toast.error("Không thể tải xuống tất cả ảnh");
+      toast.error(getErrorMessage(error));
     } finally {
       setDownloading(false);
     }
@@ -73,7 +52,7 @@ export function ResultSection({ imageUrls }: ResultSectionProps) {
   return (
     <Card className="bg-gradient-to-br from-green-50 to-cyan-50">
       <CardHeader>
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap gap-2 items-center justify-between">
           <div>
             <CardTitle className="flex items-center gap-2">
               <ImageIcon className="w-5 h-5 text-green-600" />
@@ -102,7 +81,7 @@ export function ResultSection({ imageUrls }: ResultSectionProps) {
                   <img
                     src={url}
                     alt={`Result ${index + 1}`}
-                    className="w-full h-48 object-cover rounded-lg"
+                    className="w-full h-48 object-contain rounded-lg"
                   />
                 </div>
                 <div className="absolute top-5 left-5 bg-black/60 text-white text-sm px-2 py-1 rounded">
@@ -110,7 +89,7 @@ export function ResultSection({ imageUrls }: ResultSectionProps) {
                 </div>
                 <button
                   onClick={() => handleDownloadSingle(url, index)}
-                  className="absolute top-5 right-5 bg-green-600 text-white p-2 rounded-full hover:bg-green-700 transition-all opacity-0 group-hover:opacity-100 shadow-lg"
+                  className="absolute top-5 right-5 bg-green-600 text-white p-2 rounded-full hover:bg-green-700 transition-all opacity-100 sm:opacity-0 sm:group-hover:opacity-100 focus:opacity-100 shadow-lg"
                 >
                   <Download className="w-4 h-4" />
                 </button>

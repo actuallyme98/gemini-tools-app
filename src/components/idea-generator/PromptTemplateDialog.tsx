@@ -27,7 +27,12 @@ export function PromptTemplateDialog({
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(template);
+    try {
+      await navigator.clipboard.writeText(template);
+    } catch {
+      toast.error("Không thể copy. Hãy chọn và sao chép prompt thủ công.");
+      return;
+    }
     setCopied(true);
     toast.success("Đã copy prompt");
     setTimeout(() => setCopied(false), 2000);
@@ -46,6 +51,7 @@ export function PromptTemplateDialog({
 
         <div className="flex-1 overflow-y-auto">
           <Textarea
+            aria-label="Prompt gửi đến AI"
             value={template}
             onChange={(e) => onTemplateChange(e.target.value)}
             className="min-h-[400px] font-mono text-xs resize-none"

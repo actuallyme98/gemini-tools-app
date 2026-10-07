@@ -60,12 +60,12 @@ export function PromptCustomization({
   disabled = false,
 }: PromptCustomizationProps) {
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
-    new Set()
+    new Set(),
   );
 
   const handleCountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = parseInt(e.target.value);
-    if (!isNaN(value) && value > 0 && value <= 50) {
+    if (!isNaN(value) && value > 0 && value <= 12) {
       onIdeaCountChange(value);
     }
   };
@@ -119,9 +119,10 @@ export function PromptCustomization({
             </Button>
           ))}
           <Input
+            aria-label="Số lượng"
             type="number"
             min="1"
-            max="50"
+            max="12"
             value={ideaCount}
             onChange={handleCountChange}
             disabled={disabled}
@@ -178,6 +179,7 @@ export function PromptCustomization({
                       {section.description}
                     </p>
                     <Textarea
+                      aria-label={section.label}
                       value={promptOptions[section.key] || ""}
                       onChange={(e) =>
                         handleOptionChange(section.key, e.target.value)

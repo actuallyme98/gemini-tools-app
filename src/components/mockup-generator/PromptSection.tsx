@@ -48,7 +48,7 @@ export function PromptSection({
 
   const handleCountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = parseInt(e.target.value);
-    if (!isNaN(value) && value > 0 && value <= 50) {
+    if (!isNaN(value) && value > 0 && value <= 12) {
       onMockupCountChange(value);
     }
   };
@@ -88,9 +88,10 @@ export function PromptSection({
                 </Button>
               ))}
               <Input
+                aria-label="Số lượng"
                 type="number"
                 min="1"
-                max="50"
+                max="12"
                 value={mockupCount}
                 onChange={handleCountChange}
                 disabled={disabled}
@@ -153,6 +154,7 @@ export function PromptSection({
                     <Button
                       variant="ghost"
                       size="sm"
+                      aria-label={`Xóa prompt ${index + 1}`}
                       onClick={() => handleRemovePrompt(index)}
                       disabled={disabled}
                       className="h-6 w-6 p-0"

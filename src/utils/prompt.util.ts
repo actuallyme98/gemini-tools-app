@@ -5,7 +5,7 @@ import { formatToBulletLines } from "./idea.util";
 export const toGenerateNewIdeaPrompt = (
   analysis: ImageAnalysis,
   options: PromptOptions,
-  count: number
+  count: number,
 ) => {
   const globalRules = formatToBulletLines(options.globalRules);
   const themeRequirement = formatToBulletLines(options.themeRequirement);
@@ -17,7 +17,7 @@ export const toGenerateNewIdeaPrompt = (
   ${JSON.stringify(analysis, null, 2)}
   
   You are directly editing the USER-UPLOADED IMAGE.
-n  This is a REAL IMAGE EDIT, not image generation.
+  This is a REAL IMAGE EDIT, not image generation.
   
   ================================
   CORE RULE:

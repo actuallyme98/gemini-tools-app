@@ -1,4 +1,8 @@
-import { useState, useEffect, useCallback } from "react";
+import { useImageInput } from "../hooks/use-image-input";
+import { useRequest } from "../hooks/use-request";
+import { getErrorMessage } from "../services/api.service";
+import { recordActivity } from "../utils/activity.util";
+import { useState, useCallback } from "react";
 import { Wand2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -14,105 +18,78 @@ import {
 } from "../services/api.service";
 
 export function MockupGeneratorPage() {
-  const [sampleImage, setSampleImage] = useState<File | null>(null);
-  const [samplePreview, setSamplePreview] = useState<string | null>(null);
+  const {
+    file: sampleImage,
+    preview: samplePreview,
+    setFile: setSampleImage,
+  } = useImageInput();
   const [prompts, setPrompts] = useState<string[]>([""]);
   const [autoGenerate, setAutoGenerate] = useState(false);
   const [mockupCount, setMockupCount] = useState(3);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [resultUrls, setResultUrls] = useState<string[]>([]);
-
-  // Update preview when image changes
-  useEffect(() => {
-    if (sampleImage) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setSamplePreview(reader.result as string);
-      };
-      reader.readAsDataURL(sampleImage);
-    } else {
-      setSamplePreview(null);
-    }
-  }, [sampleImage]);
-
+  const { start, cancel, isCurrent } = useRequest();
   const resetState = useCallback(() => {
+    cancel();
     setPrompts([""]);
     setAutoGenerate(false);
     setMockupCount(3);
     setIsGenerating(false);
     setIsProcessing(false);
     setResultUrls([]);
-  }, []);
-
-  // Mock function to generate prompts from image
+  }, [cancel]);
   const handleGeneratePrompts = async () => {
-    if (!sampleImage) {
-      toast.error("Vui lòng tải ảnh mẫu lên trước");
-      return;
-    }
-
+    if (!sampleImage || isGenerating || isProcessing) return;
+    const task = start();
+    setIsGenerating(true);
     try {
-      setIsGenerating(true);
-
       const generatedPrompts = await autoGeneratePrompts(
         sampleImage,
-        mockupCount.toString()
+        String(mockupCount),
+        task.signal,
       );
-
+      if (!isCurrent(task)) return;
       setPrompts(generatedPrompts);
-      setIsGenerating(false);
-      toast.success(`Đã tạo ${mockupCount} prompts thành công!`);
+      toast.success(`Đã tạo ${generatedPrompts.length} prompts thành công!`);
     } catch (error) {
-      toast.error("Đã có lỗi xảy ra trong quá trình tạo prompts");
-      setIsGenerating(false);
-      return;
+      if (isCurrent(task)) toast.error(getErrorMessage(error));
+    } finally {
+      if (isCurrent(task)) setIsGenerating(false);
     }
   };
-
-  // Mock function to process and generate final images
   const handleGenerateImages = async () => {
-    if (!sampleImage) {
-      toast.error("Vui lòng tải ảnh mẫu lên");
+    const validPrompts = prompts.map((p) => p.trim()).filter(Boolean);
+    if (!sampleImage || !validPrompts.length || isProcessing || isGenerating)
+      return;
+    if (validPrompts.some((p) => p.length > 4000)) {
+      toast.error("Mỗi prompt tối đa 4000 ký tự.");
       return;
     }
-
-    const validPrompts = prompts.filter((p) => p.trim() !== "");
-    if (validPrompts.length === 0) {
-      toast.error("Vui lòng nhập prompts hoặc tạo prompts tự động");
-      return;
-    }
-
+    const task = start();
     setIsProcessing(true);
     setResultUrls([]);
-
     try {
       const { results } = await manualGenerateMockups(
         sampleImage,
-        validPrompts
+        validPrompts,
+        task.signal,
       );
-
-      const urls = results.map((r) => r.url);
-
-      setResultUrls(urls);
-      setIsProcessing(false);
+      if (!isCurrent(task)) return;
+      setResultUrls(results.map((r) => r.url));
+      recordActivity("mockup", results.length);
       toast.success(`Đã tạo ${results.length} mockup thành công!`);
-
-      // Scroll to result
-      setTimeout(() => {
-        document
-          .getElementById("result-section")
-          ?.scrollIntoView({ behavior: "smooth" });
-      }, 100);
     } catch (error) {
-      toast.error("Đã có lỗi xảy ra trong quá trình tạo mockup");
-      setIsProcessing(false);
-      return;
+      if (isCurrent(task)) toast.error(getErrorMessage(error));
+    } finally {
+      if (isCurrent(task)) setIsProcessing(false);
     }
   };
-
   const canGenerate =
-    sampleImage && prompts.some((p) => p.trim() !== "") && !isProcessing;
+    sampleImage &&
+    prompts.some((p) => p.trim()) &&
+    !isProcessing &&
+    !isGenerating;
 
   return (
     <div className="space-y-6">
@@ -148,7 +125,7 @@ export function MockupGeneratorPage() {
             onAutoGenerateChange={setAutoGenerate}
             onMockupCountChange={setMockupCount}
             onGeneratePrompts={handleGeneratePrompts}
-            disabled={!sampleImage}
+            disabled={!sampleImage || isGenerating || isProcessing}
           />
 
           <Button

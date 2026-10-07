@@ -1,17 +1,29 @@
 import Axios from "axios";
 
-const BASE_URL = "";
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
 
 const axios = Axios.create({
   baseURL: BASE_URL,
+  timeout: 20 * 60 * 1000,
 });
 
-axios.interceptors.response.use((response) => {
-  if (response.status === 200 || response.status === 201) {
-    return response.data;
+export function getErrorMessage(error: unknown): string {
+  if (Axios.isAxiosError(error)) {
+    if (error.code === "ECONNABORTED")
+      return "Yêu cầu mất quá nhiều thời gian. Hãy thử với ít ảnh hơn.";
+    const data = error.response?.data as { message?: unknown } | undefined;
+    const message = data?.message;
+    if (typeof message === "string") return message;
+    if (Array.isArray(message))
+      return message
+        .filter((item): item is string => typeof item === "string")
+        .join("; ");
+    return "Không kết nối được API. Vui lòng kiểm tra kết nối và thử lại.";
   }
-  return response;
-});
+  return error instanceof Error
+    ? error.message
+    : "Đã có lỗi xảy ra. Vui lòng thử lại.";
+}
 
 type GenerateMockupsResponse = {
   total: number;
@@ -21,57 +33,59 @@ type GenerateMockupsResponse = {
     url: string;
   }[];
 };
-export const manualGenerateMockups = async (file: File, prompts: string[]) => {
+export const manualGenerateMockups = async (
+  file: File,
+  prompts: string[],
+  signal?: AbortSignal,
+) => {
   const formData = new FormData();
 
   formData.append("image", file);
   formData.append("prompts", JSON.stringify(prompts));
 
-  return await axios.post<any, GenerateMockupsResponse>(
-    "/api/mockups/generate-mockups",
-    formData,
-    {
-      headers: {
-        "Content-Type": "multipart/form-data",
-      },
-    }
-  );
+  return (
+    await axios.post<GenerateMockupsResponse>(
+      "/api/mockups/generate-mockups",
+      formData,
+      { signal },
+    )
+  ).data;
 };
 
-export const autoGeneratePrompts = async (file: File, count: string) => {
+export const autoGeneratePrompts = async (
+  file: File,
+  count: string,
+  signal?: AbortSignal,
+) => {
   const formData = new FormData();
 
   formData.append("image", file);
   formData.append("count", count);
 
-  return await axios.post<any, string[]>(
-    "/api/mockups/generate-prompts",
-    formData,
-    {
-      headers: {
-        "Content-Type": "multipart/form-data",
-      },
-    }
-  );
+  return (
+    await axios.post<string[]>("/api/mockups/generate-prompts", formData, {
+      signal,
+    })
+  ).data;
 };
 
 export type ImageAnalysis = {
   productCategory: string;
   productType: string;
   displayMode: string;
-  primaryColors: [];
+  primaryColors: string[];
   pattern: string;
-  styleKeywords: [];
+  styleKeywords: string[];
   mood: string;
   audience: string;
-  inspiredBy: {
+  inspiredBy?: {
     source: string;
     theme: string;
     setting: string;
     styleReference: string;
   };
-  characters: {
-    hasCharacters: false;
+  characters?: {
+    hasCharacters: boolean;
     characterNames: string[];
     characterType: string[];
     numberOfCharacters: number;
@@ -88,19 +102,18 @@ export type ImageAnalysis = {
     seasonSuitability: string[];
   };
 };
-export const analyzeProductFromImage = async (file: File) => {
+export const analyzeProductFromImage = async (
+  file: File,
+  signal?: AbortSignal,
+) => {
   const formData = new FormData();
   formData.append("image", file);
 
-  return await axios.post<any, ImageAnalysis>(
-    "/api/ideas/analyze-product",
-    formData,
-    {
-      headers: {
-        "Content-Type": "multipart/form-data",
-      },
-    }
-  );
+  return (
+    await axios.post<ImageAnalysis>("/api/ideas/analyze-product", formData, {
+      signal,
+    })
+  ).data;
 };
 
 export type GenerateIdeaReturn = {
@@ -108,28 +121,33 @@ export type GenerateIdeaReturn = {
   prompt: string;
 };
 
-export const generateProductIdeas = async (file: File, basePrompt: string) => {
+export const generateProductIdeas = async (
+  file: File,
+  basePrompt: string,
+  count: number,
+  signal?: AbortSignal,
+) => {
   const formData = new FormData();
   formData.append("image", file);
   formData.append("basePrompt", basePrompt);
+  formData.append("count", String(count));
 
-  return axios.post<any, GenerateIdeaReturn[]>(
-    "/api/ideas/generate-ideas",
-    formData,
-    {
-      headers: {
-        "Content-Type": "multipart/form-data",
-      },
-    }
-  );
+  return (
+    await axios.post<GenerateIdeaReturn[]>(
+      "/api/ideas/generate-ideas",
+      formData,
+      { signal },
+    )
+  ).data;
 };
 
 export const generateImagesFromReferalImages = async (params: {
   productImage: File;
   referenceImages?: File[];
   variations?: number;
+  signal?: AbortSignal;
 }) => {
-  const { productImage, referenceImages, variations } = params;
+  const { productImage, referenceImages, variations, signal } = params;
 
   const formData = new FormData();
 
@@ -145,13 +163,11 @@ export const generateImagesFromReferalImages = async (params: {
     formData.append("variations", variations.toString());
   }
 
-  return axios.post<any, string[]>(
-    "/api/ideas/generate-images-from-referal-images",
-    formData,
-    {
-      headers: {
-        "Content-Type": "multipart/form-data",
-      },
-    }
-  );
+  return (
+    await axios.post<string[]>(
+      "/api/ideas/generate-images-from-referal-images",
+      formData,
+      { signal },
+    )
+  ).data;
 };

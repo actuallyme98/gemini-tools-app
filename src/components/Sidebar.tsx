@@ -72,7 +72,7 @@ const menuItems = [
 
 export function Sidebar({ currentPage, onPageChange }: SidebarProps) {
   return (
-    <aside className="w-64 bg-white border-r border-gray-200 flex flex-col h-screen sticky top-0">
+    <aside className="w-64 shrink-0 bg-white border-r border-gray-200 flex flex-col h-full">
       {/* Logo/Brand */}
       <div className="p-6 border-b border-gray-200">
         <div className="flex items-center gap-3">
@@ -99,25 +99,26 @@ export function Sidebar({ currentPage, onPageChange }: SidebarProps) {
                 key={item.id}
                 onClick={() => !isDisabled && onPageChange(item.id)}
                 disabled={isDisabled}
+                aria-current={isActive ? "page" : undefined}
                 className={cn(
                   "w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left transition-all",
                   isActive &&
                     "bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200",
                   !isActive && !isDisabled && "hover:bg-gray-50",
-                  isDisabled && "opacity-50 cursor-not-allowed"
+                  isDisabled && "opacity-50 cursor-not-allowed",
                 )}
               >
                 <Icon
                   className={cn(
                     "w-5 h-5",
-                    isActive ? "text-blue-600" : "text-gray-400"
+                    isActive ? "text-blue-600" : "text-gray-400",
                   )}
                 />
                 <div className="flex-1">
                   <div
                     className={cn(
                       "text-sm font-medium",
-                      isActive ? "text-blue-900" : "text-gray-700"
+                      isActive ? "text-blue-900" : "text-gray-700",
                     )}
                   >
                     {item.label}
@@ -139,24 +140,8 @@ export function Sidebar({ currentPage, onPageChange }: SidebarProps) {
         </div>
       </nav>
 
-      {/* Footer */}
-      <div className="p-4 border-t border-gray-200">
-        <div className="bg-gradient-to-br from-blue-50 to-purple-50 rounded-lg p-4">
-          <div className="flex items-start gap-3">
-            <Sparkles className="w-5 h-5 text-purple-600 mt-0.5" />
-            <div>
-              <h3 className="text-sm font-semibold text-gray-900">
-                Upgrade to Pro
-              </h3>
-              <p className="text-xs text-gray-600 mt-1">
-                Unlock unlimited features
-              </p>
-              <button className="mt-2 text-xs font-medium text-purple-600 hover:text-purple-700">
-                Learn more →
-              </button>
-            </div>
-          </div>
-        </div>
+      <div className="p-4 border-t text-xs text-gray-600">
+        Công cụ sáng tạo và xử lý ảnh với AI
       </div>
     </aside>
   );

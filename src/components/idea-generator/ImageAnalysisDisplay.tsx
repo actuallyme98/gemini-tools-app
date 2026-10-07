@@ -310,7 +310,7 @@ export function ImageAnalysisDisplay({ analysis }: ImageAnalysisDisplayProps) {
                           >
                             {season}
                           </Badge>
-                        )
+                        ),
                       )}
                     </div>
                   </div>

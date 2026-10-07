@@ -1,73 +1,49 @@
-# React + TypeScript + Vite
+# Gemini Tools App
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+CI/CD và deploy lên server EziHubb: [hướng dẫn production](docs/deployment.md).
 
-Currently, two official plugins are available:
+Frontend React + TypeScript cho Gemini Tools API. Các luồng hiện có: mockup, ý tưởng sản phẩm và chỉnh ảnh từ reference. Provider/model được cấu hình ở backend; khóa AI không được đưa vào frontend.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## Chạy local
 
-## React Compiler
+Dùng Node 22.12+ hoặc Node 20.19+.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```powershell
+npm.cmd ci
+Copy-Item .env.example .env.local
+npm.cmd run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+Frontend mặc định chạy tại http://localhost:5173, proxy /api tới http://localhost:5177. Khởi động API ở thư mục gemini-tools-api và điền credential của backend. VITE_API_PROXY_TARGET được đọc từ .env.local hoặc môi trường của tiến trình.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## Kiểm tra
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```powershell
+npm.cmd run build
+npm.cmd run lint
+npx.cmd playwright install chromium
+npm.cmd run test:e2e
 ```
+
+Playwright tự mở Vite tại cổng 5183 và dùng API giả lập, không gọi provider AI hay R2. Test bao gồm menu mobile/deep link, hủy phân tích cũ, giới hạn upload, số ảnh đầu ra, tải ZIP thiếu ảnh, giữ trạng thái và dashboard.
+
+## Production
+
+Dockerfile build bằng Node 22 và phục vụ file tĩnh bằng Nginx trên cổng 80.
+API_UPSTREAM mặc định api:5177; đổi biến này nếu backend dùng địa chỉ khác. Nginx chuyển tiếp /api, hỗ trợ request tạo ảnh dài và upload nhiều ảnh.
+
+Có thể chạy cả hai dự án bằng compose.yaml trong thư mục API:
+
+```powershell
+docker compose up --build
+```
+
+Truy cập http://localhost:5173. Nếu dùng hai host riêng, cấu hình VITE_API_BASE_URL thành origin của API (không thêm /api) trước khi build; Docker hỗ trợ build arg cùng tên.
+
+Ảnh đầu ra nằm trên R2. Để tải ảnh/ZIP trong trình duyệt, cấu hình bucket/public domain cho phép CORS GET từ origin frontend. Lỗi tải ảnh sẽ hiển thị; ZIP báo chính xác số ảnh tải thành công.
+
+Giới hạn: ảnh PNG/JPEG/WebP tối đa 10MB; 10 ảnh reference; 12 prompt tự động/ý tưởng; 20 prompt thủ công; 1–10 biến thể reference. Số lượng ý tưởng được gửi riêng qua trường count. Mỗi biến thể reference cần một lần tạo ảnh AI.
+
+Điều hướng dùng URL hash, hỗ trợ Back/Forward. Chuyển giữa công cụ giữ nguyên dữ liệu đang làm; reload trang sẽ xóa các file upload và kết quả trong bộ nhớ. Dashboard lưu tối đa 500 hoạt động thành công trên trình duyệt này, không có lịch sử dùng chung giữa thiết bị.
+
+Hủy yêu cầu ngăn phản hồi cũ cập nhật giao diện. Backend dừng các bước còn lại khi client ngắt kết nối; lời gọi đã đến provider có thể vẫn được xử lý.

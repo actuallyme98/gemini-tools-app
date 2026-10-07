@@ -1,3 +1,4 @@
+import { useActivities } from "../utils/activity.util";
 import { Wand2, Image, TrendingUp, Clock, Zap, Star } from "lucide-react";
 import { Card } from "../components/ui/card";
 import { Button } from "../components/ui/button";
@@ -7,11 +8,36 @@ interface HomePageProps {
 }
 
 export function HomePage({ onNavigate }: HomePageProps) {
+  const activities = useActivities();
+  const count = (kind: string) =>
+    activities
+      .filter((item) => item.kind === kind)
+      .reduce((sum, item) => sum + item.count, 0);
   const stats = [
-    { label: "Mockups Created", value: "0", icon: Wand2, color: "blue" },
-    { label: "Images Processed", value: "0", icon: Image, color: "purple" },
-    { label: "Time Saved", value: "0h", icon: Clock, color: "green" },
-    { label: "Success Rate", value: "0%", icon: TrendingUp, color: "orange" },
+    {
+      label: "Mockups Created",
+      value: String(count("mockup")),
+      icon: Wand2,
+      color: "blue",
+    },
+    {
+      label: "Images Processed",
+      value: String(count("image")),
+      icon: Image,
+      color: "purple",
+    },
+    {
+      label: "Ý tưởng đã tạo",
+      value: String(count("ideas")),
+      icon: Clock,
+      color: "green",
+    },
+    {
+      label: "Tổng ảnh đã tạo",
+      value: String(activities.reduce((sum, item) => sum + item.count, 0)),
+      icon: TrendingUp,
+      color: "orange",
+    },
   ];
 
   const quickActions = [
@@ -28,7 +54,6 @@ export function HomePage({ onNavigate }: HomePageProps) {
       description: "Advanced image editing tools",
       icon: Image,
       gradient: "from-purple-500 to-pink-600",
-      disabled: true,
     },
     {
       id: "ai-enhance",
@@ -40,9 +65,10 @@ export function HomePage({ onNavigate }: HomePageProps) {
     },
   ];
 
-  const recentActivity = [
-    { title: "Welcome to Creative Studio!", time: "Just now", type: "info" },
-  ];
+  const recentActivity = activities.slice(0, 8).map((item) => ({
+    title: `Đã tạo ${item.count} ${item.kind === "ideas" ? "ảnh ý tưởng" : item.kind === "mockup" ? "mockup" : "ảnh tham chiếu"}`,
+    time: new Date(item.date).toLocaleString("vi-VN"),
+  }));
 
   return (
     <div className="space-y-6">
@@ -50,8 +76,8 @@ export function HomePage({ onNavigate }: HomePageProps) {
       <div>
         <h2 className="text-3xl font-bold text-gray-900">Dashboard</h2>
         <p className="text-gray-600 mt-2">
-          Chào mừng bạn đến với Creative Studio. Bắt đầu tạo nội dung tuyệt vời
-          ngay hôm nay!
+          Thống kê từ tối đa 500 hoạt động gần nhất trên trình duyệt này. Bắt
+          đầu tạo nội dung ngay hôm nay!
         </p>
       </div>
 
@@ -102,6 +128,18 @@ export function HomePage({ onNavigate }: HomePageProps) {
                 className={`p-6 cursor-pointer transition-all hover:shadow-lg ${
                   action.disabled ? "opacity-50 cursor-not-allowed" : ""
                 }`}
+                role="button"
+                tabIndex={action.disabled ? -1 : 0}
+                aria-disabled={action.disabled}
+                onKeyDown={(e) => {
+                  if (
+                    !action.disabled &&
+                    (e.key === "Enter" || e.key === " ")
+                  ) {
+                    e.preventDefault();
+                    onNavigate(action.id);
+                  }
+                }}
                 onClick={() => !action.disabled && onNavigate(action.id)}
               >
                 <div
@@ -132,6 +170,12 @@ export function HomePage({ onNavigate }: HomePageProps) {
             Recent Activity
           </h3>
           <div className="space-y-4">
+            {!recentActivity.length && (
+              <p className="text-sm text-gray-600">
+                Chưa có hoạt động. Kết quả tạo ảnh sẽ được ghi lại trên trình
+                duyệt này.
+              </p>
+            )}
             {recentActivity.map((activity, index) => (
               <div
                 key={index}

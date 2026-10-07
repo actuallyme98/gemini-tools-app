@@ -1,4 +1,8 @@
-import { useState, useEffect, useCallback } from "react";
+import { useImageInput } from "../hooks/use-image-input";
+import { useRequest } from "../hooks/use-request";
+import { getErrorMessage } from "../services/api.service";
+import { recordActivity } from "../utils/activity.util";
+import { useState, useCallback } from "react";
 import {
   Lightbulb,
   Loader2,
@@ -34,8 +38,11 @@ export interface PromptOptions {
 }
 
 export function IdeaGeneratorPage() {
-  const [sampleImage, setSampleImage] = useState<File | null>(null);
-  const [samplePreview, setSamplePreview] = useState<string | null>(null);
+  const {
+    file: sampleImage,
+    preview: samplePreview,
+    setFile: setSampleImage,
+  } = useImageInput();
   const [analysis, setAnalysis] = useState<ImageAnalysis | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [ideaCount, setIdeaCount] = useState(3);
@@ -43,37 +50,23 @@ export function IdeaGeneratorPage() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [ideas, setIdeas] = useState<GenerateIdeaReturn[]>([]);
   const [showTemplateDialog, setShowTemplateDialog] = useState(false);
-  const [promptTemplate, setPromptTemplate] = useState("");
+  const [editedTemplate, setEditedTemplate] = useState<{
+    source: string;
+    text: string;
+  } | null>(null);
   const [currentStep, setCurrentStep] = useState(1);
-
-  // Update preview when image changes
-  useEffect(() => {
-    if (sampleImage) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setSamplePreview(reader.result as string);
-      };
-      reader.readAsDataURL(sampleImage);
-      setCurrentStep(1);
-      setAnalysis(null);
-      setIdeas([]);
-    } else {
-      setSamplePreview(null);
-      setCurrentStep(1);
-    }
-  }, [sampleImage]);
-
-  useEffect(() => {
-    if (!analysis) {
-      setPromptTemplate("");
-      return;
-    }
-
-    const template = generatePromptTemplate(analysis, promptOptions);
-    setPromptTemplate(template);
-  }, [analysis, ideaCount, promptOptions]);
-
+  const { start, cancel, isCurrent } = useRequest();
+  const generatedTemplate = analysis
+    ? toGenerateNewIdeaPrompt(analysis, promptOptions, ideaCount)
+    : "";
+  const promptTemplate =
+    editedTemplate?.source === generatedTemplate
+      ? editedTemplate.text
+      : generatedTemplate;
+  const setPromptTemplate = (text: string) =>
+    setEditedTemplate({ source: generatedTemplate, text });
   const resetState = useCallback(() => {
+    cancel();
     setAnalysis(null);
     setIsAnalyzing(false);
     setIdeaCount(3);
@@ -81,57 +74,52 @@ export function IdeaGeneratorPage() {
     setIsGenerating(false);
     setIdeas([]);
     setShowTemplateDialog(false);
-    setPromptTemplate("");
+    setEditedTemplate(null);
     setCurrentStep(1);
-  }, []);
-
-  // Mock function to analyze image
+  }, [cancel]);
   const handleAnalyzeImage = async () => {
-    if (!sampleImage) {
-      toast.error("Vui lòng tải ảnh lên trước");
-      return;
-    }
-
+    if (!sampleImage || isAnalyzing || isGenerating) return;
+    const task = start();
+    setIsAnalyzing(true);
     try {
-      setIsAnalyzing(true);
-      const imageAnalysis = await analyzeProductFromImage(sampleImage);
+      const imageAnalysis = await analyzeProductFromImage(
+        sampleImage,
+        task.signal,
+      );
+      if (!isCurrent(task)) return;
       setAnalysis(imageAnalysis);
-      setIsAnalyzing(false);
       setCurrentStep(2);
       toast.success("Đã phân tích ảnh thành công!");
     } catch (error) {
-      setIsAnalyzing(false);
-      toast.error("Phân tích ảnh thất bại. Vui lòng thử lại.");
+      if (isCurrent(task)) toast.error(getErrorMessage(error));
+    } finally {
+      if (isCurrent(task)) setIsAnalyzing(false);
     }
   };
-
-  // Generate default prompt template
-  const generatePromptTemplate = useCallback(
-    (analysis: ImageAnalysis, options: PromptOptions) => {
-      return toGenerateNewIdeaPrompt(analysis, options, ideaCount);
-    },
-    [ideaCount]
-  );
-
-  // Handle generate ideas
   const handleGenerateIdeas = async () => {
-    if (!analysis || !sampleImage) {
-      toast.error("Vui lòng phân tích ảnh trước");
+    if (!analysis || !sampleImage || isGenerating || isAnalyzing) return;
+    if (!promptTemplate.trim() || promptTemplate.length > 20000) {
+      toast.error("Prompt phải có nội dung và không vượt quá 20000 ký tự.");
       return;
     }
-
+    const task = start();
+    setIsGenerating(true);
     try {
-      setIsGenerating(true);
-
-      const results = await generateProductIdeas(sampleImage, promptTemplate);
+      const results = await generateProductIdeas(
+        sampleImage,
+        promptTemplate,
+        ideaCount,
+        task.signal,
+      );
+      if (!isCurrent(task)) return;
       setIdeas((prev) => [...prev, ...results]);
-
-      setIsGenerating(false);
       setCurrentStep(3);
-      toast.success(`Đã tạo ${ideaCount} ý tưởng thành công!`);
+      recordActivity("ideas", results.length);
+      toast.success(`Đã tạo ${results.length} ý tưởng thành công!`);
     } catch (error) {
-      setIsGenerating(false);
-      toast.error("Tạo ý tưởng thất bại. Vui lòng thử lại.");
+      if (isCurrent(task)) toast.error(getErrorMessage(error));
+    } finally {
+      if (isCurrent(task)) setIsGenerating(false);
     }
   };
 
@@ -168,8 +156,8 @@ export function IdeaGeneratorPage() {
                       isCompleted
                         ? "bg-green-500 text-white"
                         : isActive
-                        ? "bg-blue-500 text-white"
-                        : "bg-gray-200 text-gray-500"
+                          ? "bg-blue-500 text-white"
+                          : "bg-gray-200 text-gray-500"
                     }`}
                   >
                     {isCompleted ? "✓" : <Icon className="w-5 h-5" />}
@@ -241,9 +229,6 @@ export function IdeaGeneratorPage() {
               promptOptions={promptOptions}
               onPromptOptionsChange={setPromptOptions}
               onViewTemplate={() => {
-                setPromptTemplate(
-                  generatePromptTemplate(analysis, promptOptions)
-                );
                 setShowTemplateDialog(true);
               }}
               disabled={isGenerating}

@@ -1,11 +1,11 @@
+import { downloadImage, downloadZip } from "../../utils/download.util";
+import { getErrorMessage } from "../../services/api.service";
 import { Download, Copy, Check, Package } from "lucide-react";
 import { Button } from "../ui/button";
 import { Card } from "../ui/card";
 import { useState } from "react";
-import JSZip from "jszip";
-import { toast } from "sonner";
 
-import { fetchWithRetry } from "../../utils/image.util";
+import { toast } from "sonner";
 
 interface ResultSectionProps {
   imageUrls: string[];
@@ -16,23 +16,22 @@ export function ResultSection({ imageUrls }: ResultSectionProps) {
   const [downloading, setDownloading] = useState(false);
 
   const handleCopyUrl = async (url: string, index: number) => {
-    await navigator.clipboard.writeText(url);
+    try {
+      await navigator.clipboard.writeText(url);
+    } catch {
+      toast.error("Không thể copy đường dẫn.");
+      return;
+    }
     setCopiedIndex(index);
     setTimeout(() => setCopiedIndex(null), 2000);
   };
 
   const handleDownloadSingle = async (url: string, index: number) => {
     try {
-      const response = await fetch(url);
-      const blob = await response.blob();
-      const link = document.createElement("a");
-      link.href = URL.createObjectURL(blob);
-      link.download = `mockup-${index + 1}.png`;
-      link.click();
-      URL.revokeObjectURL(link.href);
+      await downloadImage(url, `mockup-${index + 1}.png`);
       toast.success(`Đã tải xuống mockup ${index + 1}`);
     } catch (error) {
-      toast.error("Không thể tải xuống ảnh");
+      toast.error(getErrorMessage(error));
     }
   };
 
@@ -41,29 +40,14 @@ export function ResultSection({ imageUrls }: ResultSectionProps) {
 
     setDownloading(true);
     try {
-      const zip = new JSZip();
-
-      const imagePromises = imageUrls.map(async (url, index) => {
-        try {
-          const blob = await fetchWithRetry(url, 5, 1000);
-          zip.file(`mockup-${index + 1}.png`, blob);
-        } catch (error) {
-          console.error(`Failed after retry image ${index + 1}:`, error);
-        }
-      });
-
-      await Promise.all(imagePromises);
-
-      const zipBlob = await zip.generateAsync({ type: "blob" });
-      const link = document.createElement("a");
-      link.href = URL.createObjectURL(zipBlob);
-      link.download = `mockups-${Date.now()}.zip`;
-      link.click();
-      URL.revokeObjectURL(link.href);
-
-      toast.success(`Đã tải xuống ${imageUrls.length} mockup`);
+      const { downloaded, failed } = await downloadZip(imageUrls, "mockups");
+      if (failed)
+        toast.warning(
+          `Đã tải ${downloaded}/${imageUrls.length} ảnh; ${failed} ảnh bị lỗi.`,
+        );
+      else toast.success(`Đã tải xuống ${downloaded} ảnh`);
     } catch (error) {
-      toast.error("Không thể tải xuống tất cả ảnh");
+      toast.error(getErrorMessage(error));
     } finally {
       setDownloading(false);
     }
@@ -73,7 +57,7 @@ export function ResultSection({ imageUrls }: ResultSectionProps) {
 
   return (
     <Card className="p-6 space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap gap-2 items-center justify-between">
         <h3 className="font-medium">
           Kết Quả ({imageUrls.length} mockup{imageUrls.length > 1 ? "s" : ""})
         </h3>
@@ -119,10 +103,11 @@ export function ResultSection({ imageUrls }: ResultSectionProps) {
             <div className="flex flex-col gap-2">
               <div className="flex items-center gap-2">
                 <input
+                  aria-label={`Đường dẫn ảnh ${index + 1}`}
                   type="text"
                   value={url}
                   readOnly
-                  className="flex-1 px-3 py-2 text-xs border border-gray-300 rounded-md bg-gray-50"
+                  className="min-w-0 flex-1 px-3 py-2 text-xs border border-gray-300 rounded-md bg-gray-50"
                 />
                 <Button
                   variant="outline"
