@@ -6,12 +6,7 @@ SUFFIX="${GITHUB_RUN_ID:-$$}"
 NETWORK="gemini-smoke-$SUFFIX"
 APP="gemini-app-smoke-$SUFFIX"
 API="gemini-api-smoke-$SUFFIX"
-# shellcheck disable=SC2329 # Called by the EXIT trap.
-cleanup() {
-  docker rm -f "$APP" "$API" >/dev/null 2>&1 || true
-  docker network rm "$NETWORK" >/dev/null 2>&1 || true
-}
-trap cleanup EXIT
+trap 'docker rm -f "$APP" "$API" >/dev/null 2>&1 || true; docker network rm "$NETWORK" >/dev/null 2>&1 || true' EXIT
 docker network create --subnet 172.30.42.0/24 "$NETWORK" >/dev/null
 start_api() {
   docker run -d --name "$API" --network "$NETWORK" --network-alias api --ip "$1" \
