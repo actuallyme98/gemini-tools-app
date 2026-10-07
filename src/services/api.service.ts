@@ -247,3 +247,37 @@ export async function getAIProviders(
     })
   ).data;
 }
+
+export type BackgroundReplacement = { url: string; mimeType: string };
+export async function replaceProductBackground(params: {
+  productImage: File;
+  backgroundImage: File;
+  provider: string;
+  instructions?: string;
+  variationIndex: number;
+  signal?: AbortSignal;
+}): Promise<BackgroundReplacement> {
+  const body = new FormData();
+  body.append("productImage", params.productImage);
+  body.append("backgroundImage", params.backgroundImage);
+  body.append("provider", params.provider);
+  body.append("variationIndex", String(params.variationIndex));
+  if (params.instructions) body.append("instructions", params.instructions);
+  return (
+    await axios.post<BackgroundReplacement>("/api/backgrounds/replace", body, {
+      signal: params.signal,
+    })
+  ).data;
+}
+
+export function getApiErrorCode(error: unknown): string | undefined {
+  if (!Axios.isAxiosError(error)) return;
+  const data: unknown = error.response?.data;
+  if (
+    typeof data === "object" &&
+    data !== null &&
+    "code" in data &&
+    typeof data.code === "string"
+  )
+    return data.code;
+}

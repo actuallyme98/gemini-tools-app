@@ -4,6 +4,7 @@ import { HomePage } from "./pages/HomePage";
 import { MockupGeneratorPage } from "./pages/MockupGeneratorPage";
 import { IdeaGeneratorPage } from "./pages/IdeaGeneratorPage";
 import { ImageProcessingPage } from "./pages/ImageProcessingPage";
+import { BackgroundStudioPage } from "./pages/BackgroundStudioPage";
 import { Sidebar } from "./components/Sidebar";
 import { AIProviderProvider } from "./context/AIProviderProvider";
 import { Toaster } from "./components/ui/sonner";
@@ -15,7 +16,13 @@ import {
   SheetDescription,
 } from "./components/ui/sheet";
 
-const pages = ["home", "mockup-generator", "idea-generator", "image-editor"];
+const pages = [
+  "home",
+  "mockup-generator",
+  "background-studio",
+  "idea-generator",
+  "image-editor",
+];
 function currentPage() {
   const page = location.hash.slice(1);
   return pages.includes(page) ? page : "home";
@@ -83,6 +90,12 @@ export default function App() {
                 aria-label="Mockup Generator"
               >
                 <MockupGeneratorPage />
+              </section>
+              <section
+                hidden={page !== "background-studio"}
+                aria-label="Background Studio"
+              >
+                <BackgroundStudioPage />
               </section>
               <section
                 hidden={page !== "idea-generator"}

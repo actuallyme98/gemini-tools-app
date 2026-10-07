@@ -1,5 +1,13 @@
 import { useActivities } from "../utils/activity.util";
-import { Wand2, Image, TrendingUp, Clock, Zap, Star } from "lucide-react";
+import {
+  Wand2,
+  Image,
+  TrendingUp,
+  Clock,
+  Layers,
+  Star,
+  Zap,
+} from "lucide-react";
 import { Card } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 
@@ -22,7 +30,7 @@ export function HomePage({ onNavigate }: HomePageProps) {
     },
     {
       label: "Images Processed",
-      value: String(count("image")),
+      value: String(count("image") + count("background")),
       icon: Image,
       color: "purple",
     },
@@ -56,17 +64,17 @@ export function HomePage({ onNavigate }: HomePageProps) {
       gradient: "from-purple-500 to-pink-600",
     },
     {
-      id: "ai-enhance",
-      title: "AI Enhance",
-      description: "Improve image quality with AI",
-      icon: Zap,
-      gradient: "from-green-500 to-teal-600",
-      disabled: true,
+      id: "background-studio",
+      title: "Background Studio",
+      description: "Một sản phẩm, nhiều background trong một lần tạo",
+      icon: Layers,
+      gradient: "from-blue-500 to-cyan-600",
+      disabled: false,
     },
   ];
 
   const recentActivity = activities.slice(0, 8).map((item) => ({
-    title: `Đã tạo ${item.count} ${item.kind === "ideas" ? "ảnh ý tưởng" : item.kind === "mockup" ? "mockup" : "ảnh tham chiếu"}`,
+    title: `Đã tạo ${item.count} ${item.kind === "ideas" ? "ảnh ý tưởng" : item.kind === "mockup" ? "mockup" : item.kind === "background" ? "ảnh background" : "ảnh tham chiếu"}`,
     time: new Date(item.date).toLocaleString("vi-VN"),
   }));
 

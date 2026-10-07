@@ -11,6 +11,7 @@ interface ImageUploadSectionProps {
   title: string;
   description: string;
   resetState: () => void;
+  disabled?: boolean;
 }
 export function ImageUploadSection({
   image,
@@ -19,9 +20,11 @@ export function ImageUploadSection({
   title,
   description,
   resetState,
+  disabled = false,
 }: ImageUploadSectionProps) {
   const id = useId();
   const selectFile = (file: File) => {
+    if (disabled) return;
     const error = validateImage(file);
     if (error) {
       toast.error(error);
@@ -50,6 +53,7 @@ export function ImageUploadSection({
       <input
         id={id}
         type="file"
+        disabled={disabled}
         accept={IMAGE_ACCEPT}
         aria-label={`Tải ${title}`}
         className="sr-only peer"
@@ -86,6 +90,7 @@ export function ImageUploadSection({
             />
             <Button
               aria-label="Xóa ảnh"
+              disabled={disabled}
               variant="destructive"
               size="sm"
               className="absolute top-2 right-2 min-h-10 min-w-10"

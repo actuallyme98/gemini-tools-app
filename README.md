@@ -4,6 +4,14 @@ CI/CD và deploy lên server EziHubb: [hướng dẫn production](docs/deploymen
 
 Frontend React + TypeScript cho Gemini Tools API. Các luồng hiện có: mockup, ý tưởng sản phẩm và chỉnh ảnh từ reference. Chọn provider AI tại sidebar; lựa chọn được lưu trên trình duyệt và gửi qua trường provider cho yêu cầu tiếp theo. Danh sách và khả năng được lấy từ GET /api/ai/providers. Provider chưa cấu hình bị khóa. Mọi bước AI trong request dùng provider được chọn; tác vụ chưa hỗ trợ/cấu hình báo lỗi trước khi chạy AI, không tự chuyển provider. Giao diện ghi rõ tác vụ nào chưa khả dụng. Lựa chọn đã lưu cũng được giữ khi tải danh sách thất bại hoặc provider không khả dụng. Gemini là lựa chọn mặc định; client luôn gửi provider cụ thể. VyceAI tạm ngưng trong dropdown. Lựa chọn VyceAI hoặc mặc định hệ thống đã lưu trước đây được chuyển sang Gemini. Khóa AI và model vẫn được cấu hình ở backend.
 
+## Background Studio
+
+Tab **Background Studio** (`/#background-studio`) nhận một ảnh sản phẩm gốc và tối đa 10 background tham chiếu. Chọn/bỏ chọn background, chọn 1–3 ảnh cho mỗi background (tối đa 20 kết quả một bộ), thêm ghi chú ánh sáng/vị trí rồi tạo cả bộ. Model giữ thiết kế sản phẩm và tái tạo môi trường từ ảnh tham chiếu; cần kiểm tra chi tiết sản phẩm trong kết quả vì đây là xử lý bằng AI.
+
+Mỗi cặp ảnh được gửi tuần tự qua `POST /api/backgrounds/replace` với `productImage`, `backgroundImage`, `provider`, `variationIndex` và `instructions`. Provider được giữ cố định cho cả lần tạo; ảnh thành công hiện ngay và được giữ khi ảnh khác lỗi. Có thể dừng, thử lại một ảnh hoặc tiếp tục phần chưa xong bằng provider hiện tại. Lỗi thanh toán/xác thực/quota/cấu hình hoặc R2 sẽ tạm dừng phần còn lại. API retry upload riêng để không tạo lại ảnh trong cùng request khi R2 lỗi.
+
+Xem ảnh mở so sánh sản phẩm–background–kết quả. Tải riêng hoặc ZIP toàn bộ ảnh đã xong, tên file theo background/biến thể và giữ đuôi PNG/JPEG/WebP thực tế. Reload trang xóa file/kết quả đang có; chuyển tab vẫn giữ dữ liệu. Dừng không bảo đảm provider ngừng xử lý request đã gửi.
+
 ## Chạy local
 
 Dùng Node 22.12+ hoặc Node 20.19+.
@@ -25,7 +33,7 @@ npx.cmd playwright install chromium
 npm.cmd run test:e2e
 ```
 
-Playwright tự mở Vite tại cổng 5183 và dùng API giả lập, không gọi provider AI hay R2. Test bao gồm menu mobile/deep link, hủy phân tích cũ, giới hạn upload, số ảnh đầu ra, tải ZIP thiếu ảnh, giữ trạng thái và dashboard.
+Playwright tự mở Vite tại cổng 5183 và dùng API giả lập, không gọi provider AI hay R2. Test bao gồm menu mobile/deep link, hủy phân tích cũ, giới hạn upload, số ảnh đầu ra, tải ZIP thiếu ảnh, giữ trạng thái và dashboard. Background Studio kiểm tra gửi đúng từng cặp ảnh, chọn background/biến thể, giữ provider trong hàng đợi, dừng/tiếp tục, retry phần chưa xong, lỗi provider/R2 và tên file ZIP.
 
 ## Production
 

@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from "react";
 type Activity = {
-  kind: "mockup" | "ideas" | "image";
+  kind: "mockup" | "ideas" | "image" | "background";
   count: number;
   date: string;
 };
@@ -20,7 +20,7 @@ function parse(raw: string): Activity[] {
           (item): item is Activity =>
             typeof item === "object" &&
             item !== null &&
-            ["mockup", "ideas", "image"].includes(item.kind) &&
+            ["mockup", "ideas", "image", "background"].includes(item.kind) &&
             Number.isInteger(item.count) &&
             item.count > 0 &&
             typeof item.date === "string",

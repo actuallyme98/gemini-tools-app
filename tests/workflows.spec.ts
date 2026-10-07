@@ -89,6 +89,7 @@ test("mobile menu, deep links and back navigation", async ({ page }) => {
   for (const hash of [
     "home",
     "mockup-generator",
+    "background-studio",
     "idea-generator",
     "image-editor",
   ]) {
@@ -111,6 +112,351 @@ test("mobile menu, deep links and back navigation", async ({ page }) => {
   await expect(page).toHaveURL(/#mockup-generator$/);
   await page.goBack();
   await expect(page).toHaveURL(/#image-editor$/);
+});
+
+async function setupBackgrounds(
+  page: Page,
+  names = ["studio.png", "garden.png"],
+) {
+  await page.goto("/#background-studio");
+  await page
+    .getByRole("combobox", { name: "Provider AI" })
+    .selectOption("gemini");
+  const studio = page.getByRole("region", {
+    name: "Background Studio",
+    exact: true,
+  });
+  await studio
+    .getByLabel("Tải Ảnh sản phẩm gốc", { exact: true })
+    .setInputFiles(image("product.png"));
+  await studio
+    .getByLabel("Thêm ảnh background", { exact: true })
+    .setInputFiles(names.map(image));
+  return studio;
+}
+
+test("background batch sends one product and one selected reference per result, retaining its provider across the queue", async ({
+  page,
+}) => {
+  const bodies: string[] = [];
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route("**/api/backgrounds/replace", async (route) => {
+    bodies.push(route.request().postDataBuffer()!.toString());
+    if (bodies.length === 1) await gate;
+    await route.fulfill({
+      json: {
+        url: `https://cdn.example/background-${bodies.length}.png`,
+        mimeType: "image/png",
+      },
+    });
+  });
+  const studio = await setupBackgrounds(page, [
+    "studio.png",
+    "garden.png",
+    "unused.png",
+  ]);
+  await studio.getByText("unused.png", { exact: true }).click();
+  await expect(
+    studio.getByLabel("Chọn background unused.png", { exact: true }),
+  ).not.toBeChecked();
+  await studio.getByLabel("Kết quả cho mỗi background").selectOption("2");
+  await studio
+    .getByText("Ghi chú về ánh sáng & vị trí (tùy chọn)", { exact: true })
+    .click();
+  await studio
+    .getByLabel("Áp dụng cho cả bộ; sản phẩm vẫn được giữ nguyên.")
+    .fill("soft shadows");
+  await studio.getByRole("button", { name: "Tạo 4 ảnh", exact: true }).click();
+  await expect.poll(() => bodies.length).toBe(1);
+  await expect(studio.getByLabel("Thêm ảnh background")).toBeDisabled();
+  await page
+    .getByRole("combobox", { name: "Provider AI" })
+    .selectOption("shopaikey");
+  release();
+  await expect(
+    studio.getByRole("button", { name: "Tải 4 ảnh (ZIP)", exact: true }),
+  ).toBeEnabled();
+  expect(bodies).toHaveLength(4);
+  await expect(
+    studio.getByRole("progressbar", { name: "Tiến độ thay background" }),
+  ).toHaveAttribute("aria-valuenow", "100");
+  for (const body of bodies) {
+    expect(body).toContain('name="provider"\r\n\r\ngemini');
+    expect(body).toContain('name="productImage"; filename="product.png"');
+    expect(body.match(/name="backgroundImage"/g)).toHaveLength(1);
+    expect(body).not.toContain("unused.png");
+    expect(body).toContain("soft shadows");
+  }
+  expect(
+    bodies.filter((body) => body.includes('filename="studio.png"')),
+  ).toHaveLength(2);
+  expect(
+    bodies.filter((body) => body.includes('filename="garden.png"')),
+  ).toHaveLength(2);
+  expect(
+    bodies.filter((body) => body.includes('name="variationIndex"\r\n\r\n2')),
+  ).toHaveLength(2);
+  await studio
+    .getByRole("button", { name: "Xem kết quả 1", exact: true })
+    .click();
+  const dialog = page.getByRole("dialog");
+  await expect(
+    dialog.getByRole("heading", { name: "Xem kết quả thay background" }),
+  ).toBeVisible();
+  await expect(dialog.getByRole("img")).toHaveCount(3);
+  await page.keyboard.press("Escape");
+  await expect(
+    studio.getByRole("button", { name: "Xem kết quả 1", exact: true }),
+  ).toBeFocused();
+  const downloading = page.waitForEvent("download");
+  await studio
+    .getByRole("button", { name: "Tải 4 ảnh (ZIP)", exact: true })
+    .click();
+  const file = await downloading;
+  const archive = await JSZip.loadAsync(await readFile((await file.path())!));
+  expect(Object.keys(archive.files).sort()).toEqual(
+    [
+      "product__studio__1-v1.png",
+      "product__studio__2-v2.png",
+      "product__garden__3-v1.png",
+      "product__garden__4-v2.png",
+    ].sort(),
+  );
+  await page.getByRole("button", { name: "Dashboard", exact: true }).click();
+  await expect(
+    page.getByText("Đã tạo 1 ảnh background", { exact: true }),
+  ).toHaveCount(4);
+});
+
+test("background failures preserve successes and retry only unfinished references with the current provider", async ({
+  page,
+}) => {
+  const bodies: string[] = [];
+  await page.route("**/api/backgrounds/replace", async (route) => {
+    bodies.push(route.request().postDataBuffer()!.toString());
+    if (bodies.length === 2)
+      return route.fulfill({
+        status: 422,
+        json: {
+          code: "AI_CONTENT_BLOCKED",
+          message: "Background này bị từ chối.",
+          suggestion: "Dùng ảnh tham chiếu khác.",
+          requestId: "background-error",
+        },
+      });
+    await route.fulfill({
+      json: {
+        url: `https://cdn.example/${bodies.length}.png`,
+        mimeType: "image/png",
+      },
+    });
+  });
+  const studio = await setupBackgrounds(page);
+  await studio.getByRole("button", { name: "Tạo 2 ảnh", exact: true }).click();
+  await expect(
+    studio.getByRole("button", {
+      name: "Thử lại background garden.png, ảnh 1",
+      exact: true,
+    }),
+  ).toBeEnabled();
+  await studio.getByText("Chi tiết lỗi", { exact: true }).click();
+  await expect(studio.getByText(/Background này bị từ chối/)).toBeVisible();
+  await expect(studio.getByText(/background-error/)).toBeVisible();
+  await expect(
+    studio.getByRole("button", { name: "Xem kết quả 1", exact: true }),
+  ).toBeVisible();
+  await page
+    .getByRole("combobox", { name: "Provider AI" })
+    .selectOption("shopaikey");
+  await studio
+    .getByRole("button", { name: "Tiếp tục 1 ảnh chưa xong", exact: true })
+    .click();
+  await expect(
+    studio.getByRole("button", { name: "Tải 2 ảnh (ZIP)", exact: true }),
+  ).toBeEnabled();
+  expect(bodies).toHaveLength(3);
+  expect(bodies[2]).toContain('filename="garden.png"');
+  expect(bodies[2]).not.toContain('filename="studio.png"');
+  expect(bodies[2]).toContain('name="provider"\r\n\r\nshopaikey');
+});
+
+test("a billing failure pauses the background queue and can resume on another provider", async ({
+  page,
+}) => {
+  let calls = 0;
+  await page.route("**/api/backgrounds/replace", (route) => {
+    calls++;
+    if (calls === 1)
+      return route.fulfill({
+        status: 503,
+        json: {
+          code: "AI_BILLING_BLOCKED",
+          message: "Thanh toán Gemini bị chặn.",
+          reason: "Billing denied",
+          retryable: false,
+        },
+      });
+    return route.fulfill({
+      json: { url: `https://cdn.example/${calls}.png`, mimeType: "image/png" },
+    });
+  });
+  const studio = await setupBackgrounds(page, [
+    "one.png",
+    "two.png",
+    "three.png",
+  ]);
+  await studio.getByRole("button", { name: "Tạo 3 ảnh", exact: true }).click();
+  await expect(
+    studio.getByRole("button", {
+      name: "Tiếp tục 3 ảnh chưa xong",
+      exact: true,
+    }),
+  ).toBeEnabled();
+  await expect(studio.getByRole("alert")).toContainText(
+    "Thanh toán Gemini bị chặn.",
+  );
+  await expect(studio.getByText("Chưa chạy", { exact: true })).toHaveCount(2);
+  expect(calls).toBe(1);
+  await page
+    .getByRole("combobox", { name: "Provider AI" })
+    .selectOption("shopaikey");
+  await studio
+    .getByRole("button", { name: "Tiếp tục 3 ảnh chưa xong", exact: true })
+    .click();
+  await expect(
+    studio.getByRole("button", { name: "Tải 3 ảnh (ZIP)", exact: true }),
+  ).toBeEnabled();
+  expect(calls).toBe(4);
+  await expect(studio.getByRole("alert")).toHaveCount(0);
+});
+
+test("storage failures pause remaining background work instead of generating more paid images", async ({
+  page,
+}) => {
+  let calls = 0;
+  await page.route("**/api/backgrounds/replace", (route) => {
+    calls++;
+    return route.fulfill({
+      status: 502,
+      json: {
+        code: "STORAGE_ACCESS_DENIED",
+        message: "Không có quyền ghi R2.",
+        retryable: false,
+      },
+    });
+  });
+  const studio = await setupBackgrounds(page);
+  await studio.getByRole("button", { name: "Tạo 2 ảnh", exact: true }).click();
+  await expect(
+    studio.getByRole("button", {
+      name: "Tiếp tục 2 ảnh chưa xong",
+      exact: true,
+    }),
+  ).toBeEnabled();
+  await expect(studio.getByRole("alert")).toContainText(
+    "Không có quyền ghi R2.",
+  );
+  await expect(studio.getByText("Chưa chạy", { exact: true })).toHaveCount(1);
+  expect(calls).toBe(1);
+});
+
+test("stopping a background batch prevents further requests and keeps completed results", async ({
+  page,
+}) => {
+  let calls = 0;
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route("**/api/backgrounds/replace", async (route) => {
+    calls++;
+    if (calls === 2) await gate;
+    await route
+      .fulfill({
+        json: {
+          url: `https://cdn.example/${calls}.png`,
+          mimeType: "image/png",
+        },
+      })
+      .catch(() => {});
+  });
+  const studio = await setupBackgrounds(page, [
+    "one.png",
+    "two.png",
+    "three.png",
+  ]);
+  await studio.getByRole("button", { name: "Tạo 3 ảnh", exact: true }).click();
+  await expect.poll(() => calls).toBe(2);
+  await studio.getByRole("button", { name: "Dừng tạo", exact: true }).click();
+  await expect(studio.getByText("Đã dừng", { exact: true })).toHaveCount(2);
+  await expect(
+    studio.getByRole("button", { name: "Tải 1 ảnh (ZIP)", exact: true }),
+  ).toBeEnabled();
+  release();
+  await studio
+    .getByRole("button", { name: "Tiếp tục 2 ảnh chưa xong", exact: true })
+    .click();
+  await expect(
+    studio.getByRole("button", { name: "Tải 3 ảnh (ZIP)", exact: true }),
+  ).toBeEnabled();
+  expect(calls).toBe(4);
+});
+
+test("background uploads enforce limits and selected output totals on mobile", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  // The provider already defaults to Gemini; its selector is in the closed mobile menu.
+  await page.goto("/#background-studio");
+  const studio = page.getByRole("region", {
+    name: "Background Studio",
+    exact: true,
+  });
+  await studio
+    .getByLabel("Tải Ảnh sản phẩm gốc", { exact: true })
+    .setInputFiles(image("product.png"));
+  await studio.getByLabel("Kết quả cho mỗi background").selectOption("3");
+  await studio
+    .getByLabel("Thêm ảnh background")
+    .setInputFiles(
+      Array.from({ length: 11 }, (_, index) => image(`scene-${index}.png`)),
+    );
+  await expect(studio.getByRole("checkbox")).toHaveCount(10);
+  await expect(
+    studio.getByText("Tối đa 20 ảnh mỗi bộ.", { exact: false }),
+  ).toBeVisible();
+  await expect(
+    studio.getByRole("button", { name: "Tạo 30 ảnh", exact: true }),
+  ).toBeDisabled();
+  await studio.getByLabel("Kết quả cho mỗi background").selectOption("2");
+  await expect(
+    studio.getByRole("button", { name: "Tạo 20 ảnh", exact: true }),
+  ).toBeEnabled();
+  await studio
+    .getByRole("button", { name: "Bỏ chọn tất cả", exact: true })
+    .click();
+  await expect(
+    studio.getByRole("button", { name: "Tạo 0 ảnh", exact: true }),
+  ).toBeDisabled();
+  const firstBackground = studio.getByLabel("Chọn background scene-0.png", {
+    exact: true,
+  });
+  await firstBackground.focus();
+  await firstBackground.press("Space");
+  await expect(firstBackground).toBeChecked();
+  await expect(
+    studio.getByRole("button", { name: "Tạo 2 ảnh", exact: true }),
+  ).toBeEnabled();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(
+    390,
+  );
+  await studio
+    .getByRole("button", { name: "Xóa background scene-0.png", exact: true })
+    .click();
+  await expect(studio.getByRole("checkbox")).toHaveCount(9);
 });
 
 test("disabled VyceAI selection migrates to Gemini and shares selection with mobile", async ({

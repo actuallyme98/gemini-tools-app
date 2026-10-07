@@ -7,6 +7,7 @@ import {
   FileImage,
   Sparkles,
   Lightbulb,
+  Layers,
 } from "lucide-react";
 import { cn } from "./ui/utils";
 import { AIProviderSelect } from "./AIProviderSelect";
@@ -28,6 +29,12 @@ const menuItems = [
     label: "Mockup Generator",
     icon: Wand2,
     description: "Tạo mockup tự động",
+  },
+  {
+    id: "background-studio",
+    label: "Background Studio",
+    icon: Layers,
+    description: "Thay background hàng loạt",
   },
   {
     id: "idea-generator",
