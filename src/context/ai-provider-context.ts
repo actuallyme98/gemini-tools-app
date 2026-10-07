@@ -6,7 +6,7 @@ export const AIProviderContext = createContext<{
   provider: string;
   savedProviderUnavailable: boolean;
   loading: boolean;
-  error: boolean;
+  error: string | null;
   selectProvider: (id: string) => void;
   retry: () => void;
 } | null>(null);

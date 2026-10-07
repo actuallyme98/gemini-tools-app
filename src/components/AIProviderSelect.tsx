@@ -77,7 +77,12 @@ export function AIProviderSelect() {
         {loading ? (
           <p>Đang tải provider…</p>
         ) : error ? (
-          <p>Không tải được danh sách. Lựa chọn hiện tại được giữ nguyên.</p>
+          <>
+            <p>Không tải được danh sách. Lựa chọn hiện tại được giữ nguyên.</p>
+            <p className="text-red-700 whitespace-pre-line break-words">
+              {error}
+            </p>
+          </>
         ) : (
           <>
             {savedProviderUnavailable && (

@@ -47,3 +47,7 @@ Giới hạn: ảnh PNG/JPEG/WebP tối đa 10MB; 10 ảnh reference; 12 prompt 
 Điều hướng dùng URL hash, hỗ trợ Back/Forward. Chuyển giữa công cụ giữ nguyên dữ liệu đang làm; reload trang sẽ xóa các file upload và kết quả trong bộ nhớ. Dashboard lưu tối đa 500 hoạt động thành công trên trình duyệt này, không có lịch sử dùng chung giữa thiết bị.
 
 Hủy yêu cầu ngăn phản hồi cũ cập nhật giao diện. Backend dừng các bước còn lại khi client ngắt kết nối; lời gọi đã đến provider có thể vẫn được xử lý.
+
+## API errors
+
+Failed requests display the API's message, sanitized provider reason, recovery suggestion, and request ID. Error notifications remain visible for 15 seconds with a dismiss button. Provider catalog failures show their error beside the selector. HTTP failures with non-JSON bodies (such as proxy 502 pages) are distinguished from network failures; validation message arrays remain readable.

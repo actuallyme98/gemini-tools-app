@@ -204,13 +204,27 @@ test("provider errors keep the selected provider without a default retry", async
   page,
 }) => {
   let requests = 0;
-  const message = "Provider Gemini không thể xử lý yêu cầu này.";
+  const message =
+    "Gemini từ chối yêu cầu do project hoặc tài khoản thanh toán bị chặn.";
+  const reason = "Lightning dunning decision is deny";
+  const suggestion = "Quản trị viên cần kiểm tra project và Billing.";
   await page.route("**/api/ideas/analyze-product", async (route) => {
     requests++;
     expect(route.request().postData()).toMatch(
       /name="provider"\r\n\r\ngemini\r\n/,
     );
-    await route.fulfill({ status: 400, json: { message } });
+    await route.fulfill({
+      status: 503,
+      json: {
+        statusCode: 503,
+        code: "AI_BILLING_BLOCKED",
+        message,
+        reason,
+        suggestion,
+        requestId: "test-billing-request",
+        retryable: false,
+      },
+    });
   });
   await page.goto("/#idea-generator");
   const select = page.getByRole("combobox", { name: "Provider AI" });
@@ -221,10 +235,72 @@ test("provider errors keep the selected provider without a default retry", async
   await page
     .getByRole("button", { name: "Phân Tích Ảnh", exact: true })
     .click();
-  await expect(page.getByText(message, { exact: true })).toBeVisible();
+  const toast = page.locator('[data-sonner-toast][data-type="error"]');
+  await expect(toast).toContainText(message);
+  await expect(toast).toContainText(reason);
+  await expect(toast).toContainText(suggestion);
+  await expect(toast).toContainText("Mã yêu cầu: test-billing-request");
   await expect(select).toHaveValue("gemini");
   expect(requests).toBe(1);
 });
+
+for (const failure of [
+  {
+    name: "validation",
+    status: 400,
+    body: {
+      message: [
+        "count must not be greater than 12",
+        "provider must be a string",
+      ],
+    },
+    expected: "count must not be greater than 12; provider must be a string",
+  },
+  {
+    name: "gateway HTML",
+    status: 502,
+    body: "<html>Bad Gateway</html>",
+    expected: "Máy chủ hoặc dịch vụ AI đang gặp lỗi (HTTP 502)",
+  },
+  {
+    name: "rate limit without JSON",
+    status: 429,
+    body: {},
+    expected: "Quá nhiều yêu cầu hoặc đã hết quota",
+  },
+  {
+    name: "network failure",
+    status: 0,
+    body: {},
+    expected: "Không kết nối được API",
+  },
+]) {
+  test(`API error shows a useful message for ${failure.name}`, async ({
+    page,
+  }) => {
+    await page.route("**/api/ideas/analyze-product", (route) =>
+      failure.status === 0
+        ? route.abort("failed")
+        : typeof failure.body === "string"
+          ? route.fulfill({
+              status: failure.status,
+              contentType: "text/html",
+              body: failure.body,
+            })
+          : route.fulfill({ status: failure.status, json: failure.body }),
+    );
+    await page.goto("/#idea-generator");
+    await page
+      .getByLabel("Tải Ảnh Sản Phẩm", { exact: true })
+      .setInputFiles(image("product.png"));
+    await page
+      .getByRole("button", { name: "Phân Tích Ảnh", exact: true })
+      .click();
+    await expect(
+      page.locator('[data-sonner-toast][data-type="error"]'),
+    ).toContainText(failure.expected);
+  });
+}
 
 test("unavailable saved provider and catalog failure never replace an explicit choice", async ({
   page,
@@ -251,6 +327,7 @@ test("unavailable saved provider and catalog failure never replace an explicit c
     ),
   ).toBeVisible();
   await expect(select).toHaveValue("offline");
+  await expect(page.getByText("unavailable", { exact: true })).toBeVisible();
   failing = false;
   await page.getByRole("button", { name: "Tải lại provider" }).click();
   await expect(

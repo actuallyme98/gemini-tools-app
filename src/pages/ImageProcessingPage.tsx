@@ -8,10 +8,8 @@ import { Label } from "../components/ui/label";
 import { ImageUploadSection } from "../components/ImageUploadSection";
 import { ResultSection } from "../components/image-processing/ResultSection";
 import { toast } from "sonner";
-import {
-  generateImagesFromReferalImages,
-  getErrorMessage,
-} from "../services/api.service";
+import { generateImagesFromReferalImages } from "../services/api.service";
+import { notifyApiError } from "../utils/api-error-toast";
 import { useImageInput } from "../hooks/use-image-input";
 import { useRequest } from "../hooks/use-request";
 import {
@@ -104,8 +102,7 @@ export function ImageProcessingPage() {
         id: "processing",
       });
     } catch (error) {
-      if (isCurrent(task))
-        toast.error(getErrorMessage(error), { id: "processing" });
+      if (isCurrent(task)) notifyApiError(error, { id: "processing" });
     } finally {
       if (isCurrent(task)) setIsProcessing(false);
     }

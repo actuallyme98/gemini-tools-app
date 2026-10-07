@@ -1,7 +1,7 @@
 import { useAIProvider } from "../hooks/use-ai-provider";
 import { useImageInput } from "../hooks/use-image-input";
 import { useRequest } from "../hooks/use-request";
-import { getErrorMessage } from "../services/api.service";
+import { notifyApiError } from "../utils/api-error-toast";
 import { recordActivity } from "../utils/activity.util";
 import { useState, useCallback } from "react";
 import { Wand2, Loader2 } from "lucide-react";
@@ -56,7 +56,7 @@ export function MockupGeneratorPage() {
       setPrompts(generatedPrompts);
       toast.success(`Đã tạo ${generatedPrompts.length} prompts thành công!`);
     } catch (error) {
-      if (isCurrent(task)) toast.error(getErrorMessage(error));
+      if (isCurrent(task)) notifyApiError(error);
     } finally {
       if (isCurrent(task)) setIsGenerating(false);
     }
@@ -84,7 +84,7 @@ export function MockupGeneratorPage() {
       recordActivity("mockup", results.length);
       toast.success(`Đã tạo ${results.length} mockup thành công!`);
     } catch (error) {
-      if (isCurrent(task)) toast.error(getErrorMessage(error));
+      if (isCurrent(task)) notifyApiError(error);
     } finally {
       if (isCurrent(task)) setIsProcessing(false);
     }

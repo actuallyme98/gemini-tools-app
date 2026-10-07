@@ -6,6 +6,7 @@ import {
 } from "../utils/ai-provider.util";
 import {
   getAIProviders,
+  getErrorMessage,
   type AIProviderCatalog,
 } from "../services/api.service";
 
@@ -25,7 +26,7 @@ export function AIProviderProvider({ children }: { children: ReactNode }) {
   const [selection, setSelection] = useState(readSelection);
   const [catalog, setCatalog] = useState<AIProviderCatalog | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [revision, setRevision] = useState(0);
 
   useEffect(() => {
@@ -43,12 +44,12 @@ export function AIProviderProvider({ children }: { children: ReactNode }) {
         if (controller.signal.aborted) return;
         setCatalog(data);
         setLoading(false);
-        setError(false);
+        setError(null);
       },
-      () => {
+      (error: unknown) => {
         if (controller.signal.aborted) return;
         setLoading(false);
-        setError(true);
+        setError(getErrorMessage(error));
       },
     );
     return () => controller.abort();
@@ -83,7 +84,7 @@ export function AIProviderProvider({ children }: { children: ReactNode }) {
         selectProvider,
         retry: () => {
           setLoading(true);
-          setError(false);
+          setError(null);
           setRevision((value) => value + 1);
         },
       }}

@@ -9,15 +9,58 @@ const axios = Axios.create({
 
 export function getErrorMessage(error: unknown): string {
   if (Axios.isAxiosError(error)) {
-    if (error.code === "ECONNABORTED")
+    if (error.code === "ECONNABORTED" || error.code === "ETIMEDOUT")
       return "Yêu cầu mất quá nhiều thời gian. Hãy thử với ít ảnh hơn.";
-    const data = error.response?.data as { message?: unknown } | undefined;
-    const message = data?.message;
-    if (typeof message === "string") return message;
-    if (Array.isArray(message))
-      return message
-        .filter((item): item is string => typeof item === "string")
-        .join("; ");
+    const raw: unknown = error.response?.data;
+    const data =
+      typeof raw === "object" && raw !== null
+        ? (raw as Record<string, unknown>)
+        : {};
+    const message =
+      typeof data.message === "string"
+        ? data.message.trim()
+        : Array.isArray(data.message)
+          ? data.message
+              .filter(
+                (item): item is string =>
+                  typeof item === "string" && !!item.trim(),
+              )
+              .join("; ")
+          : typeof data.error === "string"
+            ? data.error.trim()
+            : "";
+    const status = error.response?.status;
+    const fallback =
+      status === 413
+        ? "Ảnh tải lên quá lớn. Mỗi ảnh tối đa 10MB."
+        : status === 429
+          ? "Quá nhiều yêu cầu hoặc đã hết quota. Vui lòng chờ rồi thử lại."
+          : status && status >= 500
+            ? `Máy chủ hoặc dịch vụ AI đang gặp lỗi (HTTP ${status}). Vui lòng thử lại sau.`
+            : status
+              ? `API từ chối yêu cầu (HTTP ${status}). Kiểm tra dữ liệu và thử lại.`
+              : "";
+    if (message || fallback) {
+      const parts = [message || fallback];
+      if (
+        typeof data.reason === "string" &&
+        data.reason.trim() &&
+        !parts[0].includes(data.reason)
+      )
+        parts.push(`Nguyên nhân: ${data.reason.trim()}`);
+      if (
+        typeof data.suggestion === "string" &&
+        data.suggestion.trim() &&
+        !parts.join(" ").includes(data.suggestion)
+      )
+        parts.push(data.suggestion.trim());
+      if (
+        typeof data.requestId === "string" &&
+        /^[\w-]{1,80}$/.test(data.requestId)
+      )
+        parts.push(`Mã yêu cầu: ${data.requestId}`);
+      return parts.join("\n");
+    }
     return "Không kết nối được API. Vui lòng kiểm tra kết nối và thử lại.";
   }
   return error instanceof Error
