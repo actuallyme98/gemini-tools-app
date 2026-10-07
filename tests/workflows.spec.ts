@@ -40,7 +40,7 @@ const providerCatalog = {
       name: "VyceAI",
       available: true,
       capabilities: ["text"],
-      routing: { text: "vyceai", vision: "gemini", image: "gemini" },
+      routing: { text: "vyceai", vision: null, image: null },
     },
     {
       id: "shopaikey",
@@ -54,7 +54,7 @@ const providerCatalog = {
       name: "Offline",
       available: false,
       capabilities: [],
-      routing: { text: "gemini", vision: "gemini", image: "gemini" },
+      routing: { text: null, vision: null, image: null },
     },
   ],
 };
@@ -113,7 +113,7 @@ test("mobile menu, deep links and back navigation", async ({ page }) => {
   await expect(page).toHaveURL(/#image-editor$/);
 });
 
-test("provider choice persists, explains fallback and shares selection with mobile", async ({
+test("provider choice persists, explains unsupported tasks and shares selection with mobile", async ({
   page,
 }) => {
   await page.goto("/#home");
@@ -125,7 +125,7 @@ test("provider choice persists, explains fallback and shares selection with mobi
     page.getByText("Văn bản: VyceAI", { exact: true }),
   ).toBeVisible();
   await expect(
-    page.getByText("Tạo / sửa ảnh: Gemini", { exact: true }),
+    page.getByText("Tạo / sửa ảnh: Chưa hỗ trợ / cấu hình", { exact: true }),
   ).toBeVisible();
   await page.reload();
   await expect(select).toHaveValue("vyceai");
@@ -184,7 +184,34 @@ test("selected provider is captured per request for analysis and idea generation
     .toMatch(/name="provider"\r\n\r\nvyceai\r\n/);
 });
 
-test("unavailable saved provider and catalog failure use defaults with retry", async ({
+test("unsupported task errors keep the selected provider without a default retry", async ({
+  page,
+}) => {
+  let requests = 0;
+  const message =
+    "Provider VyceAI chưa hỗ trợ hoặc chưa được cấu hình cho tác vụ phân tích ảnh. Hãy chọn provider khác.";
+  await page.route("**/api/ideas/analyze-product", async (route) => {
+    requests++;
+    expect(route.request().postData()).toMatch(
+      /name="provider"\r\n\r\nvyceai\r\n/,
+    );
+    await route.fulfill({ status: 400, json: { message } });
+  });
+  await page.goto("/#idea-generator");
+  const select = page.getByRole("combobox", { name: "Provider AI" });
+  await select.selectOption("vyceai");
+  await page
+    .getByLabel("Tải Ảnh Sản Phẩm", { exact: true })
+    .setInputFiles(image("product.png"));
+  await page
+    .getByRole("button", { name: "Phân Tích Ảnh", exact: true })
+    .click();
+  await expect(page.getByText(message, { exact: true })).toBeVisible();
+  await expect(select).toHaveValue("vyceai");
+  expect(requests).toBe(1);
+});
+
+test("unavailable saved provider and catalog failure never replace an explicit choice", async ({
   page,
 }) => {
   await page.addInitScript(() =>
@@ -201,22 +228,26 @@ test("unavailable saved provider and catalog failure use defaults with retry", a
   await page.goto("/#idea-generator");
   const select = page.getByRole("combobox", { name: "Provider AI" });
   await expect(
-    page.getByText("Không tải được danh sách. Đang dùng mặc định hệ thống.", {
-      exact: true,
-    }),
+    page.getByText(
+      "Không tải được danh sách. Lựa chọn hiện tại được giữ nguyên.",
+      {
+        exact: true,
+      },
+    ),
   ).toBeVisible();
-  await expect(select).toHaveValue("");
+  await expect(select).toHaveValue("offline");
   failing = false;
   await page.getByRole("button", { name: "Tải lại provider" }).click();
   await expect(
-    page.getByText(
-      "Provider đã lưu không khả dụng. Đang dùng mặc định hệ thống.",
-      { exact: true },
-    ),
+    page.getByText("Provider đã lưu không khả dụng. Hãy chọn provider khác.", {
+      exact: true,
+    }),
   ).toBeVisible();
-  await expect(select).toHaveValue("");
+  await expect(select).toHaveValue("offline");
   await page.route("**/api/ideas/analyze-product", async (route) => {
-    expect(route.request().postData()).not.toContain('name="provider"');
+    expect(route.request().postData()).toMatch(
+      /name="provider"\r\n\r\noffline\r\n/,
+    );
     await route.fulfill({ json: analysis("DEFAULT") });
   });
   await page

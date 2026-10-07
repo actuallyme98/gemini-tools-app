@@ -39,13 +39,8 @@ export function AIProviderProvider({ children }: { children: ReactNode }) {
     return () => controller.abort();
   }, [revision]);
 
-  const provider =
-    !error &&
-    catalog?.providers.some(
-      (entry) => entry.id === selection && entry.available,
-    )
-      ? selection
-      : "";
+  // Never substitute another provider for an explicit user selection.
+  const provider = selection;
 
   const selectProvider = (id: string) => {
     if (
@@ -67,7 +62,12 @@ export function AIProviderProvider({ children }: { children: ReactNode }) {
       value={{
         catalog,
         provider,
-        savedProviderUnavailable: !!catalog && !!selection && !provider,
+        savedProviderUnavailable:
+          !!catalog &&
+          !!selection &&
+          !catalog.providers.some(
+            (entry) => entry.id === selection && entry.available,
+          ),
         loading,
         error,
         selectProvider,

@@ -13,11 +13,13 @@ export function AIProviderSelect() {
     retry,
     savedProviderUnavailable,
   } = useAIProvider();
-  const routing =
-    catalog?.providers.find((entry) => entry.id === provider)?.routing ||
-    catalog?.defaults;
-  const name = (id: string) =>
-    catalog?.providers.find((entry) => entry.id === id)?.name || id;
+  const routing = provider
+    ? catalog?.providers.find((entry) => entry.id === provider)?.routing
+    : catalog?.defaults;
+  const name = (id: string | null) =>
+    id
+      ? catalog?.providers.find((entry) => entry.id === id)?.name || id
+      : "Chưa hỗ trợ / cấu hình";
 
   return (
     <div className="p-4 border-b border-gray-200 space-y-2">
@@ -34,6 +36,12 @@ export function AIProviderSelect() {
           className="h-11 w-full appearance-none rounded-lg border border-blue-200 bg-gradient-to-r from-blue-50 to-purple-50 pl-3 pr-9 text-base md:text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-60"
         >
           <option value="">Mặc định hệ thống</option>
+          {provider &&
+            !catalog?.providers.some((entry) => entry.id === provider) && (
+              <option value={provider} disabled>
+                {provider} (chưa xác minh)
+              </option>
+            )}
           {catalog?.providers.map((entry) => (
             <option key={entry.id} value={entry.id} disabled={!entry.available}>
               {entry.name}
@@ -55,20 +63,20 @@ export function AIProviderSelect() {
         {loading ? (
           <p>Đang tải provider…</p>
         ) : error ? (
-          <p>Không tải được danh sách. Đang dùng mặc định hệ thống.</p>
+          <p>Không tải được danh sách. Lựa chọn hiện tại được giữ nguyên.</p>
         ) : (
-          routing && (
-            <>
-              {savedProviderUnavailable && (
-                <p>
-                  Provider đã lưu không khả dụng. Đang dùng mặc định hệ thống.
-                </p>
-              )}
-              <p>Văn bản: {name(routing.text)}</p>
-              <p>Phân tích ảnh: {name(routing.vision)}</p>
-              <p>Tạo / sửa ảnh: {name(routing.image)}</p>
-            </>
-          )
+          <>
+            {savedProviderUnavailable && (
+              <p>Provider đã lưu không khả dụng. Hãy chọn provider khác.</p>
+            )}
+            {routing && (
+              <>
+                <p>Văn bản: {name(routing.text)}</p>
+                <p>Phân tích ảnh: {name(routing.vision)}</p>
+                <p>Tạo / sửa ảnh: {name(routing.image)}</p>
+              </>
+            )}
+          </>
         )}
       </div>
       {error && (
@@ -81,8 +89,8 @@ export function AIProviderSelect() {
         </button>
       )}
       <p id={`${id}-help`} className="text-xs text-gray-500">
-        Áp dụng cho yêu cầu tiếp theo. Tác vụ chưa được hỗ trợ dùng provider mặc
-        định.
+        Mọi tác vụ dùng provider đã chọn. Tác vụ chưa hỗ trợ sẽ báo lỗi; không
+        tự chuyển provider.
       </p>
     </div>
   );

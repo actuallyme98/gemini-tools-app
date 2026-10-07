@@ -2,7 +2,7 @@
 
 CI/CD và deploy lên server EziHubb: [hướng dẫn production](docs/deployment.md).
 
-Frontend React + TypeScript cho Gemini Tools API. Các luồng hiện có: mockup, ý tưởng sản phẩm và chỉnh ảnh từ reference. Chọn provider AI tại sidebar; lựa chọn được lưu trên trình duyệt và gửi qua trường provider cho yêu cầu tiếp theo. Danh sách và khả năng được lấy từ GET /api/ai/providers. Provider chưa cấu hình bị khóa. Tác vụ chưa được provider hỗ trợ/cấu hình dùng mặc định hệ thống và giao diện hiển thị provider thực tế cho từng tác vụ. Chọn “Mặc định hệ thống” để dùng cấu hình môi trường của API. Khóa AI và model vẫn được cấu hình ở backend.
+Frontend React + TypeScript cho Gemini Tools API. Các luồng hiện có: mockup, ý tưởng sản phẩm và chỉnh ảnh từ reference. Chọn provider AI tại sidebar; lựa chọn được lưu trên trình duyệt và gửi qua trường provider cho yêu cầu tiếp theo. Danh sách và khả năng được lấy từ GET /api/ai/providers. Provider chưa cấu hình bị khóa. Mọi bước AI trong request dùng provider được chọn; tác vụ chưa hỗ trợ/cấu hình báo lỗi trước khi chạy AI, không tự chuyển provider. Giao diện ghi rõ tác vụ nào chưa khả dụng. Lựa chọn đã lưu cũng được giữ khi tải danh sách thất bại hoặc provider không khả dụng. Chọn “Mặc định hệ thống” để dùng cấu hình môi trường của API. Khóa AI và model vẫn được cấu hình ở backend.
 
 ## Chạy local
 
