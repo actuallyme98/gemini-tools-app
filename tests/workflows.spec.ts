@@ -121,6 +121,47 @@ test("mobile menu, deep links and back navigation", async ({ page }) => {
   await expect(page).toHaveURL(/#image-editor$/);
 });
 
+test("image model panel is discoverable with Gemini and opens ShopAIKey models without the mobile menu", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.goto("/#background-studio");
+  const panel = page.getByRole("region", { name: "Cấu hình model ảnh" });
+  await expect(
+    panel.getByRole("heading", { name: "Model tạo / sửa ảnh" }),
+  ).toBeVisible();
+  const choose = panel.getByRole("button", { name: "Chọn model ShopAIKey" });
+  await expect(choose).toBeEnabled();
+  expect((await choose.boundingBox())!.y).toBeLessThan(250);
+  await choose.click();
+  const model = panel.getByRole("combobox", { name: "Model tạo / sửa ảnh" });
+  await expect(model).toBeVisible();
+  await expect(model).toBeEnabled();
+  await expect(model).toHaveValue("gemini-3.1-flash-image-preview");
+  await model.selectOption("gemini-3-pro-image-preview");
+  for (const hash of [
+    "mockup-generator",
+    "idea-generator",
+    "image-editor",
+    "home",
+  ]) {
+    await page.goto("/#" + hash);
+    await expect(model).toBeVisible();
+    await expect(model).toHaveValue("gemini-3-pro-image-preview");
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth),
+    ).toBe(375);
+  }
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await expect(model).toBeVisible();
+  await expect(
+    page.getByRole("combobox", { name: "Model tạo / sửa ảnh" }),
+  ).toHaveCount(1);
+  await expect(page.getByRole("combobox", { name: "Provider AI" })).toHaveValue(
+    "shopaikey",
+  );
+});
+
 async function setupBackgrounds(
   page: Page,
   names = ["studio.png", "garden.png"],
@@ -198,18 +239,20 @@ test("model stays locked across tabs and concurrent requests, then unlocks after
   await expect(model).toBeDisabled();
   await expect(provider).toBeDisabled();
   await page.setViewportSize({ width: 390, height: 844 });
+  await expect(model).toBeVisible();
+  await expect(model).toBeDisabled();
   await page.getByRole("button", { name: "Mở menu" }).click();
-  const mobileModel = page
-    .getByRole("dialog")
-    .getByRole("combobox", { name: "Model tạo / sửa ảnh" });
-  await expect(mobileModel).toBeDisabled();
+  await expect(
+    page.getByRole("dialog").getByRole("combobox", { name: "Provider AI" }),
+  ).toBeDisabled();
   finishReference();
-  await expect(mobileModel).toBeEnabled();
   await expect(
     page.getByRole("dialog").getByRole("combobox", { name: "Provider AI" }),
   ).toBeEnabled();
-  await mobileModel.selectOption("gemini-3.1-flash-image-preview");
-  await expect(mobileModel).toHaveValue("gemini-3.1-flash-image-preview");
+  await page.keyboard.press("Escape");
+  await expect(model).toBeEnabled();
+  await model.selectOption("gemini-3.1-flash-image-preview");
+  await expect(model).toHaveValue("gemini-3.1-flash-image-preview");
 });
 
 test("cancelling unlocks model selection and an old response cannot unlock a new request", async ({
@@ -309,12 +352,9 @@ test("image model selection locks during a background batch, persists and never 
   await page.reload();
   await expect(model).toHaveValue("gemini-3-pro-image-preview");
   await page.setViewportSize({ width: 390, height: 844 });
+  await expect(model).toBeVisible();
+  await expect(model).toHaveValue("gemini-3-pro-image-preview");
   await page.getByRole("button", { name: "Mở menu" }).click();
-  await expect(
-    page
-      .getByRole("dialog")
-      .getByRole("combobox", { name: "Model tạo / sửa ảnh" }),
-  ).toHaveValue("gemini-3-pro-image-preview");
   await page.setViewportSize({ width: 390, height: 640 });
   const sidebar = page.getByRole("dialog").getByRole("complementary");
   expect(
@@ -443,6 +483,9 @@ test("background batch sends one product and one selected reference per result, 
   await expect.poll(() => bodies.length).toBe(1);
   await expect(studio.getByLabel("Thêm ảnh background")).toBeDisabled();
   await expect(customPrompt).toBeDisabled();
+  await expect(
+    page.getByRole("button", { name: "Chọn model ShopAIKey" }),
+  ).toBeDisabled();
   await expect(
     page.getByRole("combobox", { name: "Provider AI" }),
   ).toBeDisabled();

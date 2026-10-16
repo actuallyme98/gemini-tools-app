@@ -6,6 +6,7 @@ import { IdeaGeneratorPage } from "./pages/IdeaGeneratorPage";
 import { ImageProcessingPage } from "./pages/ImageProcessingPage";
 import { BackgroundStudioPage } from "./pages/BackgroundStudioPage";
 import { Sidebar } from "./components/Sidebar";
+import { AIImageModelPanel } from "./components/AIImageModelPanel";
 import { AIProviderProvider } from "./context/AIProviderProvider";
 import { Toaster } from "./components/ui/sonner";
 import { Button } from "./components/ui/button";
@@ -82,6 +83,7 @@ export default function App() {
             className="flex-1 min-w-0 overflow-y-auto"
           >
             <div className="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
+              <AIImageModelPanel />
               <section hidden={page !== "home"} aria-label="Dashboard">
                 <HomePage onNavigate={navigate} />
               </section>

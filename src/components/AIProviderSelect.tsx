@@ -2,7 +2,6 @@ import { useId } from "react";
 import { ChevronDown } from "lucide-react";
 import { useAIProvider } from "../hooks/use-ai-provider";
 import { DEFAULT_AI_PROVIDER } from "../utils/ai-provider.util";
-import { AIImageModelSelect } from "./AIImageModelSelect";
 
 export function AIProviderSelect() {
   const id = useId();
@@ -61,7 +60,6 @@ export function AIProviderSelect() {
           className="pointer-events-none absolute right-3 top-3 h-5 w-5 text-blue-600"
         />
       </div>
-      {provider === "shopaikey" && <AIImageModelSelect />}
       <div
         id={`${id}-status`}
         role="status"

@@ -17,7 +17,7 @@ export function AIImageModelSelect() {
     !!imageModel &&
     !imageModels?.models.some((model) => model.id === imageModel);
   return (
-    <div className="space-y-2 border-t border-gray-200 pt-3">
+    <div className="space-y-2">
       <div className="flex items-center justify-between gap-2">
         <label htmlFor={id} className="text-sm font-medium text-gray-900">
           Model tạo / sửa ảnh
