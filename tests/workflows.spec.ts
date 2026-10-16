@@ -57,6 +57,7 @@ const imageModelCatalog = {
   models: [
     { id: "gemini-3.1-flash-image-preview", name: "Gemini Flash Image" },
     { id: "gemini-3-pro-image-preview", name: "Gemini Pro Image" },
+    { id: "gemini-nano-banana-2.1", name: "Gemini Nano Banana 2.1" },
     { id: "gpt-image-1.5-all", name: "gpt-image-1.5-all" },
     { id: "grok-imagine-image-2.0", name: "grok-imagine-image-2.0" },
   ],
@@ -140,6 +141,9 @@ test("image model panel is discoverable with Gemini and opens ShopAIKey models w
   await expect(model).toBeVisible();
   await expect(model).toBeEnabled();
   await expect(model).toHaveValue("gemini-3.1-flash-image-preview");
+  await model.selectOption("gemini-nano-banana-2.1");
+  await expect(model).toHaveValue("gemini-nano-banana-2.1");
+  await expect(panel).toContainText("Gemini 3.8 Flash và Gemini 4 Argon");
   await model.selectOption("gemini-3-pro-image-preview");
   for (const hash of [
     "mockup-generator",
@@ -399,7 +403,7 @@ test("GPT and Grok image groups send the exact model and preserve selection when
   const model = page.getByRole("combobox", { name: "Model tạo / sửa ảnh" });
   await expect(
     model.locator('optgroup[label="Google · Gemini"] option'),
-  ).toHaveCount(2);
+  ).toHaveCount(3);
   await expect(
     model.locator('optgroup[label="OpenAI · GPT Image"] option'),
   ).toHaveCount(1);
