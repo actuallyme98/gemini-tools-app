@@ -17,6 +17,11 @@ docker run -d --name "$APP" --network "$NETWORK" -p 127.0.0.1:5180:80 "$IMAGE" >
 curl --fail --silent --show-error --max-time 5 --retry 20 --retry-delay 1 --retry-all-errors \
   http://127.0.0.1:5180/healthz
 curl --fail --silent --show-error --max-time 5 http://127.0.0.1:5180/client-route | grep -q '<div id="root">'
+# Both the root document and SPA fallback must revalidate after a deployment.
+for path in / /index.html /client-route; do
+  curl --fail --silent --show-error --head --max-time 5 "http://127.0.0.1:5180$path" |
+    grep -qi '^Cache-Control: no-cache, must-revalidate'
+done
 check_proxy() {
   curl --fail --silent --show-error --max-time 5 --retry 20 --retry-delay 1 --retry-all-errors \
     'http://127.0.0.1:5180/api/health?smoke=1' | grep -q '"uri":"/api/health?smoke=1"'

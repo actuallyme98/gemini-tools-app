@@ -20,5 +20,9 @@ server {
     proxy_read_timeout 1200s;
     proxy_send_timeout 1200s;
   }
+  # Revalidate the entry point so browsers discover newly deployed asset hashes.
+  location = /index.html {
+    add_header Cache-Control "no-cache, must-revalidate" always;
+  }
   location / { try_files $uri $uri/ /index.html; }
 }
