@@ -2,11 +2,19 @@
 
 CI/CD và deploy lên server EziHubb: [hướng dẫn production](docs/deployment.md).
 
-Frontend React + TypeScript cho Gemini Tools API. Các luồng hiện có: mockup, ý tưởng sản phẩm và chỉnh ảnh từ reference. Chọn provider AI tại sidebar; lựa chọn được lưu trên trình duyệt và gửi qua trường provider cho yêu cầu tiếp theo. Danh sách và khả năng được lấy từ GET /api/ai/providers. Provider chưa cấu hình bị khóa. Mọi bước AI trong request dùng provider được chọn; tác vụ chưa hỗ trợ/cấu hình báo lỗi trước khi chạy AI, không tự chuyển provider. Giao diện ghi rõ tác vụ nào chưa khả dụng. Lựa chọn đã lưu cũng được giữ khi tải danh sách thất bại hoặc provider không khả dụng. Gemini là lựa chọn mặc định; client luôn gửi provider cụ thể. VyceAI tạm ngưng trong dropdown. Lựa chọn VyceAI hoặc mặc định hệ thống đã lưu trước đây được chuyển sang Gemini. Khóa AI và model vẫn được cấu hình ở backend.
+Frontend React + TypeScript cho Gemini Tools API: mockup, ý tưởng, chỉnh ảnh từ reference và thay background hàng loạt. Sidebar chọn Gemini (mặc định) hoặc ShopAIKey cho ảnh/vision, lưu lựa chọn trên trình duyệt và lấy khả năng từ GET /api/ai/providers. Provider chưa cấu hình bị khóa. Ảnh luôn dùng provider/model được chọn, không tự fallback. Text có định tuyến riêng VyceAI ưu tiên, ShopAIKey dự phòng khi bật AI_AUTO_TEXT_ROUTING. Lựa chọn VyceAI hoặc mặc định hệ thống cũ được chuyển sang Gemini. Credential và model mặc định chỉ nằm ở backend.
+
+## Provider và model
+
+Khi có tác vụ AI đang xử lý, provider, model và nút tải lại model bị khóa trên cả desktop/mobile, kể cả khi đổi tab. Các lựa chọn chỉ mở lại khi mọi tác vụ kết thúc, lỗi hoặc được hủy; hoàn tất một tác vụ không mở khóa nếu tác vụ khác vẫn đang chạy.
+
+Khi chọn ShopAIKey, sidebar tải danh sách model tạo/chỉnh ảnh từ `GET /api/ai/providers/shopaikey/image-models`. Model được lưu trên trình duyệt và gửi dưới trường `imageModel` cho Mockup Generator, Idea Generator, Image Editor và Background Studio. Có nút tải lại; lỗi catalog/model đã gỡ sẽ ngăn tạo ảnh cho đến khi chọn hợp lệ. Đổi sang Gemini không gửi model ShopAIKey. Một batch giữ lựa chọn lúc bắt đầu; retry dùng lựa chọn hiện tại. Backend chỉ trả các model native Gemini ảnh tương thích với adapter hiện có.
+
+Text có định tuyến tự động độc lập khi API trả `textRouting`: ưu tiên GPT rồi Claude từ VyceAI nội bộ, luôn kiểm tra health trước mỗi lần áp dụng; fallback ShopAIKey nếu không dùng được. VyceAI không xuất hiện trong dropdown ảnh. Phân tích ảnh vẫn dùng vision model của provider ảnh đã chọn.
 
 ## Background Studio
 
-Tab **Background Studio** (`/#background-studio`) nhận một ảnh sản phẩm gốc và tối đa 10 background tham chiếu. Chọn/bỏ chọn background, chọn 1–3 ảnh cho mỗi background (tối đa 20 kết quả một bộ), thêm ghi chú ánh sáng/vị trí rồi tạo cả bộ. Model giữ thiết kế sản phẩm và tái tạo môi trường từ ảnh tham chiếu; cần kiểm tra chi tiết sản phẩm trong kết quả vì đây là xử lý bằng AI.
+Tab **Background Studio** (`/#background-studio`) nhận một ảnh sản phẩm gốc và tối đa 10 background tham chiếu. Chọn/bỏ chọn background, chọn 1–3 ảnh cho mỗi background (tối đa 20 kết quả một bộ), thêm **Custom prompt** rồi tạo cả bộ. Ô prompt luôn hiển thị, tối đa 2000 ký tự, áp dụng cho cả bộ và khóa khi đang tạo. Có thể mô tả thêm bố cục, ánh sáng/vị trí; để trống để dùng ảnh tham chiếu. Model giữ thiết kế sản phẩm và tái tạo môi trường từ ảnh tham chiếu; cần kiểm tra chi tiết sản phẩm trong kết quả vì đây là xử lý bằng AI.
 
 Mỗi cặp ảnh được gửi tuần tự qua `POST /api/backgrounds/replace` với `productImage`, `backgroundImage`, `provider`, `variationIndex` và `instructions`. Provider được giữ cố định cho cả lần tạo; ảnh thành công hiện ngay và được giữ khi ảnh khác lỗi. Có thể dừng, thử lại một ảnh hoặc tiếp tục phần chưa xong bằng provider hiện tại. Lỗi thanh toán/xác thực/quota/cấu hình hoặc R2 sẽ tạm dừng phần còn lại. API retry upload riêng để không tạo lại ảnh trong cùng request khi R2 lỗi.
 

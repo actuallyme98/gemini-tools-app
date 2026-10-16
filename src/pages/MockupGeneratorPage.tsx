@@ -19,7 +19,7 @@ import {
 } from "../services/api.service";
 
 export function MockupGeneratorPage() {
-  const { provider } = useAIProvider();
+  const { provider, imageModel, imageModelReady } = useAIProvider();
   const {
     file: sampleImage,
     preview: samplePreview,
@@ -31,7 +31,7 @@ export function MockupGeneratorPage() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [resultUrls, setResultUrls] = useState<string[]>([]);
-  const { start, cancel, isCurrent } = useRequest();
+  const { start, cancel, isCurrent, finish } = useRequest();
   const resetState = useCallback(() => {
     cancel();
     setPrompts([""]);
@@ -59,11 +59,18 @@ export function MockupGeneratorPage() {
       if (isCurrent(task)) notifyApiError(error);
     } finally {
       if (isCurrent(task)) setIsGenerating(false);
+      finish(task);
     }
   };
   const handleGenerateImages = async () => {
     const validPrompts = prompts.map((p) => p.trim()).filter(Boolean);
-    if (!sampleImage || !validPrompts.length || isProcessing || isGenerating)
+    if (
+      !sampleImage ||
+      !validPrompts.length ||
+      isProcessing ||
+      isGenerating ||
+      !imageModelReady
+    )
       return;
     if (validPrompts.some((p) => p.length > 4000)) {
       toast.error("Mỗi prompt tối đa 4000 ký tự.");
@@ -78,6 +85,7 @@ export function MockupGeneratorPage() {
         validPrompts,
         task.signal,
         provider || undefined,
+        imageModel,
       );
       if (!isCurrent(task)) return;
       setResultUrls(results.map((r) => r.url));
@@ -87,13 +95,15 @@ export function MockupGeneratorPage() {
       if (isCurrent(task)) notifyApiError(error);
     } finally {
       if (isCurrent(task)) setIsProcessing(false);
+      finish(task);
     }
   };
   const canGenerate =
     sampleImage &&
     prompts.some((p) => p.trim()) &&
     !isProcessing &&
-    !isGenerating;
+    !isGenerating &&
+    imageModelReady;
 
   return (
     <div className="space-y-6">

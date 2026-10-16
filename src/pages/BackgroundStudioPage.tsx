@@ -279,27 +279,39 @@ export function BackgroundStudioPage() {
                 ))}
               </select>
             </div>
-            <details className="rounded-lg bg-gray-50 p-3">
-              <summary className="flex min-h-11 cursor-pointer items-center text-sm font-medium text-gray-800">
-                Ghi chú về ánh sáng & vị trí (tùy chọn)
-              </summary>
+            <div className="rounded-lg bg-gray-50 p-4">
               <label
                 htmlFor={`${id}-instructions`}
-                className="mt-3 block text-xs text-gray-600"
+                className="block text-sm font-medium text-gray-900"
               >
-                Áp dụng cho cả bộ; sản phẩm vẫn được giữ nguyên.
+                Custom prompt (tùy chọn)
               </label>
+              <p
+                id={`${id}-instructions-help`}
+                className="mt-1 text-sm text-gray-600"
+              >
+                Mô tả thêm bố cục, ánh sáng hoặc vị trí sản phẩm. Áp dụng cho
+                tất cả background đã chọn và giữ nguyên thiết kế sản phẩm. Để
+                trống để AI xử lý theo ảnh tham chiếu.
+              </p>
               <textarea
                 id={`${id}-instructions`}
+                aria-describedby={`${id}-instructions-help ${id}-instructions-count`}
                 value={studio.instructions}
                 maxLength={2000}
                 disabled={studio.running}
                 onChange={(event) => studio.setInstructions(event.target.value)}
-                rows={3}
-                className="mt-2 w-full rounded-lg border border-gray-300 bg-white p-3 text-base focus-visible:ring-2 focus-visible:ring-blue-600"
-                placeholder="Ví dụ: đặt sản phẩm ở giữa, ánh sáng tự nhiên, bóng đổ nhẹ."
+                rows={4}
+                className="mt-3 w-full rounded-lg border border-gray-300 bg-white p-3 text-base focus-visible:ring-2 focus-visible:ring-blue-600 disabled:cursor-not-allowed disabled:bg-gray-100"
+                placeholder="Ví dụ: đặt sản phẩm ở giữa khung hình, chừa khoảng trống phía trên để thêm chữ, ánh sáng tự nhiên từ bên trái và bóng đổ nhẹ."
               />
-            </details>
+              <p
+                id={`${id}-instructions-count`}
+                className="mt-1 text-right text-xs text-gray-600"
+              >
+                {studio.instructions.length}/2000 ký tự
+              </p>
+            </div>
             {overLimit && (
               <p role="alert" className="text-sm text-red-700">
                 Tối đa {MAX_BACKGROUND_RESULTS} ảnh mỗi bộ. Giảm số background

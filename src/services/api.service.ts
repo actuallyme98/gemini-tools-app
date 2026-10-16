@@ -81,9 +81,11 @@ export const manualGenerateMockups = async (
   prompts: string[],
   signal?: AbortSignal,
   provider?: string,
+  imageModel?: string,
 ) => {
   const formData = new FormData();
   if (provider) formData.append("provider", provider);
+  if (imageModel) formData.append("imageModel", imageModel);
 
   formData.append("image", file);
   formData.append("prompts", JSON.stringify(prompts));
@@ -176,9 +178,11 @@ export const generateProductIdeas = async (
   count: number,
   signal?: AbortSignal,
   provider?: string,
+  imageModel?: string,
 ) => {
   const formData = new FormData();
   if (provider) formData.append("provider", provider);
+  if (imageModel) formData.append("imageModel", imageModel);
   formData.append("image", file);
   formData.append("basePrompt", basePrompt);
   formData.append("count", String(count));
@@ -193,17 +197,25 @@ export const generateProductIdeas = async (
 };
 
 export const generateImagesFromReferalImages = async (params: {
+  imageModel?: string;
   productImage: File;
   referenceImages?: File[];
   variations?: number;
   signal?: AbortSignal;
   provider?: string;
 }) => {
-  const { productImage, referenceImages, variations, signal, provider } =
-    params;
+  const {
+    productImage,
+    referenceImages,
+    variations,
+    signal,
+    provider,
+    imageModel,
+  } = params;
 
   const formData = new FormData();
   if (provider) formData.append("provider", provider);
+  if (imageModel) formData.append("imageModel", imageModel);
 
   formData.append("productImage", productImage);
 
@@ -228,6 +240,7 @@ export const generateImagesFromReferalImages = async (params: {
 
 export type AICapability = "text" | "vision" | "image";
 export type AIProviderCatalog = {
+  textRouting?: { primary: string; fallback: string; healthRequired: true };
   defaults: Record<AICapability, string>;
   providers: {
     id: string;
@@ -250,6 +263,7 @@ export async function getAIProviders(
 
 export type BackgroundReplacement = { url: string; mimeType: string };
 export async function replaceProductBackground(params: {
+  imageModel?: string;
   productImage: File;
   backgroundImage: File;
   provider: string;
@@ -261,6 +275,7 @@ export async function replaceProductBackground(params: {
   body.append("productImage", params.productImage);
   body.append("backgroundImage", params.backgroundImage);
   body.append("provider", params.provider);
+  if (params.imageModel) body.append("imageModel", params.imageModel);
   body.append("variationIndex", String(params.variationIndex));
   if (params.instructions) body.append("instructions", params.instructions);
   return (
@@ -280,4 +295,26 @@ export function getApiErrorCode(error: unknown): string | undefined {
     typeof data.code === "string"
   )
     return data.code;
+}
+
+export type AIImageModelCatalog = {
+  provider: string;
+  defaultModel: string | null;
+  models: { id: string; name: string }[];
+};
+export async function getAIImageModels(
+  provider: string,
+  signal?: AbortSignal,
+  refresh = false,
+): Promise<AIImageModelCatalog> {
+  return (
+    await axios.get<AIImageModelCatalog>(
+      `/api/ai/providers/${encodeURIComponent(provider)}/image-models`,
+      {
+        signal,
+        timeout: 70000,
+        params: refresh ? { refresh: true } : undefined,
+      },
+    )
+  ).data;
 }

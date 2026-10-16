@@ -36,13 +36,6 @@ const providerCatalog = {
       routing: { text: "gemini", vision: "gemini", image: "gemini" },
     },
     {
-      id: "vyceai",
-      name: "VyceAI",
-      available: true,
-      capabilities: ["text"],
-      routing: { text: "vyceai", vision: null, image: null },
-    },
-    {
       id: "shopaikey",
       name: "ShopAIKey",
       available: true,
@@ -56,6 +49,14 @@ const providerCatalog = {
       capabilities: [],
       routing: { text: null, vision: null, image: null },
     },
+  ],
+};
+const imageModelCatalog = {
+  provider: "shopaikey",
+  defaultModel: "gemini-3.1-flash-image-preview",
+  models: [
+    { id: "gemini-3.1-flash-image-preview", name: "Gemini Flash Image" },
+    { id: "gemini-3-pro-image-preview", name: "Gemini Pro Image" },
   ],
 };
 const runtimeErrors = new WeakMap<Page, string[]>();
@@ -74,6 +75,9 @@ test.beforeEach(async ({ page }) => {
   );
   await page.route("**/api/ai/providers", (route) =>
     route.fulfill({ json: providerCatalog }),
+  );
+  await page.route("**/api/ai/providers/shopaikey/image-models*", (route) =>
+    route.fulfill({ json: imageModelCatalog }),
   );
   await page.route("https://cdn.example/**", (route) =>
     route.fulfill({
@@ -94,6 +98,9 @@ test("mobile menu, deep links and back navigation", async ({ page }) => {
     "image-editor",
   ]) {
     await page.goto("/#" + hash);
+    if (hash === "background-studio") {
+      await expect(page.getByLabel("Custom prompt (tùy chọn)")).toBeVisible();
+    }
     expect(await page.locator("main").evaluate((el) => el.scrollWidth)).toBe(
       390,
     );
@@ -135,6 +142,268 @@ async function setupBackgrounds(
   return studio;
 }
 
+test("model stays locked across tabs and concurrent requests, then unlocks after the last failure", async ({
+  page,
+}) => {
+  let finishBackground!: () => void;
+  let finishReference!: () => void;
+  let backgroundCalls = 0;
+  let referenceCalls = 0;
+  await page.route("**/api/backgrounds/replace", async (route) => {
+    backgroundCalls++;
+    await new Promise<void>((resolve) => {
+      finishBackground = resolve;
+    });
+    await route.fulfill({
+      json: {
+        url: "https://cdn.example/background.png",
+        mimeType: "image/png",
+      },
+    });
+  });
+  await page.route(
+    "**/api/ideas/generate-images-from-referal-images",
+    async (route) => {
+      referenceCalls++;
+      await new Promise<void>((resolve) => {
+        finishReference = resolve;
+      });
+      await route.fulfill({
+        status: 422,
+        json: { message: "Ảnh bị từ chối." },
+      });
+    },
+  );
+  const studio = await setupBackgrounds(page, ["scene.png"]);
+  const provider = page.getByRole("combobox", { name: "Provider AI" });
+  await provider.selectOption("shopaikey");
+  const model = page.getByRole("combobox", { name: "Model tạo / sửa ảnh" });
+  await model.selectOption("gemini-3-pro-image-preview");
+  await studio.getByRole("button", { name: "Tạo 1 ảnh", exact: true }).click();
+  await expect.poll(() => backgroundCalls).toBe(1);
+  await page.getByRole("button", { name: "Image Editor", exact: true }).click();
+  await expect(model).toBeDisabled();
+  await page
+    .getByLabel("Tải Ảnh sản phẩm", { exact: true })
+    .setInputFiles(image("product.png"));
+  await page
+    .getByLabel("Tải ảnh tham chiếu", { exact: true })
+    .setInputFiles(image("ref.png"));
+  await page.getByRole("button", { name: "Xử Lý Ảnh", exact: true }).click();
+  await expect.poll(() => referenceCalls).toBe(1);
+  finishBackground();
+  await expect(
+    page.locator('section[aria-label="Background Studio"]'),
+  ).toContainText("1/1 ảnh hoàn tất");
+  await expect(model).toBeDisabled();
+  await expect(provider).toBeDisabled();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole("button", { name: "Mở menu" }).click();
+  const mobileModel = page
+    .getByRole("dialog")
+    .getByRole("combobox", { name: "Model tạo / sửa ảnh" });
+  await expect(mobileModel).toBeDisabled();
+  finishReference();
+  await expect(mobileModel).toBeEnabled();
+  await expect(
+    page.getByRole("dialog").getByRole("combobox", { name: "Provider AI" }),
+  ).toBeEnabled();
+  await mobileModel.selectOption("gemini-3.1-flash-image-preview");
+  await expect(mobileModel).toHaveValue("gemini-3.1-flash-image-preview");
+});
+
+test("cancelling unlocks model selection and an old response cannot unlock a new request", async ({
+  page,
+}) => {
+  const releases: (() => void)[] = [];
+  let oldResponseFinished = false;
+  await page.route("**/api/backgrounds/replace", async (route) => {
+    const index = releases.length;
+    await new Promise<void>((resolve) => releases.push(resolve));
+    await route
+      .fulfill({
+        json: { url: "https://cdn.example/result.png", mimeType: "image/png" },
+      })
+      .catch(() => {});
+    if (index === 0) oldResponseFinished = true;
+  });
+  const studio = await setupBackgrounds(page, ["scene.png"]);
+  await page
+    .getByRole("combobox", { name: "Provider AI" })
+    .selectOption("shopaikey");
+  const model = page.getByRole("combobox", { name: "Model tạo / sửa ảnh" });
+  await model.selectOption("gemini-3-pro-image-preview");
+  await studio.getByRole("button", { name: "Tạo 1 ảnh", exact: true }).click();
+  await expect.poll(() => releases.length).toBe(1);
+  await expect(model).toBeDisabled();
+  await studio.getByRole("button", { name: "Dừng tạo", exact: true }).click();
+  await expect(model).toBeEnabled();
+  await model.selectOption("gemini-3.1-flash-image-preview");
+  await studio
+    .getByRole("button", { name: "Tiếp tục 1 ảnh chưa xong", exact: true })
+    .click();
+  await expect.poll(() => releases.length).toBe(2);
+  releases[0]();
+  await expect.poll(() => oldResponseFinished).toBe(true);
+  await expect(model).toBeDisabled();
+  releases[1]();
+  await expect(
+    studio.getByRole("button", { name: "Tải 1 ảnh (ZIP)", exact: true }),
+  ).toBeEnabled();
+  await expect(model).toBeEnabled();
+});
+
+test("image model selection locks during a background batch, persists and never leaks to Gemini", async ({
+  page,
+}) => {
+  const bodies: string[] = [];
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route("**/api/backgrounds/replace", async (route) => {
+    bodies.push(route.request().postDataBuffer()!.toString());
+    if (bodies.length === 1) await gate;
+    await route.fulfill({
+      json: {
+        url: `https://cdn.example/${bodies.length}.png`,
+        mimeType: "image/png",
+      },
+    });
+  });
+  const studio = await setupBackgrounds(page);
+  const provider = page.getByRole("combobox", { name: "Provider AI" });
+  await provider.selectOption("shopaikey");
+  const model = page.getByRole("combobox", { name: "Model tạo / sửa ảnh" });
+  await expect(model).toHaveValue("gemini-3.1-flash-image-preview");
+  await model.selectOption("gemini-3-pro-image-preview");
+  await studio.getByRole("button", { name: "Tạo 2 ảnh", exact: true }).click();
+  await expect.poll(() => bodies.length).toBe(1);
+  await expect(model).toBeDisabled();
+  await expect(provider).toBeDisabled();
+  await expect(
+    page.getByRole("button", { name: "Tải lại danh sách model ảnh" }),
+  ).toBeDisabled();
+  release();
+  await expect(
+    studio.getByRole("button", { name: "Tải 2 ảnh (ZIP)", exact: true }),
+  ).toBeEnabled();
+  await expect(model).toBeEnabled();
+  await expect(provider).toBeEnabled();
+  await expect(
+    page.getByRole("button", { name: "Tải lại danh sách model ảnh" }),
+  ).toBeEnabled();
+  for (const body of bodies)
+    expect(body).toContain(
+      'name="imageModel"\r\n\r\ngemini-3-pro-image-preview',
+    );
+  await provider.selectOption("gemini");
+  await studio
+    .getByRole("button", { name: "Tạo bộ mới (2 ảnh)", exact: true })
+    .click();
+  await expect.poll(() => bodies.length).toBe(4);
+  expect(bodies[2]).not.toContain('name="imageModel"');
+  expect(bodies[3]).not.toContain('name="imageModel"');
+  await provider.selectOption("shopaikey");
+  await model.selectOption("gemini-3-pro-image-preview");
+  await page.reload();
+  await expect(model).toHaveValue("gemini-3-pro-image-preview");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole("button", { name: "Mở menu" }).click();
+  await expect(
+    page
+      .getByRole("dialog")
+      .getByRole("combobox", { name: "Model tạo / sửa ảnh" }),
+  ).toHaveValue("gemini-3-pro-image-preview");
+  await page.setViewportSize({ width: 390, height: 640 });
+  const sidebar = page.getByRole("dialog").getByRole("complementary");
+  expect(
+    await sidebar.locator("nav").evaluate((element) => element.clientHeight),
+  ).toBeGreaterThan(44);
+  await sidebar.getByRole("button", { name: /^Background Studio/ }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+});
+
+test("model catalog failure preserves the saved model and blocks image generation until a valid selection", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    localStorage.setItem(
+      "creative-studio.ai-image-model.shopaikey",
+      "removed-image-model",
+    );
+  });
+  let calls = 0;
+  await page.route("**/api/ai/providers/shopaikey/image-models*", (route) => {
+    calls++;
+    return calls === 1
+      ? route.fulfill({
+          status: 503,
+          json: { message: "Không tải được model ShopAIKey." },
+        })
+      : route.fulfill({ json: imageModelCatalog });
+  });
+  const studio = await setupBackgrounds(page);
+  await page
+    .getByRole("combobox", { name: "Provider AI" })
+    .selectOption("shopaikey");
+  const model = page.getByRole("combobox", { name: "Model tạo / sửa ảnh" });
+  await expect(
+    page.getByText("Không tải được model ShopAIKey.", { exact: true }),
+  ).toBeVisible();
+  await expect(model).toHaveValue("removed-image-model");
+  await expect(
+    studio.getByRole("button", { name: "Tạo 2 ảnh", exact: true }),
+  ).toBeDisabled();
+  await page
+    .getByRole("button", { name: "Tải lại danh sách model ảnh" })
+    .click();
+  await expect(
+    page.getByText("Model đã lưu không còn khả dụng. Hãy chọn model khác.", {
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(model).toHaveValue("removed-image-model");
+  await model.selectOption("gemini-3-pro-image-preview");
+  await expect(
+    studio.getByRole("button", { name: "Tạo 2 ảnh", exact: true }),
+  ).toBeEnabled();
+});
+
+test("text routing policy is shown independently of image provider and model", async ({
+  page,
+}) => {
+  await page.route("**/api/ai/providers", (route) =>
+    route.fulfill({
+      json: {
+        ...providerCatalog,
+        textRouting: {
+          primary: "vyceai",
+          fallback: "shopaikey",
+          healthRequired: true,
+        },
+      },
+    }),
+  );
+  await page.goto("/#home");
+  await expect(
+    page.getByText("Văn bản: VyceAI (GPT / Claude) → ShopAIKey", {
+      exact: true,
+    }),
+  ).toBeVisible();
+  await page
+    .getByRole("combobox", { name: "Provider AI" })
+    .selectOption("shopaikey");
+  await expect(
+    page.getByRole("combobox", { name: "Model tạo / sửa ảnh" }),
+  ).toBeEnabled();
+  await expect(
+    page.getByText("Văn bản: VyceAI (GPT / Claude) → ShopAIKey", {
+      exact: true,
+    }),
+  ).toBeVisible();
+});
+
 test("background batch sends one product and one selected reference per result, retaining its provider across the queue", async ({
   page,
 }) => {
@@ -163,22 +432,29 @@ test("background batch sends one product and one selected reference per result, 
     studio.getByLabel("Chọn background unused.png", { exact: true }),
   ).not.toBeChecked();
   await studio.getByLabel("Kết quả cho mỗi background").selectOption("2");
-  await studio
-    .getByText("Ghi chú về ánh sáng & vị trí (tùy chọn)", { exact: true })
-    .click();
-  await studio
-    .getByLabel("Áp dụng cho cả bộ; sản phẩm vẫn được giữ nguyên.")
-    .fill("soft shadows");
+  const customPrompt = studio.getByLabel("Custom prompt (tùy chọn)");
+  await expect(customPrompt).toBeVisible();
+  await expect(customPrompt).toHaveAttribute("maxlength", "2000");
+  await customPrompt.fill("soft shadows");
+  await expect(
+    studio.getByText("12/2000 ký tự", { exact: true }),
+  ).toBeVisible();
   await studio.getByRole("button", { name: "Tạo 4 ảnh", exact: true }).click();
   await expect.poll(() => bodies.length).toBe(1);
   await expect(studio.getByLabel("Thêm ảnh background")).toBeDisabled();
-  await page
-    .getByRole("combobox", { name: "Provider AI" })
-    .selectOption("shopaikey");
+  await expect(customPrompt).toBeDisabled();
+  await expect(
+    page.getByRole("combobox", { name: "Provider AI" }),
+  ).toBeDisabled();
   release();
   await expect(
     studio.getByRole("button", { name: "Tải 4 ảnh (ZIP)", exact: true }),
   ).toBeEnabled();
+  await expect(customPrompt).toBeEnabled();
+  await expect(customPrompt).toHaveValue("soft shadows");
+  await page
+    .getByRole("combobox", { name: "Provider AI" })
+    .selectOption("shopaikey");
   expect(bodies).toHaveLength(4);
   await expect(
     studio.getByRole("progressbar", { name: "Tiến độ thay background" }),
@@ -459,7 +735,7 @@ test("background uploads enforce limits and selected output totals on mobile", a
   await expect(studio.getByRole("checkbox")).toHaveCount(9);
 });
 
-test("disabled VyceAI selection migrates to Gemini and shares selection with mobile", async ({
+test("removed VyceAI selection migrates to Gemini and enabled ShopAIKey shares selection with mobile", async ({
   page,
 }) => {
   await page.addInitScript(() => {
@@ -471,7 +747,8 @@ test("disabled VyceAI selection migrates to Gemini and shares selection with mob
   await page.goto("/#home");
   const select = page.getByRole("combobox", { name: "Provider AI" });
   await expect(select).toHaveValue("gemini");
-  await expect(select.locator('option[value="vyceai"]')).toBeDisabled();
+  await expect(select.locator('option[value="vyceai"]')).toHaveCount(0);
+  await expect(select.locator('option[value="shopaikey"]')).toBeEnabled();
   await expect(
     select.getByRole("option", { name: "Mặc định hệ thống", exact: true }),
   ).toHaveCount(0);
@@ -537,13 +814,51 @@ test("selected provider is captured per request for analysis and idea generation
   await expect
     .poll(() => selectedAnalysis)
     .toMatch(/name="provider"\r\n\r\nshopaikey\r\n/);
-  await select.selectOption("gemini");
+  await expect(select).toBeDisabled();
   release();
   await expect(page.getByText("PRODUCT", { exact: true })).toBeVisible();
+  await expect(select).toBeEnabled();
+  await select.selectOption("gemini");
   await page.getByRole("button", { name: /Tạo .* Ý Tưởng/ }).click();
   await expect
     .poll(() => selectedIdeas)
     .toMatch(/name="provider"\r\n\r\ngemini\r\n/);
+});
+
+test("idea generation uses the selected image model while analysis omits that field", async ({
+  page,
+}) => {
+  let analyzed = "";
+  let generated = "";
+  await page.route("**/api/ideas/analyze-product", (route) => {
+    analyzed = route.request().postData() || "";
+    return route.fulfill({ json: analysis("SHOP PRODUCT") });
+  });
+  await page.route("**/api/ideas/generate-ideas", (route) => {
+    generated = route.request().postData() || "";
+    return route.fulfill({
+      json: [{ url: "https://cdn.example/good.png", prompt: "studio" }],
+    });
+  });
+  await page.goto("/#idea-generator");
+  await page
+    .getByRole("combobox", { name: "Provider AI" })
+    .selectOption("shopaikey");
+  await page
+    .getByRole("combobox", { name: "Model tạo / sửa ảnh" })
+    .selectOption("gemini-3-pro-image-preview");
+  await page
+    .getByLabel("Tải Ảnh Sản Phẩm", { exact: true })
+    .setInputFiles(image("product.png"));
+  await page
+    .getByRole("button", { name: "Phân Tích Ảnh", exact: true })
+    .click();
+  await expect(page.getByText("SHOP PRODUCT", { exact: true })).toBeVisible();
+  expect(analyzed).not.toContain('name="imageModel"');
+  await page.getByRole("button", { name: /Tạo .* Ý Tưởng/ }).click();
+  await expect
+    .poll(() => generated)
+    .toContain('name="imageModel"\r\n\r\ngemini-3-pro-image-preview');
 });
 
 test("provider errors keep the selected provider without a default retry", async ({
@@ -783,6 +1098,9 @@ test("references default to three variations and reject an eleventh image", asyn
     "**/api/ideas/generate-images-from-referal-images",
     async (route) => {
       requests++;
+      expect(route.request().postData()).toContain(
+        'name="imageModel"\r\n\r\ngemini-3-pro-image-preview',
+      );
       expect(route.request().postData()).toMatch(
         /name="variations"\r\n\r\n3\r\n/,
       );
@@ -794,7 +1112,10 @@ test("references default to three variations and reject an eleventh image", asyn
   await page.goto("/#image-editor");
   await page
     .getByRole("combobox", { name: "Provider AI" })
-    .selectOption("gemini");
+    .selectOption("shopaikey");
+  await page
+    .getByRole("combobox", { name: "Model tạo / sửa ảnh" })
+    .selectOption("gemini-3-pro-image-preview");
   await page
     .getByLabel("Tải Ảnh sản phẩm", { exact: true })
     .setInputFiles(image("product.png"));
@@ -818,8 +1139,11 @@ test("ZIP reports failed downloads, retains page results and updates dashboard",
   page,
 }) => {
   await page.route("**/api/mockups/generate-mockups", (route) => {
+    expect(route.request().postData()).toContain(
+      'name="imageModel"\r\n\r\ngemini-3-pro-image-preview',
+    );
     expect(route.request().postData()).toMatch(
-      /name="provider"\r\n\r\ngemini\r\n/,
+      /name="provider"\r\n\r\nshopaikey\r\n/,
     );
     return route.fulfill({
       json: {
@@ -834,7 +1158,10 @@ test("ZIP reports failed downloads, retains page results and updates dashboard",
   await page.goto("/#mockup-generator");
   await page
     .getByRole("combobox", { name: "Provider AI" })
-    .selectOption("gemini");
+    .selectOption("shopaikey");
+  await page
+    .getByRole("combobox", { name: "Model tạo / sửa ảnh" })
+    .selectOption("gemini-3-pro-image-preview");
   await page
     .getByLabel("Tải Ảnh Mẫu", { exact: true })
     .setInputFiles(image("product.png"));

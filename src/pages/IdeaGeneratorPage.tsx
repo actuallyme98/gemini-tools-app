@@ -39,7 +39,7 @@ export interface PromptOptions {
 }
 
 export function IdeaGeneratorPage() {
-  const { provider } = useAIProvider();
+  const { provider, imageModel, imageModelReady } = useAIProvider();
   const {
     file: sampleImage,
     preview: samplePreview,
@@ -57,7 +57,7 @@ export function IdeaGeneratorPage() {
     text: string;
   } | null>(null);
   const [currentStep, setCurrentStep] = useState(1);
-  const { start, cancel, isCurrent } = useRequest();
+  const { start, cancel, isCurrent, finish } = useRequest();
   const generatedTemplate = analysis
     ? toGenerateNewIdeaPrompt(analysis, promptOptions, ideaCount)
     : "";
@@ -97,10 +97,18 @@ export function IdeaGeneratorPage() {
       if (isCurrent(task)) notifyApiError(error);
     } finally {
       if (isCurrent(task)) setIsAnalyzing(false);
+      finish(task);
     }
   };
   const handleGenerateIdeas = async () => {
-    if (!analysis || !sampleImage || isGenerating || isAnalyzing) return;
+    if (
+      !analysis ||
+      !sampleImage ||
+      isGenerating ||
+      isAnalyzing ||
+      !imageModelReady
+    )
+      return;
     if (!promptTemplate.trim() || promptTemplate.length > 20000) {
       toast.error("Prompt phải có nội dung và không vượt quá 20000 ký tự.");
       return;
@@ -114,6 +122,7 @@ export function IdeaGeneratorPage() {
         ideaCount,
         task.signal,
         provider || undefined,
+        imageModel,
       );
       if (!isCurrent(task)) return;
       setIdeas((prev) => [...prev, ...results]);
@@ -124,6 +133,7 @@ export function IdeaGeneratorPage() {
       if (isCurrent(task)) notifyApiError(error);
     } finally {
       if (isCurrent(task)) setIsGenerating(false);
+      finish(task);
     }
   };
 
@@ -243,7 +253,7 @@ export function IdeaGeneratorPage() {
           {analysis && (
             <Button
               onClick={handleGenerateIdeas}
-              disabled={isGenerating}
+              disabled={isGenerating || !imageModelReady}
               className="w-full h-12 text-base bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700"
               size="lg"
             >

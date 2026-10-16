@@ -40,6 +40,8 @@ const blockingErrors = new Set([
   "AI_PROVIDER_INVALID",
   "AI_PROVIDER_NOT_CONFIGURED",
   "AI_CAPABILITY_UNAVAILABLE",
+  "AI_IMAGE_MODEL_INVALID",
+  "AI_IMAGE_MODEL_UNSUPPORTED",
   "STORAGE_ACCESS_DENIED",
   "STORAGE_BUCKET_NOT_FOUND",
   "STORAGE_UNAVAILABLE",
@@ -48,8 +50,9 @@ export const MAX_BACKGROUND_RESULTS = 20;
 
 export function useBackgroundStudio() {
   const product = useImageInput();
-  const { provider, catalog, loading } = useAIProvider();
-  const { start, cancel, isCurrent } = useRequest();
+  const { provider, catalog, loading, imageModel, imageModelReady } =
+    useAIProvider();
+  const { start, cancel, isCurrent, finish } = useRequest();
   const [backgrounds, setBackgrounds] = useState<BackgroundSource[]>([]);
   const [jobs, setJobs] = useState<BackgroundJob[]>([]);
   const [variations, setVariations] = useState(1);
@@ -147,6 +150,7 @@ export function useBackgroundStudio() {
   const providerEntry = catalog?.providers.find((item) => item.id === provider);
   const providerReady =
     !loading &&
+    imageModelReady &&
     !!providerEntry?.available &&
     providerEntry.capabilities.includes("image");
   const patchJob = (id: string, patch: Partial<BackgroundJob>) =>
@@ -158,8 +162,11 @@ export function useBackgroundStudio() {
     if (running || !queue.length || !providerReady) return;
     const task = start();
     const chosenProvider = provider;
+    const chosenModel = imageModel;
     setRunning(true);
-    setRunningProvider(providerEntry?.name || provider);
+    setRunningProvider(
+      `${providerEntry?.name || provider}${chosenModel ? ` · ${chosenModel}` : ""}`,
+    );
     setBatchError(null);
     const ids = new Set(queue.map((job) => job.id));
     setJobs((items) =>
@@ -178,6 +185,7 @@ export function useBackgroundStudio() {
             productImage: job.product,
             backgroundImage: job.file,
             provider: chosenProvider,
+            imageModel: chosenModel,
             instructions: job.instructions,
             variationIndex: job.variation,
             signal: task.signal,
@@ -217,6 +225,7 @@ export function useBackgroundStudio() {
         );
     } finally {
       if (isCurrent(task)) setRunning(false);
+      finish(task);
     }
   };
   const generate = async () => {

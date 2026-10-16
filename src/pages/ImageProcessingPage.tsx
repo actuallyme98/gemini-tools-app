@@ -20,7 +20,7 @@ import {
 import { recordActivity } from "../utils/activity.util";
 
 export function ImageProcessingPage() {
-  const { provider } = useAIProvider();
+  const { provider, imageModel, imageModelReady } = useAIProvider();
   const {
     file: productFile,
     preview: productImage,
@@ -40,7 +40,7 @@ export function ImageProcessingPage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [enableMultipleOutput, setEnableMultipleOutput] = useState(false);
   const [variations, setVariations] = useState(3);
-  const { start, cancel, isCurrent } = useRequest();
+  const { start, cancel, isCurrent, finish } = useRequest();
   const invalidate = useCallback(() => {
     cancel();
     setIsProcessing(false);
@@ -82,7 +82,8 @@ export function ImageProcessingPage() {
     setEnableMultipleOutput(false);
   };
   const submit = async () => {
-    if (!productFile || !references.length || isProcessing) return;
+    if (!productFile || !references.length || isProcessing || !imageModelReady)
+      return;
     const task = start();
     setIsProcessing(true);
     setResultImages([]);
@@ -94,6 +95,7 @@ export function ImageProcessingPage() {
         variations: enableMultipleOutput ? variations : 1,
         signal: task.signal,
         provider: provider || undefined,
+        imageModel,
       });
       if (!isCurrent(task)) return;
       setResultImages(result);
@@ -105,6 +107,7 @@ export function ImageProcessingPage() {
       if (isCurrent(task)) notifyApiError(error, { id: "processing" });
     } finally {
       if (isCurrent(task)) setIsProcessing(false);
+      finish(task);
     }
   };
   return (
@@ -227,7 +230,12 @@ export function ImageProcessingPage() {
       <div className="flex flex-wrap gap-3">
         <Button
           onClick={submit}
-          disabled={!productFile || !references.length || isProcessing}
+          disabled={
+            !productFile ||
+            !references.length ||
+            isProcessing ||
+            !imageModelReady
+          }
           className="min-h-12"
         >
           <Wand2 className="w-5 h-5 mr-2" />
