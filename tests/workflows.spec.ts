@@ -57,6 +57,8 @@ const imageModelCatalog = {
   models: [
     { id: "gemini-3.1-flash-image-preview", name: "Gemini Flash Image" },
     { id: "gemini-3-pro-image-preview", name: "Gemini Pro Image" },
+    { id: "gpt-image-1.5-all", name: "gpt-image-1.5-all" },
+    { id: "grok-imagine-image-2.0", name: "grok-imagine-image-2.0" },
   ],
 };
 const runtimeErrors = new WeakMap<Page, string[]>();
@@ -362,6 +364,67 @@ test("image model selection locks during a background batch, persists and never 
   ).toBeGreaterThan(44);
   await sidebar.getByRole("button", { name: /^Background Studio/ }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
+});
+
+test("GPT and Grok image groups send the exact model and preserve selection when an account channel is unavailable", async ({
+  page,
+}) => {
+  const bodies: string[] = [];
+  await page.route("**/api/backgrounds/replace", async (route) => {
+    const body = route.request().postDataBuffer()!.toString();
+    bodies.push(body);
+    if (body.includes('name="imageModel"\r\n\r\ngrok-imagine-image-2.0')) {
+      await route.fulfill({
+        status: 503,
+        json: {
+          code: "AI_MODEL_UNAVAILABLE",
+          message:
+            "ShopAIKey: model đã chọn chưa có kênh phục vụ trong nhóm tài khoản hiện tại.",
+          reason:
+            "No available channel for model grok-imagine-image-2.0 under group cheap",
+          retryable: false,
+        },
+      });
+    } else {
+      await route.fulfill({
+        json: {
+          url: "https://cdn.example/gpt-output.png",
+          mimeType: "image/png",
+        },
+      });
+    }
+  });
+  const studio = await setupBackgrounds(page, ["scene.png"]);
+  await page.getByRole("button", { name: "Chọn model ShopAIKey" }).click();
+  const model = page.getByRole("combobox", { name: "Model tạo / sửa ảnh" });
+  await expect(
+    model.locator('optgroup[label="Google · Gemini"] option'),
+  ).toHaveCount(2);
+  await expect(
+    model.locator('optgroup[label="OpenAI · GPT Image"] option'),
+  ).toHaveCount(1);
+  await expect(
+    model.locator('optgroup[label="xAI · Grok Imagine"] option'),
+  ).toHaveCount(1);
+  await model.selectOption("gpt-image-1.5-all");
+  await studio.getByRole("button", { name: "Tạo 1 ảnh", exact: true }).click();
+  await expect(
+    studio.getByRole("button", { name: "Tải 1 ảnh (ZIP)", exact: true }),
+  ).toBeEnabled();
+  expect(bodies[0]).toContain('name="imageModel"\r\n\r\ngpt-image-1.5-all');
+  await model.selectOption("grok-imagine-image-2.0");
+  await expect(page.getByText(/Grok nhận tối đa 5 ảnh/)).toBeVisible();
+  await studio
+    .getByRole("button", { name: "Tạo bộ mới (1 ảnh)", exact: true })
+    .click();
+  await expect(studio).toContainText("chưa có kênh phục vụ");
+  await expect(model).toBeEnabled();
+  await expect(model).toHaveValue("grok-imagine-image-2.0");
+  expect(bodies).toHaveLength(2);
+  expect(bodies[1]).toContain('name="provider"\r\n\r\nshopaikey');
+  expect(bodies[1]).toContain(
+    'name="imageModel"\r\n\r\ngrok-imagine-image-2.0',
+  );
 });
 
 test("model catalog failure preserves the saved model and blocks image generation until a valid selection", async ({

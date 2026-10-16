@@ -16,6 +16,25 @@ export function AIImageModelSelect() {
   const missing =
     !!imageModel &&
     !imageModels?.models.some((model) => model.id === imageModel);
+  const modelGroups = [
+    {
+      label: "Google · Gemini",
+      matches: (id: string) => id.startsWith("gemini-"),
+    },
+    {
+      label: "OpenAI · GPT Image",
+      matches: (id: string) => id.startsWith("gpt-image-"),
+    },
+    {
+      label: "xAI · Grok Imagine",
+      matches: (id: string) => id.startsWith("grok-imagine-image"),
+    },
+    {
+      label: "Model khác",
+      matches: (id: string) =>
+        !/^(gemini-|gpt-image-|grok-imagine-image)/.test(id),
+    },
+  ];
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between gap-2">
@@ -55,12 +74,21 @@ export function AIImageModelSelect() {
             {imageModel} ({imageModels ? "không khả dụng" : "chưa xác minh"})
           </option>
         )}
-        {imageModels?.models.map((model) => (
-          <option key={model.id} value={model.id}>
-            {model.name}
-            {model.id === imageModels.defaultModel ? " (mặc định)" : ""}
-          </option>
-        ))}
+        {modelGroups.map((group) => {
+          const models = imageModels?.models.filter((model) =>
+            group.matches(model.id),
+          );
+          return models?.length ? (
+            <optgroup key={group.label} label={group.label}>
+              {models.map((model) => (
+                <option key={model.id} value={model.id}>
+                  {model.name}
+                  {model.id === imageModels?.defaultModel ? " (mặc định)" : ""}
+                </option>
+              ))}
+            </optgroup>
+          ) : null;
+        })}
       </select>
       <div
         id={`${id}-status`}
@@ -86,6 +114,8 @@ export function AIImageModelSelect() {
       </div>
       <p id={`${id}-help`} className="text-xs text-gray-500">
         Áp dụng khi tạo hoặc chỉnh ảnh. Phân tích ảnh dùng model riêng.
+        {imageModel?.startsWith("grok-imagine-image") &&
+          " Grok nhận tối đa 5 ảnh, gồm sản phẩm gốc và 4 ảnh tham chiếu."}
       </p>
     </div>
   );
