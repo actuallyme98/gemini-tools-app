@@ -9,6 +9,7 @@ import { AIProviderContext } from "./ai-provider-context";
 import {
   DEFAULT_AI_PROVIDER,
   normalizeSavedAIProvider,
+  isVisibleAIProvider,
 } from "../utils/ai-provider.util";
 import {
   getAIProviders,
@@ -120,6 +121,7 @@ export function AIProviderProvider({ children }: { children: ReactNode }) {
     if (
       activeRequests.current.size > 0 ||
       !id ||
+      !isVisibleAIProvider(id) ||
       !catalog?.providers.some((entry) => entry.id === id && entry.available)
     )
       return;

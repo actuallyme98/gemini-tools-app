@@ -2,13 +2,13 @@
 
 CI/CD và deploy lên server EziHubb: [hướng dẫn production](docs/deployment.md).
 
-Frontend React + TypeScript cho Gemini Tools API: mockup, ý tưởng, chỉnh ảnh từ reference và áp hình in vào ảnh tham chiếu hàng loạt. Sidebar chọn Gemini (mặc định) hoặc ShopAIKey cho ảnh/vision, lưu lựa chọn trên trình duyệt và lấy khả năng từ GET /api/ai/providers. Provider chưa cấu hình bị khóa. Ảnh luôn dùng provider/model được chọn, không tự fallback. Text có định tuyến riêng VyceAI ưu tiên, ShopAIKey dự phòng khi bật AI_AUTO_TEXT_ROUTING. Lựa chọn VyceAI hoặc mặc định hệ thống cũ được chuyển sang Gemini. Credential và model mặc định chỉ nằm ở backend.
+Frontend React + TypeScript cho Gemini Tools API: mockup, ý tưởng, chỉnh ảnh từ reference và áp hình in vào ảnh tham chiếu hàng loạt. Sidebar mặc định chọn Provider 1 (ShopAIKey), lưu lựa chọn trên trình duyệt và lấy khả năng từ GET /api/ai/providers. Gemini bị ẩn khỏi danh sách chọn; lựa chọn Gemini/VyceAI/mặc định hệ thống cũ được chuyển sang Provider 1. Provider chưa cấu hình bị khóa. Ảnh luôn dùng provider/model được chọn, không tự fallback. Text có định tuyến riêng VyceAI ưu tiên, ShopAIKey dự phòng khi bật AI_AUTO_TEXT_ROUTING. Credential và model mặc định chỉ nằm ở backend.
 
 ## Provider và model
 
 Khi có tác vụ AI đang xử lý, provider, model và nút tải lại model bị khóa trên cả desktop/mobile, kể cả khi đổi tab. Các lựa chọn chỉ mở lại khi mọi tác vụ kết thúc, lỗi hoặc được hủy; hoàn tất một tác vụ không mở khóa nếu tác vụ khác vẫn đang chạy.
 
-Khung **Model tạo / sửa ảnh** nằm ở đầu nội dung trên mọi trang, hiển thị trực tiếp trên cả desktop và mobile. Khi dùng Gemini, nút **Chọn model ShopAIKey** chuyển provider và tải danh sách model từ `GET /api/ai/providers/shopaikey/image-models`. Khi đã chọn ShopAIKey trong sidebar, danh sách cũng hiện tại khung này, nhóm theo **Google · Gemini**, **OpenAI · GPT Image** và **xAI · Grok Imagine**. Model được lưu trên trình duyệt và gửi dưới trường `imageModel` cho Mockup Generator, Idea Generator, Image Editor và Mockup Studio. Có nút tải lại; lỗi catalog/model đã gỡ sẽ ngăn tạo ảnh cho đến khi chọn hợp lệ. Đổi sang Gemini không gửi model ShopAIKey. Một batch giữ lựa chọn lúc bắt đầu; retry dùng lựa chọn hiện tại. Backend gọi API phù hợp với model đã chọn. Grok nhận tối đa 5 ảnh gồm sản phẩm gốc; tài khoản chưa có kênh cho model sẽ nhận lỗi rõ ràng và không tự chuyển model.
+Khung **Model tạo / sửa ảnh** nằm ở đầu nội dung trên mọi trang, hiển thị trực tiếp trên cả desktop và mobile. Provider 1 tự tải danh sách model từ `GET /api/ai/providers/shopaikey/image-models`, nhóm theo **Google · Gemini**, **OpenAI · GPT Image** và **xAI · Grok Imagine**. Model được lưu trên trình duyệt và gửi dưới trường `imageModel` cho Mockup Generator, Idea Generator, Image Editor và Mockup Studio. Có nút tải lại; lỗi catalog/model đã gỡ sẽ ngăn tạo ảnh cho đến khi chọn hợp lệ. Một batch giữ lựa chọn lúc bắt đầu; retry dùng lựa chọn hiện tại. Backend gọi API phù hợp với model đã chọn. Grok nhận tối đa 5 ảnh gồm sản phẩm gốc; tài khoản chưa có kênh cho model sẽ nhận lỗi rõ ràng và không tự chuyển model.
 
 Text có định tuyến tự động độc lập khi API trả `textRouting`: ưu tiên GPT rồi Claude từ VyceAI nội bộ, luôn kiểm tra health trước mỗi lần áp dụng; fallback ShopAIKey nếu không dùng được. VyceAI không xuất hiện trong dropdown ảnh. Phân tích ảnh vẫn dùng vision model của provider ảnh đã chọn.
 
@@ -68,4 +68,8 @@ Hủy yêu cầu ngăn phản hồi cũ cập nhật giao diện. Backend dừng
 
 ## API errors
 
+Tên provider trên giao diện dùng nhãn cố định: **Provider 1** cho ShopAIKey, được chọn mặc định và đứng đầu danh sách. Gemini được ẩn khỏi ô chọn; các lựa chọn Gemini/VyceAI đã lưu trước đây chuyển sang Provider 1. Các trạng thái và thông báo lỗi dùng nhãn trung lập; định tuyến text tự động hiển thị trung lập. ID gửi API và lựa chọn đã lưu vẫn dùng ID nội bộ.
+
 Failed requests display the API's message, sanitized provider reason, recovery suggestion, and request ID. Error notifications remain visible for 15 seconds with a dismiss button. Provider catalog failures show their error beside the selector. HTTP failures with non-JSON bodies (such as proxy 502 pages) are distinguished from network failures; validation message arrays remain readable.
+
+Mockup Studio hiển thị **Mã yêu cầu** trên từng ảnh thành công hoặc thất bại. Gửi mã này khi cần kiểm tra prompt, ảnh đầu vào, model thực tế và kết quả trong log riêng của API. Mỗi lần thử lại có mã mới; các ảnh đã xong giữ mã cũ. Hướng dẫn tra cứu và thời hạn lưu nằm trong `docs/audit-logs.md` của repository API. Không có dữ liệu hồi tố cho các request trước khi tính năng log được triển khai.

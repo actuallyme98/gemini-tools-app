@@ -1,7 +1,11 @@
 import { useId } from "react";
 import { ChevronDown } from "lucide-react";
 import { useAIProvider } from "../hooks/use-ai-provider";
-import { DEFAULT_AI_PROVIDER } from "../utils/ai-provider.util";
+import {
+  DEFAULT_AI_PROVIDER,
+  getAIProviderLabel,
+  isVisibleAIProvider,
+} from "../utils/ai-provider.util";
 
 export function AIProviderSelect() {
   const id = useId();
@@ -18,10 +22,13 @@ export function AIProviderSelect() {
   const routing = catalog?.providers.find(
     (entry) => entry.id === provider,
   )?.routing;
-  const name = (id: string | null) =>
-    id
-      ? catalog?.providers.find((entry) => entry.id === id)?.name || id
-      : "Chưa hỗ trợ / cấu hình";
+  const visibleProviders = (catalog?.providers ?? [])
+    .filter((entry) => isVisibleAIProvider(entry.id))
+    .sort(
+      (a, b) =>
+        Number(b.id === DEFAULT_AI_PROVIDER) -
+        Number(a.id === DEFAULT_AI_PROVIDER),
+    );
 
   return (
     <div className="p-4 border-b border-gray-200 space-y-2 shrink-0 max-h-[60dvh] overflow-y-auto">
@@ -38,15 +45,15 @@ export function AIProviderSelect() {
           className="h-11 w-full appearance-none rounded-lg border border-blue-200 bg-gradient-to-r from-blue-50 to-purple-50 pl-3 pr-9 text-base md:text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-60"
         >
           {provider &&
-            !catalog?.providers.some((entry) => entry.id === provider) && (
+            isVisibleAIProvider(provider) &&
+            !visibleProviders.some((entry) => entry.id === provider) && (
               <option value={provider} disabled>
-                {provider === DEFAULT_AI_PROVIDER ? "Gemini" : provider} (chưa
-                xác minh)
+                {getAIProviderLabel(provider)} (chưa xác minh)
               </option>
             )}
-          {catalog?.providers.map((entry) => (
+          {visibleProviders.map((entry) => (
             <option key={entry.id} value={entry.id} disabled={!entry.available}>
-              {entry.name}
+              {getAIProviderLabel(entry.id)}
               {!entry.available
                 ? " (chưa cấu hình)"
                 : entry.id === DEFAULT_AI_PROVIDER
@@ -90,11 +97,11 @@ export function AIProviderSelect() {
                 <p>
                   Văn bản:{" "}
                   {catalog?.textRouting
-                    ? "VyceAI (GPT / Claude) → ShopAIKey"
-                    : name(routing.text)}
+                    ? "Tự động (có dự phòng)"
+                    : getAIProviderLabel(routing.text)}
                 </p>
-                <p>Phân tích ảnh: {name(routing.vision)}</p>
-                <p>Tạo / sửa ảnh: {name(routing.image)}</p>
+                <p>Phân tích ảnh: {getAIProviderLabel(routing.vision)}</p>
+                <p>Tạo / sửa ảnh: {getAIProviderLabel(routing.image)}</p>
               </>
             )}
           </>
@@ -112,7 +119,7 @@ export function AIProviderSelect() {
       )}
       <p id={`${id}-help`} className="text-xs text-gray-500">
         {catalog?.textRouting
-          ? "Text kiểm tra health trước khi dùng VyceAI; tự chuyển sang ShopAIKey khi cần. Ảnh dùng provider và model bạn chọn."
+          ? "Văn bản được xử lý tự động với dịch vụ dự phòng. Ảnh dùng provider và model bạn chọn."
           : "Mọi tác vụ dùng provider đã chọn. Tác vụ chưa hỗ trợ sẽ báo lỗi; không tự chuyển provider."}
       </p>
     </div>

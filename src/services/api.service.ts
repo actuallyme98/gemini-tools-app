@@ -1,4 +1,5 @@
 import Axios from "axios";
+import { maskAIProviderNames } from "../utils/ai-provider.util";
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
 
@@ -59,12 +60,12 @@ export function getErrorMessage(error: unknown): string {
         /^[\w-]{1,80}$/.test(data.requestId)
       )
         parts.push(`Mã yêu cầu: ${data.requestId}`);
-      return parts.join("\n");
+      return maskAIProviderNames(parts.join("\n"));
     }
     return "Không kết nối được API. Vui lòng kiểm tra kết nối và thử lại.";
   }
   return error instanceof Error
-    ? error.message
+    ? maskAIProviderNames(error.message)
     : "Đã có lỗi xảy ra. Vui lòng thử lại.";
 }
 
@@ -261,7 +262,11 @@ export async function getAIProviders(
   ).data;
 }
 
-export type BackgroundReplacement = { url: string; mimeType: string };
+export type BackgroundReplacement = {
+  url: string;
+  mimeType: string;
+  requestId?: string;
+};
 export async function replaceProductBackground(params: {
   imageModel?: string;
   productImage: File;
@@ -278,11 +283,30 @@ export async function replaceProductBackground(params: {
   if (params.imageModel) body.append("imageModel", params.imageModel);
   body.append("variationIndex", String(params.variationIndex));
   body.append("instructions", params.instructions);
-  return (
-    await axios.post<BackgroundReplacement>("/api/backgrounds/replace", body, {
+  const response = await axios.post<BackgroundReplacement>(
+    "/api/backgrounds/replace",
+    body,
+    {
       signal: params.signal,
-    })
-  ).data;
+    },
+  );
+  const requestId = response.data.requestId || response.headers["x-request-id"];
+  return {
+    ...response.data,
+    ...(typeof requestId === "string" && /^[a-f0-9-]{36}$/i.test(requestId)
+      ? { requestId }
+      : {}),
+  };
+}
+
+export function getApiRequestId(error: unknown): string | undefined {
+  if (!Axios.isAxiosError(error)) return;
+  const data: unknown = error.response?.data;
+  const id =
+    typeof data === "object" && data !== null && "requestId" in data
+      ? data.requestId
+      : undefined;
+  return typeof id === "string" && /^[a-f0-9-]{36}$/i.test(id) ? id : undefined;
 }
 
 export function getApiErrorCode(error: unknown): string | undefined {

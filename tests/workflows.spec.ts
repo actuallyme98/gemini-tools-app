@@ -30,7 +30,7 @@ const analysis = (name: string) => ({
   },
 });
 const providerCatalog = {
-  defaults: { text: "gemini", vision: "gemini", image: "gemini" },
+  defaults: { text: "shopaikey", vision: "shopaikey", image: "shopaikey" },
   providers: [
     {
       id: "gemini",
@@ -128,22 +128,16 @@ test("mobile menu, deep links and back navigation", async ({ page }) => {
   await expect(page).toHaveURL(/#image-editor$/);
 });
 
-test("image model panel is discoverable with Gemini and opens ShopAIKey models without the mobile menu", async ({
+test("default provider loads image models without opening the mobile menu", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   await page.goto("/#background-studio");
   const panel = page.getByRole("region", { name: "Cấu hình model ảnh" });
-  await expect(
-    panel.getByRole("heading", { name: "Model tạo / sửa ảnh" }),
-  ).toBeVisible();
-  const choose = panel.getByRole("button", { name: "Chọn model ShopAIKey" });
-  await expect(choose).toBeEnabled();
-  expect((await choose.boundingBox())!.y).toBeLessThan(250);
-  await choose.click();
   const model = panel.getByRole("combobox", { name: "Model tạo / sửa ảnh" });
   await expect(model).toBeVisible();
   await expect(model).toBeEnabled();
+  expect((await model.boundingBox())!.y).toBeLessThan(250);
   await expect(model).toHaveValue("gemini-3.1-flash-image-preview");
   await model.selectOption("gemini-nano-banana-2.1");
   await expect(model).toHaveValue("gemini-nano-banana-2.1");
@@ -179,7 +173,7 @@ async function setupBackgrounds(
   await page.goto("/#background-studio");
   await page
     .getByRole("combobox", { name: "Provider AI" })
-    .selectOption("gemini");
+    .selectOption("shopaikey");
   const studio = page.getByRole("region", {
     name: "Mockup Studio",
     exact: true,
@@ -306,7 +300,7 @@ test("cancelling unlocks model selection and an old response cannot unlock a new
   await expect(model).toBeEnabled();
 });
 
-test("image model selection locks during a background batch, persists and never leaks to Gemini", async ({
+test("image model selection locks during a batch and persists while Gemini stays hidden", async ({
   page,
 }) => {
   const bodies: string[] = [];
@@ -327,7 +321,7 @@ test("image model selection locks during a background batch, persists and never 
   });
   const studio = await setupBackgrounds(page);
   const provider = page.getByRole("combobox", { name: "Provider AI" });
-  await provider.selectOption("shopaikey");
+  await expect(provider.locator('option[value="gemini"]')).toHaveCount(0);
   const model = page.getByRole("combobox", { name: "Model tạo / sửa ảnh" });
   await expect(model).toHaveValue("gemini-3.1-flash-image-preview");
   await model.selectOption("gemini-3-pro-image-preview");
@@ -351,13 +345,17 @@ test("image model selection locks during a background batch, persists and never 
     expect(body).toContain(
       'name="imageModel"\r\n\r\ngemini-3-pro-image-preview',
     );
-  await provider.selectOption("gemini");
+  await provider.selectOption("shopaikey");
   await studio
     .getByRole("button", { name: "Tạo bộ mới (2 ảnh)", exact: true })
     .click();
   await expect.poll(() => bodies.length).toBe(4);
-  expect(bodies[2]).not.toContain('name="imageModel"');
-  expect(bodies[3]).not.toContain('name="imageModel"');
+  expect(bodies[2]).toContain(
+    'name="imageModel"\r\n\r\ngemini-3-pro-image-preview',
+  );
+  expect(bodies[3]).toContain(
+    'name="imageModel"\r\n\r\ngemini-3-pro-image-preview',
+  );
   await provider.selectOption("shopaikey");
   await model.selectOption("gemini-3-pro-image-preview");
   await page.reload();
@@ -404,8 +402,8 @@ test("GPT and Grok image groups send the exact model and preserve selection when
     }
   });
   const studio = await setupBackgrounds(page, ["scene.png"]);
-  await page.getByRole("button", { name: "Chọn model ShopAIKey" }).click();
   const model = page.getByRole("combobox", { name: "Model tạo / sửa ảnh" });
+  await expect(model).toBeEnabled();
   await expect(
     model.locator('optgroup[label="Google · Gemini"] option'),
   ).toHaveCount(3);
@@ -445,10 +443,9 @@ test("model catalog failure preserves the saved model and blocks image generatio
       "removed-image-model",
     );
   });
-  let calls = 0;
+  let failing = true;
   await page.route("**/api/ai/providers/shopaikey/image-models*", (route) => {
-    calls++;
-    return calls === 1
+    return failing
       ? route.fulfill({
           status: 503,
           json: { message: "Không tải được model ShopAIKey." },
@@ -461,12 +458,13 @@ test("model catalog failure preserves the saved model and blocks image generatio
     .selectOption("shopaikey");
   const model = page.getByRole("combobox", { name: "Model tạo / sửa ảnh" });
   await expect(
-    page.getByText("Không tải được model ShopAIKey.", { exact: true }),
+    page.getByText("Không tải được model Provider 1.", { exact: true }),
   ).toBeVisible();
   await expect(model).toHaveValue("removed-image-model");
   await expect(
     studio.getByRole("button", { name: "Tạo 2 ảnh", exact: true }),
   ).toBeDisabled();
+  failing = false;
   await page
     .getByRole("button", { name: "Tải lại danh sách model ảnh" })
     .click();
@@ -499,7 +497,7 @@ test("text routing policy is shown independently of image provider and model", a
   );
   await page.goto("/#home");
   await expect(
-    page.getByText("Văn bản: VyceAI (GPT / Claude) → ShopAIKey", {
+    page.getByText("Văn bản: Tự động (có dự phòng)", {
       exact: true,
     }),
   ).toBeVisible();
@@ -510,7 +508,7 @@ test("text routing policy is shown independently of image provider and model", a
     page.getByRole("combobox", { name: "Model tạo / sửa ảnh" }),
   ).toBeEnabled();
   await expect(
-    page.getByText("Văn bản: VyceAI (GPT / Claude) → ShopAIKey", {
+    page.getByText("Văn bản: Tự động (có dự phòng)", {
       exact: true,
     }),
   ).toBeVisible();
@@ -573,7 +571,7 @@ test("background batch sends one product and one selected reference per result, 
     studio.getByRole("button", { name: "Khôi phục prompt gốc", exact: true }),
   ).toBeDisabled();
   await expect(
-    page.getByRole("button", { name: "Chọn model ShopAIKey" }),
+    page.getByRole("combobox", { name: "Model tạo / sửa ảnh" }),
   ).toBeDisabled();
   await expect(
     page.getByRole("combobox", { name: "Provider AI" }),
@@ -592,7 +590,7 @@ test("background batch sends one product and one selected reference per result, 
     studio.getByRole("progressbar", { name: "Tiến độ áp hình in" }),
   ).toHaveAttribute("aria-valuenow", "100");
   for (const body of bodies) {
-    expect(body).toContain('name="provider"\r\n\r\ngemini');
+    expect(body).toContain('name="provider"\r\n\r\nshopaikey');
     expect(body).toContain('name="productImage"; filename="product.png"');
     expect(body.match(/name="backgroundImage"/g)).toHaveLength(1);
     expect(body).not.toContain("unused.png");
@@ -686,6 +684,59 @@ test("background prompt is fully editable, required, restorable and sent in full
   await page.getByRole("button", { name: /^Image Editor/ }).click();
   await page.getByRole("button", { name: /^Mockup Studio/ }).click();
   await expect(prompt).toHaveValue(finalPrompt);
+});
+
+test("mockup request IDs stay with their image and refresh after retry", async ({
+  page,
+}) => {
+  const successId = "51c03c04-346d-47da-a2a1-227043a17e65";
+  const errorId = "c8c799be-a055-4bc8-9dd4-b8299b0a026a";
+  const retryId = "99f9baf5-6093-44f7-b47b-dbd7172d315e";
+  let retried = false;
+  await page.route("**/api/backgrounds/replace", async (route) => {
+    const isGarden = route
+      .request()
+      .postDataBuffer()!
+      .includes(Buffer.from('filename="garden.png"'));
+    if (isGarden && !retried) {
+      retried = true;
+      return route.fulfill({
+        status: 422,
+        json: {
+          message: "Ảnh bị từ chối.",
+          code: "AI_CONTENT_BLOCKED",
+          requestId: errorId,
+        },
+      });
+    }
+    return route.fulfill({
+      headers: isGarden ? { "X-Request-Id": retryId } : {},
+      json: {
+        url: "https://cdn.example/good.png",
+        mimeType: "image/png",
+        ...(isGarden ? {} : { requestId: successId }),
+      },
+    });
+  });
+  const studio = await setupBackgrounds(page);
+  await studio.getByRole("button", { name: "Tạo 2 ảnh", exact: true }).click();
+  const results = studio.locator(
+    'section[aria-labelledby="background-results-title"]',
+  );
+  const first = results.locator("li").filter({ hasText: "studio.png" });
+  const second = results.locator("li").filter({ hasText: "garden.png" });
+  await expect(first.getByText(successId, { exact: true })).toBeVisible();
+  await expect(second.getByText(errorId, { exact: true })).toBeVisible();
+  await expect(first.getByText(errorId, { exact: true })).toHaveCount(0);
+  await second
+    .getByRole("button", {
+      name: "Thử lại ảnh tham chiếu garden.png, ảnh 1",
+      exact: true,
+    })
+    .click();
+  await expect(second.getByText(retryId, { exact: true })).toBeVisible();
+  await expect(second.getByText(errorId, { exact: true })).toHaveCount(0);
+  await expect(first.getByText(successId, { exact: true })).toBeVisible();
 });
 
 test("background failures preserve successes and retry only unfinished references with the current provider", async ({
@@ -914,7 +965,7 @@ for (const failure of [
   {
     code: "AI_BILLING_BLOCKED",
     status: 503,
-    message: "Thanh toán Gemini bị chặn.",
+    message: "Thanh toán ShopAIKey bị chặn.",
   },
   {
     code: "STORAGE_ACCESS_DENIED",
@@ -968,7 +1019,9 @@ for (const failure of [
         .click();
       await expect.poll(() => pending.length).toBe(3);
       pending[0]();
-      await expect(studio.getByRole("alert")).toContainText(failure.message);
+      await expect(studio.getByRole("alert")).toContainText(
+        failure.message.replace("ShopAIKey", "Provider 1"),
+      );
       await expect(studio.getByText("Chưa chạy", { exact: true })).toHaveCount(
         3,
       );
@@ -1080,7 +1133,7 @@ test("background uploads enforce limits and selected output totals on mobile", a
   page,
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  // The provider already defaults to Gemini; its selector is in the closed mobile menu.
+  // Provider 1 is selected by default; its selector is in the closed mobile menu.
   await page.goto("/#background-studio");
   const studio = page.getByRole("region", {
     name: "Mockup Studio",
@@ -1133,20 +1186,28 @@ test("background uploads enforce limits and selected output totals on mobile", a
   await expect(studio.getByRole("checkbox")).toHaveCount(9);
 });
 
-test("removed VyceAI selection migrates to Gemini and enabled ShopAIKey shares selection with mobile", async ({
+test("saved Gemini selection migrates to Provider 1 and stays hidden on desktop and mobile", async ({
   page,
 }) => {
   await page.addInitScript(() => {
     if (!sessionStorage.getItem("provider-migration-test")) {
-      localStorage.setItem("creative-studio.ai-provider", "vyceai");
+      localStorage.setItem("creative-studio.ai-provider", "gemini");
       sessionStorage.setItem("provider-migration-test", "1");
     }
   });
   await page.goto("/#home");
   const select = page.getByRole("combobox", { name: "Provider AI" });
-  await expect(select).toHaveValue("gemini");
+  await expect(select).toHaveValue("shopaikey");
   await expect(select.locator('option[value="vyceai"]')).toHaveCount(0);
   await expect(select.locator('option[value="shopaikey"]')).toBeEnabled();
+  await expect(select.locator('option[value="shopaikey"]')).toHaveText(
+    "Provider 1 (mặc định)",
+  );
+  await expect(select.locator('option[value="gemini"]')).toHaveCount(0);
+  await expect(select.locator("option").first()).toHaveAttribute(
+    "value",
+    "shopaikey",
+  );
   await expect(
     select.getByRole("option", { name: "Mặc định hệ thống", exact: true }),
   ).toHaveCount(0);
@@ -1154,14 +1215,14 @@ test("removed VyceAI selection migrates to Gemini and enabled ShopAIKey shares s
     .poll(() =>
       page.evaluate(() => localStorage.getItem("creative-studio.ai-provider")),
     )
-    .toBe("gemini");
+    .toBe("shopaikey");
   await expect(select.locator('option[value="offline"]')).toBeDisabled();
-  await select.selectOption("gemini");
+  await select.selectOption("shopaikey");
   await expect(
-    page.getByText("Văn bản: Gemini", { exact: true }),
+    page.getByText("Văn bản: Provider 1", { exact: true }),
   ).toBeVisible();
   await expect(
-    page.getByText("Tạo / sửa ảnh: Gemini", { exact: true }),
+    page.getByText("Tạo / sửa ảnh: Provider 1", { exact: true }),
   ).toBeVisible();
   await select.selectOption("shopaikey");
   await page.reload();
@@ -1172,13 +1233,21 @@ test("removed VyceAI selection migrates to Gemini and enabled ShopAIKey shares s
     .getByRole("dialog")
     .getByRole("combobox", { name: "Provider AI" });
   await expect(mobileSelect).toHaveValue("shopaikey");
-  await mobileSelect.selectOption("gemini");
+  await expect(mobileSelect.locator('option[value="shopaikey"]')).toHaveText(
+    "Provider 1 (mặc định)",
+  );
+  await expect(mobileSelect.locator('option[value="gemini"]')).toHaveCount(0);
+  await expect(mobileSelect.locator("option").first()).toHaveAttribute(
+    "value",
+    "shopaikey",
+  );
+  await mobileSelect.selectOption("shopaikey");
   await page.keyboard.press("Escape");
   await page.setViewportSize({ width: 1280, height: 900 });
-  await expect(select).toHaveValue("gemini");
-  await select.selectOption("gemini");
+  await expect(select).toHaveValue("shopaikey");
+  await select.selectOption("shopaikey");
   await page.reload();
-  await expect(select).toHaveValue("gemini");
+  await expect(select).toHaveValue("shopaikey");
 });
 
 test("selected provider is captured per request for analysis and idea generation", async ({
@@ -1216,11 +1285,11 @@ test("selected provider is captured per request for analysis and idea generation
   release();
   await expect(page.getByText("PRODUCT", { exact: true })).toBeVisible();
   await expect(select).toBeEnabled();
-  await select.selectOption("gemini");
+  await select.selectOption("shopaikey");
   await page.getByRole("button", { name: /Tạo .* Ý Tưởng/ }).click();
   await expect
     .poll(() => selectedIdeas)
-    .toMatch(/name="provider"\r\n\r\ngemini\r\n/);
+    .toMatch(/name="provider"\r\n\r\nshopaikey\r\n/);
 });
 
 test("idea generation uses the selected image model while analysis omits that field", async ({
@@ -1264,13 +1333,13 @@ test("provider errors keep the selected provider without a default retry", async
 }) => {
   let requests = 0;
   const message =
-    "Gemini từ chối yêu cầu do project hoặc tài khoản thanh toán bị chặn.";
+    "ShopAIKey từ chối yêu cầu do project hoặc tài khoản thanh toán bị chặn.";
   const reason = "Lightning dunning decision is deny";
   const suggestion = "Quản trị viên cần kiểm tra project và Billing.";
   await page.route("**/api/ideas/analyze-product", async (route) => {
     requests++;
     expect(route.request().postData()).toMatch(
-      /name="provider"\r\n\r\ngemini\r\n/,
+      /name="provider"\r\n\r\nshopaikey\r\n/,
     );
     await route.fulfill({
       status: 503,
@@ -1287,7 +1356,7 @@ test("provider errors keep the selected provider without a default retry", async
   });
   await page.goto("/#idea-generator");
   const select = page.getByRole("combobox", { name: "Provider AI" });
-  await select.selectOption("gemini");
+  await select.selectOption("shopaikey");
   await page
     .getByLabel("Tải Ảnh Sản Phẩm", { exact: true })
     .setInputFiles(image("product.png"));
@@ -1295,11 +1364,13 @@ test("provider errors keep the selected provider without a default retry", async
     .getByRole("button", { name: "Phân Tích Ảnh", exact: true })
     .click();
   const toast = page.locator('[data-sonner-toast][data-type="error"]');
-  await expect(toast).toContainText(message);
+  await expect(toast).toContainText(
+    "Provider 1 từ chối yêu cầu do project hoặc tài khoản thanh toán bị chặn.",
+  );
   await expect(toast).toContainText(reason);
   await expect(toast).toContainText(suggestion);
   await expect(toast).toContainText("Mã yêu cầu: test-billing-request");
-  await expect(select).toHaveValue("gemini");
+  await expect(select).toHaveValue("shopaikey");
   expect(requests).toBe(1);
 });
 
@@ -1455,7 +1526,7 @@ test("upload limits reject files and auto prompts never exceed 12", async ({
   await page.route("**/api/mockups/generate-prompts", async (route) => {
     requests++;
     expect(route.request().postData()).toMatch(
-      /name="provider"\r\n\r\ngemini\r\n/,
+      /name="provider"\r\n\r\nshopaikey\r\n/,
     );
     expect(route.request().postData()).toMatch(/name="count"\r\n\r\n12\r\n/);
     await route.fulfill({
@@ -1465,7 +1536,7 @@ test("upload limits reject files and auto prompts never exceed 12", async ({
   await page.goto("/#mockup-generator");
   await page
     .getByRole("combobox", { name: "Provider AI" })
-    .selectOption("gemini");
+    .selectOption("shopaikey");
   const upload = page.getByLabel("Tải Ảnh Mẫu", { exact: true });
   await upload.setInputFiles({
     name: "large.png",

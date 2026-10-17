@@ -97,7 +97,7 @@ export function AIImageModelSelect() {
         className="text-xs text-gray-600 break-words"
       >
         {imageModelsLoading ? (
-          <p>Đang lấy danh sách từ ShopAIKey…</p>
+          <p>Đang lấy danh sách từ Provider 1…</p>
         ) : imageModelsError ? (
           <p className="whitespace-pre-line text-red-700">{imageModelsError}</p>
         ) : missing ? (

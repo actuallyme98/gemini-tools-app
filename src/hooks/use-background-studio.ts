@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { getAIProviderLabel } from "../utils/ai-provider.util";
 import {
   getApiErrorCode,
+  getApiRequestId,
   getErrorMessage,
   replaceProductBackground,
 } from "../services/api.service";
@@ -33,6 +35,7 @@ export type BackgroundJob = {
   url?: string;
   mimeType?: string;
   error?: string;
+  requestId?: string;
 };
 const blockingErrors = new Set([
   "AI_BILLING_BLOCKED",
@@ -176,13 +179,15 @@ export function useBackgroundStudio() {
     const chosenModel = imageModel;
     setRunning(true);
     setRunningProvider(
-      `${providerEntry?.name || provider}${chosenModel ? ` · ${chosenModel}` : ""}`,
+      `${getAIProviderLabel(provider)}${chosenModel ? ` · ${chosenModel}` : ""}`,
     );
     setBatchError(null);
     const ids = new Set(queue.map((job) => job.id));
     setJobs((items) =>
       items.map((job) =>
-        ids.has(job.id) ? { ...job, status: "queued", error: undefined } : job,
+        ids.has(job.id)
+          ? { ...job, status: "queued", error: undefined, requestId: undefined }
+          : job,
       ),
     );
     let successes = 0;
@@ -210,6 +215,7 @@ export function useBackgroundStudio() {
             status: "done",
             url: result.url,
             mimeType: result.mimeType,
+            requestId: result.requestId,
             error: undefined,
           });
           recordActivity("background", 1);
@@ -217,7 +223,11 @@ export function useBackgroundStudio() {
         } catch (error) {
           if (!isCurrent(task)) return;
           const message = getErrorMessage(error);
-          patchJob(job.id, { status: "error", error: message });
+          patchJob(job.id, {
+            status: "error",
+            error: message,
+            requestId: getApiRequestId(error),
+          });
           if (!halted && blockingErrors.has(getApiErrorCode(error) || "")) {
             // Do not launch more work; retain results from requests already sent.
             halted = true;
@@ -323,7 +333,7 @@ export function useBackgroundStudio() {
     running,
     runningProvider,
     providerReady,
-    providerName: providerEntry?.name || provider,
+    providerName: getAIProviderLabel(provider),
     uploadError,
     batchError,
     generate,

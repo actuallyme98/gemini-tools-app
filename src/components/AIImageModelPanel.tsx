@@ -1,14 +1,13 @@
 import { useId } from "react";
 import { useAIProvider } from "../hooks/use-ai-provider";
 import { AIImageModelSelect } from "./AIImageModelSelect";
+import { getAIProviderLabel } from "../utils/ai-provider.util";
 
 export function AIImageModelPanel() {
   const id = useId();
   const { catalog, provider, loading, selectProvider, isProcessingRequest } =
     useAIProvider();
-  const providerName =
-    catalog?.providers.find((entry) => entry.id === provider)?.name ||
-    (provider === "gemini" ? "Gemini" : provider);
+  const providerName = getAIProviderLabel(provider);
   const shopAvailable = catalog?.providers.some(
     (entry) =>
       entry.id === "shopaikey" &&
@@ -24,7 +23,9 @@ export function AIImageModelPanel() {
     >
       {provider === "shopaikey" ? (
         <>
-          <p className="mb-2 text-sm text-blue-700">Provider ảnh: ShopAIKey</p>
+          <p className="mb-2 text-sm text-blue-700">
+            Provider ảnh: {providerName}
+          </p>
           <AIImageModelSelect />
         </>
       ) : (
@@ -34,8 +35,8 @@ export function AIImageModelPanel() {
               Model tạo / sửa ảnh
             </h2>
             <p id={`${id}-help`} className="mt-1 text-sm text-gray-600">
-              {providerName} đang dùng model cấu hình sẵn. Chọn ShopAIKey để tải
-              danh sách và tự chọn model ảnh.
+              {providerName} đang dùng model cấu hình sẵn. Chọn Provider 1 để
+              tải danh sách và tự chọn model ảnh.
             </p>
             {loading && (
               <p role="status" className="mt-1 text-sm text-gray-600">
@@ -44,7 +45,7 @@ export function AIImageModelPanel() {
             )}
             {!loading && catalog && !shopAvailable && (
               <p className="mt-1 text-sm text-amber-800">
-                ShopAIKey chưa sẵn sàng cho tác vụ ảnh.
+                Provider 1 chưa sẵn sàng cho tác vụ ảnh.
               </p>
             )}
           </div>
@@ -55,7 +56,7 @@ export function AIImageModelPanel() {
             aria-describedby={`${id}-help`}
             className="min-h-11 shrink-0 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            Chọn model ShopAIKey
+            Chọn model Provider 1
           </button>
         </div>
       )}
