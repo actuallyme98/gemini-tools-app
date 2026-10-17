@@ -267,7 +267,7 @@ export async function replaceProductBackground(params: {
   productImage: File;
   backgroundImage: File;
   provider: string;
-  instructions?: string;
+  instructions: string;
   variationIndex: number;
   signal?: AbortSignal;
 }): Promise<BackgroundReplacement> {
@@ -277,7 +277,7 @@ export async function replaceProductBackground(params: {
   body.append("provider", params.provider);
   if (params.imageModel) body.append("imageModel", params.imageModel);
   body.append("variationIndex", String(params.variationIndex));
-  if (params.instructions) body.append("instructions", params.instructions);
+  body.append("instructions", params.instructions);
   return (
     await axios.post<BackgroundReplacement>("/api/backgrounds/replace", body, {
       signal: params.signal,

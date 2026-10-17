@@ -10,6 +10,10 @@ import { recordActivity } from "../utils/activity.util";
 import { useAIProvider } from "./use-ai-provider";
 import { useImageInput } from "./use-image-input";
 import { useRequest } from "./use-request";
+import {
+  BACKGROUND_STUDIO_BASE_PROMPT,
+  MAX_BACKGROUND_PROMPT_LENGTH,
+} from "../constants/background-studio-prompt";
 
 export type BackgroundSource = {
   id: string;
@@ -56,7 +60,9 @@ export function useBackgroundStudio() {
   const [backgrounds, setBackgrounds] = useState<BackgroundSource[]>([]);
   const [jobs, setJobs] = useState<BackgroundJob[]>([]);
   const [variations, setVariations] = useState(1);
-  const [instructions, setInstructions] = useState("");
+  const [instructions, setInstructions] = useState(
+    BACKGROUND_STUDIO_BASE_PROMPT,
+  );
   const [running, setRunning] = useState(false);
   const [runningProvider, setRunningProvider] = useState("");
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -113,7 +119,7 @@ export function useBackgroundStudio() {
       )
         continue;
       if (next.length >= MAX_REFERENCES) {
-        errors.push(`Tối đa ${MAX_REFERENCES} background trong một bộ.`);
+        errors.push(`Tối đa ${MAX_REFERENCES} ảnh tham chiếu trong một bộ.`);
         break;
       }
       next.push({
@@ -147,6 +153,9 @@ export function useBackgroundStudio() {
   };
   const selected = backgrounds.filter((item) => item.selected);
   const total = selected.length * variations;
+  const promptValid =
+    !!instructions.trim() &&
+    instructions.length <= MAX_BACKGROUND_PROMPT_LENGTH;
   const providerEntry = catalog?.providers.find((item) => item.id === provider);
   const providerReady =
     !loading &&
@@ -221,7 +230,7 @@ export function useBackgroundStudio() {
       }
       if (isCurrent(task) && successes)
         toast.success(
-          `Đã tạo ${successes} ảnh background. Các kết quả đã hoàn tất được giữ lại.`,
+          `Đã tạo ${successes} ảnh áp hình in. Các kết quả đã hoàn tất được giữ lại.`,
         );
     } finally {
       if (isCurrent(task)) setRunning(false);
@@ -234,7 +243,8 @@ export function useBackgroundStudio() {
       !product.file ||
       !selected.length ||
       total > MAX_BACKGROUND_RESULTS ||
-      !providerReady
+      !providerReady ||
+      !promptValid
     )
       return;
     clearResults();
@@ -249,7 +259,7 @@ export function useBackgroundStudio() {
           file: source.file,
           preview: snapshot,
           product: product.file,
-          instructions: instructions.trim(),
+          instructions,
           variation,
           status: "queued",
         });
@@ -290,6 +300,10 @@ export function useBackgroundStudio() {
     setVariations,
     instructions,
     setInstructions,
+    promptValid,
+    resetInstructions: () => {
+      if (!running) setInstructions(BACKGROUND_STUDIO_BASE_PROMPT);
+    },
     jobs,
     running,
     runningProvider,

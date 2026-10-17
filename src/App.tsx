@@ -95,7 +95,7 @@ export default function App() {
               </section>
               <section
                 hidden={page !== "background-studio"}
-                aria-label="Background Studio"
+                aria-label="Mockup Studio"
               >
                 <BackgroundStudioPage />
               </section>

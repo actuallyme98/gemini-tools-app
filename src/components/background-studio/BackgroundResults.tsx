@@ -81,7 +81,7 @@ export function BackgroundResults({
           url: job.url!,
           filename: filename(job, jobs.indexOf(job)),
         })),
-        "background-studio",
+        "mockup-studio",
       );
       if (result.failed)
         toast.warning(
@@ -108,7 +108,8 @@ export function BackgroundResults({
             </span>
           </h3>
           <p className="mt-1 text-sm text-gray-600">
-            Mỗi ảnh gắn với một background. Kết quả xuất hiện ngay khi tạo xong.
+            Mỗi kết quả là ảnh tham chiếu đã thay hình in. Kiểm tra chi tiết và
+            tỷ lệ hình in trước khi tải.
           </p>
         </div>
         <Button
@@ -133,7 +134,7 @@ export function BackgroundResults({
                 {job.url ? (
                   <img
                     src={job.url}
-                    alt={`Sản phẩm với background ${job.file.name}, ảnh ${job.variation}`}
+                    alt={`Kết quả áp hình in vào ${job.file.name}, ảnh ${job.variation}`}
                     loading="lazy"
                     className="h-full w-full object-contain"
                   />
@@ -163,7 +164,7 @@ export function BackgroundResults({
                         ? "Đang chờ xử lý lỗi để tiếp tục."
                         : job.status === "cancelled"
                           ? "Có thể tiếp tục tạo khi bạn sẵn sàng."
-                          : "Sản phẩm của bạn sẽ được đặt vào background này."}
+                          : "Hình in gốc sẽ được áp lên sản phẩm trong ảnh mẫu này."}
                     </p>
                   </div>
                 )}
@@ -230,7 +231,7 @@ export function BackgroundResults({
                     className="min-h-11 w-full"
                     disabled={running || !canRetry}
                     onClick={() => void onRetry(job.id)}
-                    aria-label={`Thử lại background ${job.file.name}, ảnh ${job.variation}`}
+                    aria-label={`Thử lại ảnh tham chiếu ${job.file.name}, ảnh ${job.variation}`}
                   >
                     <RotateCcw aria-hidden="true" />
                     Thử lại ảnh này
@@ -238,7 +239,7 @@ export function BackgroundResults({
                 ) : (
                   <p className="flex min-h-11 items-center text-xs text-gray-600">
                     {job.status === "processing"
-                      ? "Đang ghép background…"
+                      ? "Đang áp hình in…"
                       : "Sẽ được xử lý lần lượt."}
                   </p>
                 )}
@@ -261,7 +262,7 @@ export function BackgroundResults({
           }}
         >
           <DialogHeader className="pr-12">
-            <DialogTitle>Xem kết quả thay background</DialogTitle>
+            <DialogTitle>Xem kết quả áp hình in</DialogTitle>
             <DialogDescription className="break-all">
               {preview?.file.name} · ảnh {preview?.variation}
             </DialogDescription>
@@ -270,7 +271,7 @@ export function BackgroundResults({
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               {[
                 { label: "Sản phẩm gốc", url: productPreview },
-                { label: "Background tham chiếu", url: preview.preview },
+                { label: "Ảnh tham chiếu", url: preview.preview },
                 { label: "Kết quả", url: preview.url },
               ].map((item) => (
                 <figure key={item.label} className="space-y-2">

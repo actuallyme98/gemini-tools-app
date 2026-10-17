@@ -32,9 +32,9 @@ const menuItems = [
   },
   {
     id: "background-studio",
-    label: "Background Studio",
+    label: "Mockup Studio",
     icon: Layers,
-    description: "Thay background hàng loạt",
+    description: "Áp hình in lên ảnh mẫu",
   },
   {
     id: "idea-generator",

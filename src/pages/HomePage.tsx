@@ -65,8 +65,8 @@ export function HomePage({ onNavigate }: HomePageProps) {
     },
     {
       id: "background-studio",
-      title: "Background Studio",
-      description: "Một sản phẩm, nhiều background trong một lần tạo",
+      title: "Mockup Studio",
+      description: "Một thiết kế, áp lên sản phẩm trong nhiều ảnh mẫu",
       icon: Layers,
       gradient: "from-blue-500 to-cyan-600",
       disabled: false,
@@ -74,7 +74,7 @@ export function HomePage({ onNavigate }: HomePageProps) {
   ];
 
   const recentActivity = activities.slice(0, 8).map((item) => ({
-    title: `Đã tạo ${item.count} ${item.kind === "ideas" ? "ảnh ý tưởng" : item.kind === "mockup" ? "mockup" : item.kind === "background" ? "ảnh background" : "ảnh tham chiếu"}`,
+    title: `Đã tạo ${item.count} ${item.kind === "ideas" ? "ảnh ý tưởng" : item.kind === "mockup" ? "mockup" : item.kind === "background" ? "ảnh áp hình in" : "ảnh tham chiếu"}`,
     time: new Date(item.date).toLocaleString("vi-VN"),
   }));
 

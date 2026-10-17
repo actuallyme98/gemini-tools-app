@@ -1,6 +1,10 @@
 import { test, expect, type Page } from "@playwright/test";
 import JSZip from "jszip";
 import { readFile } from "node:fs/promises";
+import {
+  BACKGROUND_STUDIO_BASE_PROMPT,
+  MAX_BACKGROUND_PROMPT_LENGTH,
+} from "../src/constants/background-studio-prompt";
 const png = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aWQAAAABJRU5ErkJggg==",
   "base64",
@@ -102,7 +106,7 @@ test("mobile menu, deep links and back navigation", async ({ page }) => {
   ]) {
     await page.goto("/#" + hash);
     if (hash === "background-studio") {
-      await expect(page.getByLabel("Custom prompt (tùy chọn)")).toBeVisible();
+      await expect(page.getByLabel("Custom prompt")).toBeVisible();
     }
     expect(await page.locator("main").evaluate((el) => el.scrollWidth)).toBe(
       390,
@@ -177,14 +181,14 @@ async function setupBackgrounds(
     .getByRole("combobox", { name: "Provider AI" })
     .selectOption("gemini");
   const studio = page.getByRole("region", {
-    name: "Background Studio",
+    name: "Mockup Studio",
     exact: true,
   });
   await studio
     .getByLabel("Tải Ảnh sản phẩm gốc", { exact: true })
     .setInputFiles(image("product.png"));
   await studio
-    .getByLabel("Thêm ảnh background", { exact: true })
+    .getByLabel("Thêm ảnh tham chiếu", { exact: true })
     .setInputFiles(names.map(image));
   return studio;
 }
@@ -240,7 +244,7 @@ test("model stays locked across tabs and concurrent requests, then unlocks after
   await expect.poll(() => referenceCalls).toBe(1);
   finishBackground();
   await expect(
-    page.locator('section[aria-label="Background Studio"]'),
+    page.locator('section[aria-label="Mockup Studio"]'),
   ).toContainText("1/1 ảnh hoàn tất");
   await expect(model).toBeDisabled();
   await expect(provider).toBeDisabled();
@@ -366,7 +370,7 @@ test("image model selection locks during a background batch, persists and never 
   expect(
     await sidebar.locator("nav").evaluate((element) => element.clientHeight),
   ).toBeGreaterThan(44);
-  await sidebar.getByRole("button", { name: /^Background Studio/ }).click();
+  await sidebar.getByRole("button", { name: /^Mockup Studio/ }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
 });
 
@@ -536,20 +540,36 @@ test("background batch sends one product and one selected reference per result, 
   ]);
   await studio.getByText("unused.png", { exact: true }).click();
   await expect(
-    studio.getByLabel("Chọn background unused.png", { exact: true }),
+    studio.getByLabel("Chọn ảnh tham chiếu unused.png", { exact: true }),
   ).not.toBeChecked();
-  await studio.getByLabel("Kết quả cho mỗi background").selectOption("2");
-  const customPrompt = studio.getByLabel("Custom prompt (tùy chọn)");
+  await studio.getByLabel("Kết quả cho mỗi ảnh tham chiếu").selectOption("2");
+  const customPrompt = studio.getByLabel("Custom prompt");
   await expect(customPrompt).toBeVisible();
-  await expect(customPrompt).toHaveAttribute("maxlength", "2000");
-  await customPrompt.fill("soft shadows");
+  await expect(customPrompt).toHaveValue(BACKGROUND_STUDIO_BASE_PROMPT);
+  expect(BACKGROUND_STUDIO_BASE_PROMPT.length).toBeGreaterThan(2000);
+  expect(BACKGROUND_STUDIO_BASE_PROMPT.length).toBeLessThanOrEqual(
+    MAX_BACKGROUND_PROMPT_LENGTH,
+  );
+  await expect(customPrompt).toHaveAttribute("maxlength", "12000");
   await expect(
-    studio.getByText("12/2000 ký tự", { exact: true }),
+    studio.getByRole("heading", { name: "Ảnh tham chiếu", exact: true }),
+  ).toBeVisible();
+  await expect(
+    studio.getByText(/Giữ nguyên người, kiểu dáng sản phẩm/),
+  ).toBeVisible();
+  await expect(studio.getByText(/Prompt gốc đã được điền sẵn/)).toBeVisible();
+  const instructions = "Only edit the product on the left";
+  await customPrompt.fill(instructions);
+  await expect(
+    studio.getByText(`${instructions.length}/12000 ký tự`, { exact: true }),
   ).toBeVisible();
   await studio.getByRole("button", { name: "Tạo 4 ảnh", exact: true }).click();
   await expect.poll(() => bodies.length).toBe(1);
-  await expect(studio.getByLabel("Thêm ảnh background")).toBeDisabled();
+  await expect(studio.getByLabel("Thêm ảnh tham chiếu")).toBeDisabled();
   await expect(customPrompt).toBeDisabled();
+  await expect(
+    studio.getByRole("button", { name: "Khôi phục prompt gốc", exact: true }),
+  ).toBeDisabled();
   await expect(
     page.getByRole("button", { name: "Chọn model ShopAIKey" }),
   ).toBeDisabled();
@@ -561,20 +581,24 @@ test("background batch sends one product and one selected reference per result, 
     studio.getByRole("button", { name: "Tải 4 ảnh (ZIP)", exact: true }),
   ).toBeEnabled();
   await expect(customPrompt).toBeEnabled();
-  await expect(customPrompt).toHaveValue("soft shadows");
+  await expect(customPrompt).toHaveValue(instructions);
   await page
     .getByRole("combobox", { name: "Provider AI" })
     .selectOption("shopaikey");
   expect(bodies).toHaveLength(4);
   await expect(
-    studio.getByRole("progressbar", { name: "Tiến độ thay background" }),
+    studio.getByRole("progressbar", { name: "Tiến độ áp hình in" }),
   ).toHaveAttribute("aria-valuenow", "100");
   for (const body of bodies) {
     expect(body).toContain('name="provider"\r\n\r\ngemini');
     expect(body).toContain('name="productImage"; filename="product.png"');
     expect(body.match(/name="backgroundImage"/g)).toHaveLength(1);
     expect(body).not.toContain("unused.png");
-    expect(body).toContain("soft shadows");
+    expect(body).toContain(instructions);
+    expect(body.match(/name="instructions"\r\n\r\n([\s\S]*?)\r\n--/)?.[1]).toBe(
+      instructions,
+    );
+    expect(body).not.toContain("Additional user preferences");
   }
   expect(
     bodies.filter((body) => body.includes('filename="studio.png"')),
@@ -590,7 +614,7 @@ test("background batch sends one product and one selected reference per result, 
     .click();
   const dialog = page.getByRole("dialog");
   await expect(
-    dialog.getByRole("heading", { name: "Xem kết quả thay background" }),
+    dialog.getByRole("heading", { name: "Xem kết quả áp hình in" }),
   ).toBeVisible();
   await expect(dialog.getByRole("img")).toHaveCount(3);
   await page.keyboard.press("Escape");
@@ -613,8 +637,53 @@ test("background batch sends one product and one selected reference per result, 
   );
   await page.getByRole("button", { name: "Dashboard", exact: true }).click();
   await expect(
-    page.getByText("Đã tạo 1 ảnh background", { exact: true }),
+    page.getByText("Đã tạo 1 ảnh áp hình in", { exact: true }),
   ).toHaveCount(4);
+});
+
+test("background prompt is fully editable, required, restorable and sent in full", async ({
+  page,
+}) => {
+  const bodies: string[] = [];
+  await page.route("**/api/backgrounds/replace", async (route) => {
+    bodies.push(route.request().postDataBuffer()!.toString());
+    await route.fulfill({
+      json: { url: "https://cdn.example/edited.png", mimeType: "image/png" },
+    });
+  });
+  const studio = await setupBackgrounds(page, ["scene.png"]);
+  const prompt = studio.getByLabel("Custom prompt", { exact: true });
+  const create = studio.getByRole("button", { name: "Tạo 1 ảnh", exact: true });
+  await expect(prompt).toHaveValue(BACKGROUND_STUDIO_BASE_PROMPT);
+  await prompt.fill("   ");
+  await expect(prompt).toHaveAttribute("aria-invalid", "true");
+  await expect(
+    studio.getByText(/Nhập nội dung prompt trước khi tạo ảnh/),
+  ).toBeVisible();
+  await expect(create).toBeDisabled();
+  expect(bodies).toHaveLength(0);
+  await studio
+    .getByRole("button", { name: "Khôi phục prompt gốc", exact: true })
+    .click();
+  await expect(prompt).toHaveValue(BACKGROUND_STUDIO_BASE_PROMPT);
+  await expect(create).toBeEnabled();
+  const finalPrompt =
+    "  My complete edited prompt.\n" +
+    "Preserve the reference scene. ".repeat(120) +
+    "  ";
+  await prompt.fill(finalPrompt);
+  await create.click();
+  await expect(
+    studio.getByRole("button", { name: "Tải 1 ảnh (ZIP)", exact: true }),
+  ).toBeEnabled();
+  expect(bodies).toHaveLength(1);
+  expect(
+    bodies[0].match(/name="instructions"\r\n\r\n([\s\S]*?)\r\n--/)?.[1],
+  ).toBe(finalPrompt.replace(/\n/g, "\r\n"));
+  expect(bodies[0]).not.toContain("Edit IMAGE 2 in place");
+  await page.getByRole("button", { name: /^Image Editor/ }).click();
+  await page.getByRole("button", { name: /^Mockup Studio/ }).click();
+  await expect(prompt).toHaveValue(finalPrompt);
 });
 
 test("background failures preserve successes and retry only unfinished references with the current provider", async ({
@@ -641,10 +710,13 @@ test("background failures preserve successes and retry only unfinished reference
     });
   });
   const studio = await setupBackgrounds(page);
+  await studio
+    .getByLabel("Custom prompt")
+    .fill("Only edit the product on the left");
   await studio.getByRole("button", { name: "Tạo 2 ảnh", exact: true }).click();
   await expect(
     studio.getByRole("button", {
-      name: "Thử lại background garden.png, ảnh 1",
+      name: "Thử lại ảnh tham chiếu garden.png, ảnh 1",
       exact: true,
     }),
   ).toBeEnabled();
@@ -654,6 +726,9 @@ test("background failures preserve successes and retry only unfinished reference
   await expect(
     studio.getByRole("button", { name: "Xem kết quả 1", exact: true }),
   ).toBeVisible();
+  await studio
+    .getByLabel("Custom prompt")
+    .fill("Only edit the product on the right");
   await page
     .getByRole("combobox", { name: "Provider AI" })
     .selectOption("shopaikey");
@@ -667,6 +742,8 @@ test("background failures preserve successes and retry only unfinished reference
   expect(bodies[2]).toContain('filename="garden.png"');
   expect(bodies[2]).not.toContain('filename="studio.png"');
   expect(bodies[2]).toContain('name="provider"\r\n\r\nshopaikey');
+  expect(bodies[2]).toContain("Only edit the product on the left");
+  expect(bodies[2]).not.toContain("Only edit the product on the right");
 });
 
 test("a billing failure pauses the background queue and can resume on another provider", async ({
@@ -798,15 +875,15 @@ test("background uploads enforce limits and selected output totals on mobile", a
   // The provider already defaults to Gemini; its selector is in the closed mobile menu.
   await page.goto("/#background-studio");
   const studio = page.getByRole("region", {
-    name: "Background Studio",
+    name: "Mockup Studio",
     exact: true,
   });
   await studio
     .getByLabel("Tải Ảnh sản phẩm gốc", { exact: true })
     .setInputFiles(image("product.png"));
-  await studio.getByLabel("Kết quả cho mỗi background").selectOption("3");
+  await studio.getByLabel("Kết quả cho mỗi ảnh tham chiếu").selectOption("3");
   await studio
-    .getByLabel("Thêm ảnh background")
+    .getByLabel("Thêm ảnh tham chiếu")
     .setInputFiles(
       Array.from({ length: 11 }, (_, index) => image(`scene-${index}.png`)),
     );
@@ -817,7 +894,7 @@ test("background uploads enforce limits and selected output totals on mobile", a
   await expect(
     studio.getByRole("button", { name: "Tạo 30 ảnh", exact: true }),
   ).toBeDisabled();
-  await studio.getByLabel("Kết quả cho mỗi background").selectOption("2");
+  await studio.getByLabel("Kết quả cho mỗi ảnh tham chiếu").selectOption("2");
   await expect(
     studio.getByRole("button", { name: "Tạo 20 ảnh", exact: true }),
   ).toBeEnabled();
@@ -827,7 +904,7 @@ test("background uploads enforce limits and selected output totals on mobile", a
   await expect(
     studio.getByRole("button", { name: "Tạo 0 ảnh", exact: true }),
   ).toBeDisabled();
-  const firstBackground = studio.getByLabel("Chọn background scene-0.png", {
+  const firstBackground = studio.getByLabel("Chọn ảnh tham chiếu scene-0.png", {
     exact: true,
   });
   await firstBackground.focus();
@@ -840,7 +917,10 @@ test("background uploads enforce limits and selected output totals on mobile", a
     390,
   );
   await studio
-    .getByRole("button", { name: "Xóa background scene-0.png", exact: true })
+    .getByRole("button", {
+      name: "Xóa ảnh tham chiếu scene-0.png",
+      exact: true,
+    })
     .click();
   await expect(studio.getByRole("checkbox")).toHaveCount(9);
 });

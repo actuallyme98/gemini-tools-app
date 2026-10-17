@@ -22,6 +22,7 @@ import { Card } from "../components/ui/card";
 import { Progress } from "../components/ui/progress";
 import { ImageUploadSection } from "../components/ImageUploadSection";
 import { BackgroundResults } from "../components/background-studio/BackgroundResults";
+import { MAX_BACKGROUND_PROMPT_LENGTH } from "../constants/background-studio-prompt";
 
 export function BackgroundStudioPage() {
   const studio = useBackgroundStudio();
@@ -37,6 +38,7 @@ export function BackgroundStudioPage() {
     !!studio.product.file &&
     !!studio.selected.length &&
     !overLimit &&
+    studio.promptValid &&
     studio.providerReady;
 
   return (
@@ -47,21 +49,22 @@ export function BackgroundStudioPage() {
             <Layers aria-hidden="true" className="h-6 w-6" />
           </div>
           <h2 className="text-3xl font-bold tracking-tight text-gray-900">
-            Background Studio
+            Mockup Studio
           </h2>
           <span className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-medium text-blue-800">
             Tạo cả bộ trong một lần
           </span>
         </div>
         <p className="max-w-2xl text-gray-600">
-          Giữ nguyên sản phẩm, thay background theo từng ảnh tham chiếu. Tải một
-          ảnh gốc và chọn những bối cảnh bạn muốn sử dụng.
+          Áp hình in hoặc họa tiết từ sản phẩm gốc lên sản phẩm trong ảnh tham
+          chiếu. Giữ nguyên người, kiểu dáng sản phẩm, bố cục, ánh sáng và
+          background của từng ảnh mẫu.
         </p>
         <ol
           className="flex flex-wrap items-center gap-3 text-sm text-gray-700"
-          aria-label="Các bước thay background"
+          aria-label="Các bước áp hình in vào ảnh tham chiếu"
         >
-          {["Sản phẩm gốc", "Chọn background", "Tạo & tải bộ ảnh"].map(
+          {["Sản phẩm gốc", "Ảnh tham chiếu", "Tạo & tải bộ ảnh"].map(
             (step, index) => (
               <li key={step} className="flex items-center gap-2">
                 <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-100 text-xs font-semibold text-blue-800">
@@ -91,22 +94,23 @@ export function BackgroundStudioPage() {
         >
           <div className="flex items-center gap-2 text-sm font-semibold text-blue-800">
             <Package aria-hidden="true" className="h-4 w-4" />
-            Một sản phẩm dùng cho cả bộ
+            Một thiết kế dùng cho cả bộ
           </div>
           <ImageUploadSection
             image={studio.product.file}
             preview={studio.product.preview}
             onImageChange={studio.changeProduct}
             title="Ảnh sản phẩm gốc"
-            description="Giữ nguyên hình dáng, màu sắc, họa tiết và logo của ảnh này."
+            description="Nguồn hình in/họa tiết cần áp dụng. Giữ đúng chi tiết, màu sắc và tỷ lệ hình in so với sản phẩm."
             resetState={() => {}}
             disabled={studio.running}
           />
           <div className="rounded-lg border border-blue-100 bg-blue-50 p-3 text-xs leading-relaxed text-blue-900">
-            <p className="font-medium">Chọn ảnh sản phẩm rõ nét</p>
+            <p className="font-medium">Chọn ảnh thấy rõ hình in và sản phẩm</p>
             <p className="mt-1">
-              Ưu tiên ảnh thấy đầy đủ sản phẩm. Mỗi background sẽ tạo thành một
-              kết quả riêng.
+              Ưu tiên ảnh thấy đầy đủ sản phẩm để xác định đúng kích thước và vị
+              trí tương đối của hình in. Dùng được cho áo, túi, cốc, bao bì và
+              các sản phẩm có bề mặt in phù hợp.
             </p>
           </div>
         </Card>
@@ -114,10 +118,12 @@ export function BackgroundStudioPage() {
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h3 className="text-lg font-semibold text-gray-900">
-                Background tham chiếu
+                Ảnh tham chiếu
               </h3>
               <p className="mt-1 text-sm text-gray-600">
-                Chọn nhiều ảnh cùng lúc, hoặc thêm dần vào bộ.
+                Ảnh mẫu có sản phẩm cần thay hình in. Nếu có nhiều sản phẩm cùng
+                loại, thiết kế sẽ được áp dụng lên tất cả; giữ nguyên cảnh và
+                ánh sáng. Chọn nhiều ảnh cùng lúc hoặc thêm dần vào bộ.
               </p>
             </div>
             <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-700">
@@ -142,7 +148,7 @@ export function BackgroundStudioPage() {
               multiple
               accept={IMAGE_ACCEPT}
               disabled={studio.running}
-              aria-label="Thêm ảnh background"
+              aria-label="Thêm ảnh tham chiếu"
               className="sr-only peer"
               onChange={(event) => {
                 studio.addBackgrounds(Array.from(event.target.files || []));
@@ -155,10 +161,11 @@ export function BackgroundStudioPage() {
             >
               <ImagePlus className="h-7 w-7 text-blue-600" aria-hidden="true" />
               <span className="font-medium text-gray-900">
-                Kéo ảnh vào đây hoặc chọn background
+                Kéo ảnh vào đây hoặc chọn ảnh tham chiếu
               </span>
               <span className="text-xs text-gray-600">
-                PNG, JPEG, WebP · tối đa 10MB/ảnh · {MAX_REFERENCES} background
+                PNG, JPEG, WebP · tối đa 10MB/ảnh · {MAX_REFERENCES} ảnh tham
+                chiếu
               </span>
             </label>
           </div>
@@ -174,7 +181,7 @@ export function BackgroundStudioPage() {
             <>
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="text-sm font-medium text-gray-700">
-                  Đã chọn {studio.selected.length} background
+                  Đã chọn {studio.selected.length} ảnh tham chiếu
                 </p>
                 <Button
                   variant="ghost"
@@ -203,7 +210,7 @@ export function BackgroundStudioPage() {
                         type="checkbox"
                         checked={source.selected}
                         disabled={studio.running}
-                        aria-label={`Chọn background ${source.file.name}`}
+                        aria-label={`Chọn ảnh tham chiếu ${source.file.name}`}
                         className="sr-only peer"
                         onChange={() => studio.toggleBackground(source.id)}
                       />
@@ -213,7 +220,7 @@ export function BackgroundStudioPage() {
                         <div className="relative aspect-[4/3]">
                           <img
                             src={source.preview}
-                            alt={`Background ${index + 1}: ${source.file.name}`}
+                            alt={`Ảnh tham chiếu ${index + 1}: ${source.file.name}`}
                             className="h-full w-full object-cover"
                           />
                           <span
@@ -240,7 +247,7 @@ export function BackgroundStudioPage() {
                       className="absolute right-1 top-1 min-h-11 min-w-11 bg-white/95 p-2 shadow-sm"
                       disabled={studio.running}
                       onClick={() => studio.removeBackground(source.id)}
-                      aria-label={`Xóa background ${source.file.name}`}
+                      aria-label={`Xóa ảnh tham chiếu ${source.file.name}`}
                     >
                       <X aria-hidden="true" className="h-4 w-4" />
                     </Button>
@@ -255,7 +262,7 @@ export function BackgroundStudioPage() {
                 htmlFor={`${id}-variations`}
                 className="text-sm font-medium text-gray-900"
               >
-                Kết quả cho mỗi background
+                Kết quả cho mỗi ảnh tham chiếu
               </label>
               <select
                 id={`${id}-variations`}
@@ -274,48 +281,72 @@ export function BackgroundStudioPage() {
                       studio.selected.length * count > MAX_BACKGROUND_RESULTS
                     }
                   >
-                    {count} ảnh / background
+                    {count} kết quả / ảnh tham chiếu
                   </option>
                 ))}
               </select>
             </div>
             <div className="rounded-lg bg-gray-50 p-4">
-              <label
-                htmlFor={`${id}-instructions`}
-                className="block text-sm font-medium text-gray-900"
-              >
-                Custom prompt (tùy chọn)
-              </label>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <label
+                  htmlFor={`${id}-instructions`}
+                  className="block text-sm font-medium text-gray-900"
+                >
+                  Custom prompt
+                </label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="min-h-11 text-blue-700"
+                  disabled={studio.running}
+                  onClick={studio.resetInstructions}
+                >
+                  <RotateCcw aria-hidden="true" />
+                  Khôi phục prompt gốc
+                </Button>
+              </div>
               <p
                 id={`${id}-instructions-help`}
                 className="mt-1 text-sm text-gray-600"
               >
-                Mô tả thêm bố cục, ánh sáng hoặc vị trí sản phẩm. Áp dụng cho
-                tất cả background đã chọn và giữ nguyên thiết kế sản phẩm. Để
-                trống để AI xử lý theo ảnh tham chiếu.
+                Prompt gốc đã được điền sẵn. Bạn có thể sửa hoặc thay thế toàn
+                bộ nội dung. Nội dung cuối cùng trong ô này sẽ được dùng cho tất
+                cả ảnh tham chiếu, không thêm yêu cầu ẩn.
               </p>
               <textarea
                 id={`${id}-instructions`}
-                aria-describedby={`${id}-instructions-help ${id}-instructions-count`}
+                aria-describedby={`${id}-instructions-help ${id}-instructions-count${!studio.promptValid ? ` ${id}-instructions-error` : ""}`}
+                aria-invalid={!studio.promptValid}
                 value={studio.instructions}
-                maxLength={2000}
+                maxLength={MAX_BACKGROUND_PROMPT_LENGTH}
                 disabled={studio.running}
                 onChange={(event) => studio.setInstructions(event.target.value)}
-                rows={4}
-                className="mt-3 w-full rounded-lg border border-gray-300 bg-white p-3 text-base focus-visible:ring-2 focus-visible:ring-blue-600 disabled:cursor-not-allowed disabled:bg-gray-100"
-                placeholder="Ví dụ: đặt sản phẩm ở giữa khung hình, chừa khoảng trống phía trên để thêm chữ, ánh sáng tự nhiên từ bên trái và bóng đổ nhẹ."
+                rows={14}
+                className="mt-3 w-full resize-y rounded-lg border border-gray-300 bg-white p-3 text-base leading-relaxed focus-visible:ring-2 focus-visible:ring-blue-600 disabled:cursor-not-allowed disabled:bg-gray-100"
+                placeholder="Nhập prompt đầy đủ để xử lý ảnh."
               />
               <p
                 id={`${id}-instructions-count`}
                 className="mt-1 text-right text-xs text-gray-600"
               >
-                {studio.instructions.length}/2000 ký tự
+                {studio.instructions.length}/{MAX_BACKGROUND_PROMPT_LENGTH} ký
+                tự
               </p>
+              {!studio.promptValid && (
+                <p
+                  id={`${id}-instructions-error`}
+                  role="alert"
+                  className="mt-2 text-sm text-red-700"
+                >
+                  Nhập nội dung prompt trước khi tạo ảnh (tối đa{" "}
+                  {MAX_BACKGROUND_PROMPT_LENGTH} ký tự).
+                </p>
+              )}
             </div>
             {overLimit && (
               <p role="alert" className="text-sm text-red-700">
-                Tối đa {MAX_BACKGROUND_RESULTS} ảnh mỗi bộ. Giảm số background
-                hoặc số kết quả cho mỗi background.
+                Tối đa {MAX_BACKGROUND_RESULTS} ảnh mỗi bộ. Giảm số ảnh tham
+                chiếu hoặc số kết quả cho mỗi ảnh.
               </p>
             )}
           </div>
@@ -325,17 +356,17 @@ export function BackgroundStudioPage() {
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <p className="text-lg font-semibold text-gray-900">
-              {studio.selected.length} background × {studio.variations} ảnh ={" "}
-              {studio.total} kết quả
+              {studio.selected.length} ảnh tham chiếu × {studio.variations} ảnh
+              = {studio.total} kết quả
             </p>
             <p className="mt-1 text-sm text-gray-600">
               {studio.running
                 ? `Đang tạo bằng ${studio.runningProvider}.`
                 : !studio.product.file || !studio.selected.length
-                  ? "Thêm sản phẩm gốc và chọn ít nhất một background để bắt đầu."
+                  ? "Thêm sản phẩm gốc và chọn ít nhất một ảnh tham chiếu để bắt đầu."
                   : !studio.providerReady
                     ? `${studio.providerName} chưa sẵn sàng cho tác vụ ảnh. Hãy kiểm tra hoặc chọn provider khác.`
-                    : "Mỗi background dùng riêng với cùng một sản phẩm gốc."}
+                    : "Mỗi kết quả giữ nguyên ảnh mẫu, chỉ thay hình in/họa tiết trên sản phẩm tương ứng."}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -404,7 +435,7 @@ export function BackgroundStudioPage() {
               value={
                 studio.jobs.length ? (finished / studio.jobs.length) * 100 : 0
               }
-              aria-label="Tiến độ thay background"
+              aria-label="Tiến độ áp hình in"
               aria-valuetext={`${finished}/${studio.jobs.length} ảnh đã xử lý`}
             />
           </>
@@ -441,8 +472,8 @@ export function BackgroundStudioPage() {
             Bộ ảnh mới sẽ xuất hiện tại đây
           </h3>
           <p className="max-w-md text-sm text-gray-600">
-            Xem sản phẩm gốc, background tham chiếu và kết quả cạnh nhau. Tải
-            từng ảnh hoặc gom tất cả vào một file ZIP.
+            Xem sản phẩm gốc, ảnh tham chiếu và kết quả cạnh nhau. Tải từng ảnh
+            hoặc gom tất cả vào một file ZIP.
           </p>
         </Card>
       )}

@@ -2,23 +2,25 @@
 
 CI/CD và deploy lên server EziHubb: [hướng dẫn production](docs/deployment.md).
 
-Frontend React + TypeScript cho Gemini Tools API: mockup, ý tưởng, chỉnh ảnh từ reference và thay background hàng loạt. Sidebar chọn Gemini (mặc định) hoặc ShopAIKey cho ảnh/vision, lưu lựa chọn trên trình duyệt và lấy khả năng từ GET /api/ai/providers. Provider chưa cấu hình bị khóa. Ảnh luôn dùng provider/model được chọn, không tự fallback. Text có định tuyến riêng VyceAI ưu tiên, ShopAIKey dự phòng khi bật AI_AUTO_TEXT_ROUTING. Lựa chọn VyceAI hoặc mặc định hệ thống cũ được chuyển sang Gemini. Credential và model mặc định chỉ nằm ở backend.
+Frontend React + TypeScript cho Gemini Tools API: mockup, ý tưởng, chỉnh ảnh từ reference và áp hình in vào ảnh tham chiếu hàng loạt. Sidebar chọn Gemini (mặc định) hoặc ShopAIKey cho ảnh/vision, lưu lựa chọn trên trình duyệt và lấy khả năng từ GET /api/ai/providers. Provider chưa cấu hình bị khóa. Ảnh luôn dùng provider/model được chọn, không tự fallback. Text có định tuyến riêng VyceAI ưu tiên, ShopAIKey dự phòng khi bật AI_AUTO_TEXT_ROUTING. Lựa chọn VyceAI hoặc mặc định hệ thống cũ được chuyển sang Gemini. Credential và model mặc định chỉ nằm ở backend.
 
 ## Provider và model
 
 Khi có tác vụ AI đang xử lý, provider, model và nút tải lại model bị khóa trên cả desktop/mobile, kể cả khi đổi tab. Các lựa chọn chỉ mở lại khi mọi tác vụ kết thúc, lỗi hoặc được hủy; hoàn tất một tác vụ không mở khóa nếu tác vụ khác vẫn đang chạy.
 
-Khung **Model tạo / sửa ảnh** nằm ở đầu nội dung trên mọi trang, hiển thị trực tiếp trên cả desktop và mobile. Khi dùng Gemini, nút **Chọn model ShopAIKey** chuyển provider và tải danh sách model từ `GET /api/ai/providers/shopaikey/image-models`. Khi đã chọn ShopAIKey trong sidebar, danh sách cũng hiện tại khung này, nhóm theo **Google · Gemini**, **OpenAI · GPT Image** và **xAI · Grok Imagine**. Model được lưu trên trình duyệt và gửi dưới trường `imageModel` cho Mockup Generator, Idea Generator, Image Editor và Background Studio. Có nút tải lại; lỗi catalog/model đã gỡ sẽ ngăn tạo ảnh cho đến khi chọn hợp lệ. Đổi sang Gemini không gửi model ShopAIKey. Một batch giữ lựa chọn lúc bắt đầu; retry dùng lựa chọn hiện tại. Backend gọi API phù hợp với model đã chọn. Grok nhận tối đa 5 ảnh gồm sản phẩm gốc; tài khoản chưa có kênh cho model sẽ nhận lỗi rõ ràng và không tự chuyển model.
+Khung **Model tạo / sửa ảnh** nằm ở đầu nội dung trên mọi trang, hiển thị trực tiếp trên cả desktop và mobile. Khi dùng Gemini, nút **Chọn model ShopAIKey** chuyển provider và tải danh sách model từ `GET /api/ai/providers/shopaikey/image-models`. Khi đã chọn ShopAIKey trong sidebar, danh sách cũng hiện tại khung này, nhóm theo **Google · Gemini**, **OpenAI · GPT Image** và **xAI · Grok Imagine**. Model được lưu trên trình duyệt và gửi dưới trường `imageModel` cho Mockup Generator, Idea Generator, Image Editor và Mockup Studio. Có nút tải lại; lỗi catalog/model đã gỡ sẽ ngăn tạo ảnh cho đến khi chọn hợp lệ. Đổi sang Gemini không gửi model ShopAIKey. Một batch giữ lựa chọn lúc bắt đầu; retry dùng lựa chọn hiện tại. Backend gọi API phù hợp với model đã chọn. Grok nhận tối đa 5 ảnh gồm sản phẩm gốc; tài khoản chưa có kênh cho model sẽ nhận lỗi rõ ràng và không tự chuyển model.
 
 Text có định tuyến tự động độc lập khi API trả `textRouting`: ưu tiên GPT rồi Claude từ VyceAI nội bộ, luôn kiểm tra health trước mỗi lần áp dụng; fallback ShopAIKey nếu không dùng được. VyceAI không xuất hiện trong dropdown ảnh. Phân tích ảnh vẫn dùng vision model của provider ảnh đã chọn.
 
-## Background Studio
+## Mockup Studio
 
-Tab **Background Studio** (`/#background-studio`) nhận một ảnh sản phẩm gốc và tối đa 10 background tham chiếu. Chọn/bỏ chọn background, chọn 1–3 ảnh cho mỗi background (tối đa 20 kết quả một bộ), thêm **Custom prompt** rồi tạo cả bộ. Ô prompt luôn hiển thị, tối đa 2000 ký tự, áp dụng cho cả bộ và khóa khi đang tạo. Có thể mô tả thêm bố cục, ánh sáng/vị trí; để trống để dùng ảnh tham chiếu. Model giữ thiết kế sản phẩm và tái tạo môi trường từ ảnh tham chiếu; cần kiểm tra chi tiết sản phẩm trong kết quả vì đây là xử lý bằng AI.
+Tab **Mockup Studio** (`/#background-studio`) chuyển hình in/họa tiết từ một ảnh sản phẩm gốc lên sản phẩm tương ứng trong tối đa 10 ảnh tham chiếu. Ảnh tham chiếu là ảnh nền để chỉnh sửa tại chỗ: giữ nguyên người/chủ thể, cảnh, ánh sáng, bố cục, màu nền và cấu trúc sản phẩm đích. Giữ chi tiết, màu và tỷ lệ hình in so với sản phẩm gốc; chỉ thích ứng với phối cảnh, độ cong, nếp gấp và phần bị che khuất. Mặc định xử lý tất cả sản phẩm cùng loại trong ảnh, không giới hạn ở áo hay ảnh có người. Chọn/bỏ chọn ảnh, chọn 1–3 kết quả cho mỗi ảnh (tối đa 20 kết quả một bộ).
+
+**Custom prompt** được điền sẵn đầy đủ prompt base từ `src/constants/background-studio-prompt.ts`, tối đa 12000 ký tự. Người dùng được sửa hoặc thay thế toàn bộ; có nút **Khôi phục prompt gốc**. Mỗi bộ gửi nguyên nội dung cuối cùng trong trường `instructions`, không trim, không ghép base phía API, không thêm quy tắc ẩn, nhãn text hay câu hướng dẫn biến thể. Prompt thiếu/trống bị chặn; ô nhập và nút khôi phục bị khóa khi đang tạo. Multipart trình duyệt có thể chuẩn hóa xuống dòng thành CRLF. Retry giữ prompt đã lưu của tác vụ; muốn dùng prompt mới cần tạo bộ mới. Prompt mặc định yêu cầu giữ nguyên cảnh và ánh sáng, người dùng có thể sửa yêu cầu này. Đây là chỉnh sửa bằng AI, cần đối chiếu kết quả vì chưa có mask hoặc kiểm định độ chính xác từng pixel.
 
 Mỗi cặp ảnh được gửi tuần tự qua `POST /api/backgrounds/replace` với `productImage`, `backgroundImage`, `provider`, `variationIndex` và `instructions`. Provider được giữ cố định cho cả lần tạo; ảnh thành công hiện ngay và được giữ khi ảnh khác lỗi. Có thể dừng, thử lại một ảnh hoặc tiếp tục phần chưa xong bằng provider hiện tại. Lỗi thanh toán/xác thực/quota/cấu hình hoặc R2 sẽ tạm dừng phần còn lại. API retry upload riêng để không tạo lại ảnh trong cùng request khi R2 lỗi.
 
-Xem ảnh mở so sánh sản phẩm–background–kết quả. Tải riêng hoặc ZIP toàn bộ ảnh đã xong, tên file theo background/biến thể và giữ đuôi PNG/JPEG/WebP thực tế. Reload trang xóa file/kết quả đang có; chuyển tab vẫn giữ dữ liệu. Dừng không bảo đảm provider ngừng xử lý request đã gửi.
+Xem ảnh mở so sánh sản phẩm–ảnh tham chiếu–kết quả. Tải riêng hoặc ZIP toàn bộ ảnh đã xong, tên file theo ảnh tham chiếu/biến thể và giữ đuôi PNG/JPEG/WebP thực tế. Reload trang xóa file/kết quả đang có; chuyển tab vẫn giữ dữ liệu. Dừng không bảo đảm provider ngừng xử lý request đã gửi. Endpoint và tên trường `backgroundImage` được giữ để tương thích; trường này chứa ảnh mẫu cần chỉnh sửa, không chỉ chứa background.
 
 ## Chạy local
 
@@ -41,7 +43,7 @@ npx.cmd playwright install chromium
 npm.cmd run test:e2e
 ```
 
-Playwright tự mở Vite tại cổng 5183 và dùng API giả lập, không gọi provider AI hay R2. Test bao gồm menu mobile/deep link, hủy phân tích cũ, giới hạn upload, số ảnh đầu ra, tải ZIP thiếu ảnh, giữ trạng thái và dashboard. Background Studio kiểm tra gửi đúng từng cặp ảnh, chọn background/biến thể, giữ provider trong hàng đợi, dừng/tiếp tục, retry phần chưa xong, lỗi provider/R2 và tên file ZIP.
+Playwright tự mở Vite tại cổng 5183 và dùng API giả lập, không gọi provider AI hay R2. Test bao gồm menu mobile/deep link, hủy phân tích cũ, giới hạn upload, số ảnh đầu ra, tải ZIP thiếu ảnh, giữ trạng thái và dashboard. Mockup Studio kiểm tra gửi đúng từng cặp ảnh, chọn ảnh tham chiếu/số kết quả, giữ provider trong hàng đợi, dừng/tiếp tục, retry phần chưa xong, lỗi provider/R2 và tên file ZIP.
 
 ## Production
 
