@@ -180,6 +180,17 @@
   }
 }
 
+@keyframes studio-loading-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.studio-loading-spinner {
+  animation: studio-loading-spin 1s linear infinite;
+  transform-origin: center;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -187,5 +198,10 @@
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+
+  /* Keep pending-request feedback visible with a slower, continuous rotation. */
+  .studio-loading-spinner {
+    animation-duration: 1.5s !important;
   }
 }

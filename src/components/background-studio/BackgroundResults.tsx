@@ -119,7 +119,7 @@ export function BackgroundResults({
           onClick={() => void zip()}
         >
           {downloading ? (
-            <Loader2 aria-hidden="true" className="motion-safe:animate-spin" />
+            <Loader2 aria-hidden="true" className="studio-loading-spinner" />
           ) : (
             <Download aria-hidden="true" />
           )}
@@ -142,7 +142,7 @@ export function BackgroundResults({
                   <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
                     {job.status === "processing" ? (
                       <Loader2
-                        className="h-9 w-9 text-blue-600 motion-safe:animate-spin"
+                        className="h-9 w-9 text-blue-600 studio-loading-spinner"
                         aria-hidden="true"
                       />
                     ) : job.status === "error" ? (
@@ -240,7 +240,7 @@ export function BackgroundResults({
                   <p className="flex min-h-11 items-center text-xs text-gray-600">
                     {job.status === "processing"
                       ? "Đang áp hình in…"
-                      : "Sẽ được xử lý lần lượt."}
+                      : "Đang chờ xử lý."}
                   </p>
                 )}
               </div>

@@ -316,10 +316,11 @@ test("image model selection locks during a background batch, persists and never 
   });
   await page.route("**/api/backgrounds/replace", async (route) => {
     bodies.push(route.request().postDataBuffer()!.toString());
-    if (bodies.length === 1) await gate;
+    const index = bodies.length;
+    await gate;
     await route.fulfill({
       json: {
-        url: `https://cdn.example/${bodies.length}.png`,
+        url: `https://cdn.example/${index}.png`,
         mimeType: "image/png",
       },
     });
@@ -331,7 +332,7 @@ test("image model selection locks during a background batch, persists and never 
   await expect(model).toHaveValue("gemini-3.1-flash-image-preview");
   await model.selectOption("gemini-3-pro-image-preview");
   await studio.getByRole("button", { name: "Tạo 2 ảnh", exact: true }).click();
-  await expect.poll(() => bodies.length).toBe(1);
+  await expect.poll(() => bodies.length).toBe(2);
   await expect(model).toBeDisabled();
   await expect(provider).toBeDisabled();
   await expect(
@@ -525,10 +526,11 @@ test("background batch sends one product and one selected reference per result, 
   });
   await page.route("**/api/backgrounds/replace", async (route) => {
     bodies.push(route.request().postDataBuffer()!.toString());
-    if (bodies.length === 1) await gate;
+    const index = bodies.length;
+    await gate;
     await route.fulfill({
       json: {
-        url: `https://cdn.example/background-${bodies.length}.png`,
+        url: `https://cdn.example/background-${index}.png`,
         mimeType: "image/png",
       },
     });
@@ -564,7 +566,7 @@ test("background batch sends one product and one selected reference per result, 
     studio.getByText(`${instructions.length}/12000 ký tự`, { exact: true }),
   ).toBeVisible();
   await studio.getByRole("button", { name: "Tạo 4 ảnh", exact: true }).click();
-  await expect.poll(() => bodies.length).toBe(1);
+  await expect.poll(() => bodies.length).toBe(3);
   await expect(studio.getByLabel("Thêm ảnh tham chiếu")).toBeDisabled();
   await expect(customPrompt).toBeDisabled();
   await expect(
@@ -746,101 +748,276 @@ test("background failures preserve successes and retry only unfinished reference
   expect(bodies[2]).not.toContain("Only edit the product on the right");
 });
 
-test("a billing failure pauses the background queue and can resume on another provider", async ({
+for (const reducedMotion of ["no-preference", "reduce"] as const) {
+  test(
+    "Mockup Studio loading keeps spinning while pending with motion=" +
+      reducedMotion,
+    async ({ page }) => {
+      await page.emulateMedia({ reducedMotion });
+      const pending: (() => void)[] = [];
+      await page.route("**/api/backgrounds/replace", async (route) => {
+        const index = pending.length;
+        await new Promise<void>((resolve) => pending.push(resolve));
+        await route
+          .fulfill({
+            json: {
+              url: "https://cdn.example/spinner-" + index + ".png",
+              mimeType: "image/png",
+            },
+          })
+          .catch(() => {});
+      });
+      const studio = await setupBackgrounds(page);
+      await studio
+        .getByRole("button", { name: "Tạo 2 ảnh", exact: true })
+        .click();
+      await expect.poll(() => pending.length).toBe(2);
+      const indicators = studio.locator("svg.studio-loading-spinner");
+      await expect(indicators).toHaveCount(3);
+      const progressIndicator = studio
+        .getByRole("status")
+        .locator("svg.studio-loading-spinner");
+      const animation = await progressIndicator.evaluateHandle(
+        (element) => element.getAnimations()[0],
+      );
+      // Observe a complete revolution with real pending requests, not just a CSS class.
+      await expect
+        .poll(() =>
+          indicators.evaluateAll((elements) =>
+            elements.every((element) => {
+              const animation = element.getAnimations()[0];
+              if (!animation?.effect) return false;
+              const timing = animation.effect.getComputedTiming();
+              return (
+                animation.playState === "running" &&
+                timing.iterations === Infinity &&
+                typeof timing.duration === "number" &&
+                timing.duration >= 1000 &&
+                typeof animation.currentTime === "number" &&
+                animation.currentTime > timing.duration
+              );
+            }),
+          ),
+        )
+        .toBe(true);
+      pending[1]();
+      await expect(
+        studio.getByRole("button", { name: "Tải 1 ảnh (ZIP)", exact: true }),
+      ).toBeEnabled();
+      await expect(indicators).toHaveCount(2);
+      expect(
+        await progressIndicator.evaluate(
+          (element, previous) => element.getAnimations()[0] === previous,
+          animation,
+        ),
+      ).toBe(true);
+      await studio
+        .getByRole("button", { name: "Dừng tạo", exact: true })
+        .click();
+      await expect(indicators).toHaveCount(0);
+      pending[0]();
+      await animation.dispose();
+    },
+  );
+}
+
+test("Mockup Studio keeps three requests active, refills slots immediately and maps out-of-order results correctly", async ({
   page,
 }) => {
-  let calls = 0;
-  await page.route("**/api/backgrounds/replace", (route) => {
-    calls++;
-    if (calls === 1)
-      return route.fulfill({
-        status: 503,
-        json: {
-          code: "AI_BILLING_BLOCKED",
-          message: "Thanh toán Gemini bị chặn.",
-          reason: "Billing denied",
-          retryable: false,
-        },
-      });
-    return route.fulfill({
-      json: { url: `https://cdn.example/${calls}.png`, mimeType: "image/png" },
+  const pending: { name: string; body: string; finish: () => void }[] = [];
+  let active = 0;
+  let peak = 0;
+  await page.route("**/api/backgrounds/replace", async (route) => {
+    const body = route.request().postDataBuffer()!.toString();
+    const name = body.match(/name="backgroundImage"; filename="([^"]+)"/)![1];
+    active++;
+    peak = Math.max(peak, active);
+    await new Promise<void>((finish) => pending.push({ name, body, finish }));
+    active--;
+    await route.fulfill({
+      json: { url: "https://cdn.example/" + name, mimeType: "image/png" },
     });
   });
-  const studio = await setupBackgrounds(page, [
+  const names = [
     "one.png",
     "two.png",
     "three.png",
-  ]);
-  await studio.getByRole("button", { name: "Tạo 3 ảnh", exact: true }).click();
+    "four.png",
+    "five.png",
+    "six.png",
+    "seven.png",
+  ];
+  const studio = await setupBackgrounds(page, names);
+  const provider = page.getByRole("combobox", { name: "Provider AI" });
+  await provider.selectOption("shopaikey");
+  const model = page.getByRole("combobox", { name: "Model tạo / sửa ảnh" });
+  await model.selectOption("gemini-3-pro-image-preview");
+  const prompt = studio.getByLabel("Custom prompt", { exact: true });
+  await prompt.fill("Apply this same final prompt to each reference.");
+  await studio.getByRole("button", { name: "Tạo 7 ảnh", exact: true }).click();
+  await expect.poll(() => pending.length).toBe(3);
+  expect(active).toBe(3);
+  await expect(studio.getByText("Đang tạo", { exact: true })).toHaveCount(3);
+  await expect(studio.getByText("Đang chờ", { exact: true })).toHaveCount(4);
+  const second = pending[1];
+  second.finish();
+  await expect.poll(() => pending.length).toBe(4);
   await expect(
-    studio.getByRole("button", {
-      name: "Tiếp tục 3 ảnh chưa xong",
+    studio.getByRole("img", {
+      name: "Kết quả áp hình in vào " + second.name + ", ảnh 1",
       exact: true,
     }),
-  ).toBeEnabled();
-  await expect(studio.getByRole("alert")).toContainText(
-    "Thanh toán Gemini bị chặn.",
-  );
-  await expect(studio.getByText("Chưa chạy", { exact: true })).toHaveCount(2);
-  expect(calls).toBe(1);
-  await page
-    .getByRole("combobox", { name: "Provider AI" })
-    .selectOption("shopaikey");
-  await studio
-    .getByRole("button", { name: "Tiếp tục 3 ảnh chưa xong", exact: true })
-    .click();
+  ).toHaveAttribute("src", "https://cdn.example/" + second.name);
+  pending[0].finish();
+  await expect.poll(() => pending.length).toBe(5);
+  pending[2].finish();
+  await expect.poll(() => pending.length).toBe(6);
+  pending[3].finish();
+  await expect.poll(() => pending.length).toBe(7);
+  pending[6].finish();
+  pending[5].finish();
   await expect(
-    studio.getByRole("button", { name: "Tải 3 ảnh (ZIP)", exact: true }),
+    studio.getByRole("button", { name: "Tải 6 ảnh (ZIP)", exact: true }),
   ).toBeEnabled();
-  expect(calls).toBe(4);
-  await expect(studio.getByRole("alert")).toHaveCount(0);
+  await expect(model).toBeDisabled();
+  await expect(provider).toBeDisabled();
+  await expect(prompt).toBeDisabled();
+  await expect(
+    studio.getByRole("button", { name: "Khôi phục prompt gốc", exact: true }),
+  ).toBeDisabled();
+  pending[4].finish();
+  await expect(
+    studio.getByRole("button", { name: "Tải 7 ảnh (ZIP)", exact: true }),
+  ).toBeEnabled();
+  await expect(model).toBeEnabled();
+  await expect(provider).toBeEnabled();
+  await expect(prompt).toBeEnabled();
+  expect(peak).toBe(3);
+  expect(pending.map((item) => item.name).sort()).toEqual([...names].sort());
+  for (const item of pending) {
+    expect(item.body).toContain(
+      'name="imageModel"\r\n\r\ngemini-3-pro-image-preview',
+    );
+    expect(item.body).toContain(
+      'name="instructions"\r\n\r\nApply this same final prompt to each reference.',
+    );
+    await expect(
+      studio.getByRole("img", {
+        name: "Kết quả áp hình in vào " + item.name + ", ảnh 1",
+        exact: true,
+      }),
+    ).toHaveAttribute("src", "https://cdn.example/" + item.name);
+  }
 });
 
-test("storage failures pause remaining background work instead of generating more paid images", async ({
-  page,
-}) => {
-  let calls = 0;
-  await page.route("**/api/backgrounds/replace", (route) => {
-    calls++;
-    return route.fulfill({
-      status: 502,
-      json: {
-        code: "STORAGE_ACCESS_DENIED",
-        message: "Không có quyền ghi R2.",
-        retryable: false,
-      },
-    });
-  });
-  const studio = await setupBackgrounds(page);
-  await studio.getByRole("button", { name: "Tạo 2 ảnh", exact: true }).click();
-  await expect(
-    studio.getByRole("button", {
-      name: "Tiếp tục 2 ảnh chưa xong",
-      exact: true,
-    }),
-  ).toBeEnabled();
-  await expect(studio.getByRole("alert")).toContainText(
-    "Không có quyền ghi R2.",
+for (const failure of [
+  {
+    code: "AI_BILLING_BLOCKED",
+    status: 503,
+    message: "Thanh toán Gemini bị chặn.",
+  },
+  {
+    code: "STORAGE_ACCESS_DENIED",
+    status: 502,
+    message: "Không có quyền ghi R2.",
+  },
+  {
+    code: "AI_RATE_LIMITED",
+    status: 429,
+    message: "Provider giới hạn số request.",
+  },
+]) {
+  test(
+    failure.code +
+      " pauses unsent jobs, retains in-flight results and retries only unfinished jobs",
+    async ({ page }) => {
+      const pending: (() => void)[] = [];
+      const bodies: string[] = [];
+      await page.route("**/api/backgrounds/replace", async (route) => {
+        const index = bodies.length;
+        bodies.push(route.request().postDataBuffer()!.toString());
+        if (index < 3)
+          await new Promise<void>((resolve) => pending.push(resolve));
+        if (index === 0)
+          return route.fulfill({
+            status: failure.status,
+            json: {
+              code: failure.code,
+              message: failure.message,
+              retryable: false,
+            },
+          });
+        return route.fulfill({
+          json: {
+            url: "https://cdn.example/result-" + index + ".png",
+            mimeType: "image/png",
+          },
+        });
+      });
+      const studio = await setupBackgrounds(page, [
+        "one.png",
+        "two.png",
+        "three.png",
+        "four.png",
+        "five.png",
+        "six.png",
+      ]);
+      const provider = page.getByRole("combobox", { name: "Provider AI" });
+      await studio
+        .getByRole("button", { name: "Tạo 6 ảnh", exact: true })
+        .click();
+      await expect.poll(() => pending.length).toBe(3);
+      pending[0]();
+      await expect(studio.getByRole("alert")).toContainText(failure.message);
+      await expect(studio.getByText("Chưa chạy", { exact: true })).toHaveCount(
+        3,
+      );
+      await expect(studio.getByText("Đang tạo", { exact: true })).toHaveCount(
+        2,
+      );
+      await expect(provider).toBeDisabled();
+      await expect(
+        studio.getByLabel("Custom prompt", { exact: true }),
+      ).toBeDisabled();
+      expect(bodies).toHaveLength(3);
+      pending[1]();
+      pending[2]();
+      await expect(
+        studio.getByRole("button", {
+          name: "Tiếp tục 4 ảnh chưa xong",
+          exact: true,
+        }),
+      ).toBeEnabled();
+      await expect(
+        studio.getByRole("button", { name: "Tải 2 ảnh (ZIP)", exact: true }),
+      ).toBeEnabled();
+      expect(bodies).toHaveLength(3);
+      await provider.selectOption("shopaikey");
+      await studio
+        .getByRole("button", { name: "Tiếp tục 4 ảnh chưa xong", exact: true })
+        .click();
+      await expect(
+        studio.getByRole("button", { name: "Tải 6 ảnh (ZIP)", exact: true }),
+      ).toBeEnabled();
+      expect(bodies).toHaveLength(7);
+      for (const body of bodies.slice(3))
+        expect(body).toContain('name="provider"\r\n\r\nshopaikey');
+      await expect(studio.getByRole("alert")).toHaveCount(0);
+    },
   );
-  await expect(studio.getByText("Chưa chạy", { exact: true })).toHaveCount(1);
-  expect(calls).toBe(1);
-});
+}
 
-test("stopping a background batch prevents further requests and keeps completed results", async ({
+test("stopping a parallel batch preserves completed images and late responses cannot alter or unlock its retry", async ({
   page,
 }) => {
-  let calls = 0;
-  let release!: () => void;
-  const gate = new Promise<void>((resolve) => {
-    release = resolve;
-  });
+  const pending: (() => void)[] = [];
   await page.route("**/api/backgrounds/replace", async (route) => {
-    calls++;
-    if (calls === 2) await gate;
+    const index = pending.length;
+    await new Promise<void>((resolve) => pending.push(resolve));
     await route
       .fulfill({
         json: {
-          url: `https://cdn.example/${calls}.png`,
+          url: "https://cdn.example/result-" + index + ".png",
           mimeType: "image/png",
         },
       })
@@ -850,22 +1027,53 @@ test("stopping a background batch prevents further requests and keeps completed 
     "one.png",
     "two.png",
     "three.png",
+    "four.png",
+    "five.png",
   ]);
-  await studio.getByRole("button", { name: "Tạo 3 ảnh", exact: true }).click();
-  await expect.poll(() => calls).toBe(2);
-  await studio.getByRole("button", { name: "Dừng tạo", exact: true }).click();
-  await expect(studio.getByText("Đã dừng", { exact: true })).toHaveCount(2);
+  const provider = page.getByRole("combobox", { name: "Provider AI" });
+  const prompt = studio.getByLabel("Custom prompt", { exact: true });
+  await studio.getByRole("button", { name: "Tạo 5 ảnh", exact: true }).click();
+  await expect.poll(() => pending.length).toBe(3);
+  pending[0]();
+  await expect.poll(() => pending.length).toBe(4);
   await expect(
     studio.getByRole("button", { name: "Tải 1 ảnh (ZIP)", exact: true }),
   ).toBeEnabled();
-  release();
+  await studio.getByRole("button", { name: "Dừng tạo", exact: true }).click();
+  await expect(studio.getByText("Đã dừng", { exact: true })).toHaveCount(4);
+  await expect(provider).toBeEnabled();
+  await expect(prompt).toBeEnabled();
+  expect(pending).toHaveLength(4);
   await studio
-    .getByRole("button", { name: "Tiếp tục 2 ảnh chưa xong", exact: true })
+    .getByRole("button", { name: "Tiếp tục 4 ảnh chưa xong", exact: true })
     .click();
+  await expect.poll(() => pending.length).toBe(7);
+  for (const finish of pending.slice(1, 4)) finish();
+  await expect(provider).toBeDisabled();
+  await expect(prompt).toBeDisabled();
+  await expect(studio.getByText("Đang tạo", { exact: true })).toHaveCount(3);
+  expect(pending).toHaveLength(7);
+  pending[4]();
+  await expect.poll(() => pending.length).toBe(8);
+  for (const finish of pending.slice(5)) finish();
   await expect(
-    studio.getByRole("button", { name: "Tải 3 ảnh (ZIP)", exact: true }),
+    studio.getByRole("button", { name: "Tải 5 ảnh (ZIP)", exact: true }),
   ).toBeEnabled();
-  expect(calls).toBe(4);
+  await expect(provider).toBeEnabled();
+  await expect(prompt).toBeEnabled();
+  expect(pending).toHaveLength(8);
+  const results = studio.locator(
+    'section[aria-labelledby="background-results-title"]',
+  );
+  for (const index of [1, 2, 3])
+    await expect(
+      results.locator(
+        'img[src="https://cdn.example/result-' + index + '.png"]',
+      ),
+    ).toHaveCount(0);
+  await expect(
+    results.locator('img[src="https://cdn.example/result-0.png"]'),
+  ).toHaveCount(1);
 });
 
 test("background uploads enforce limits and selected output totals on mobile", async ({

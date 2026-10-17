@@ -15,6 +15,7 @@ import {
 import {
   useBackgroundStudio,
   MAX_BACKGROUND_RESULTS,
+  MAX_CONCURRENT_BACKGROUND_REQUESTS,
 } from "../hooks/use-background-studio";
 import { IMAGE_ACCEPT, MAX_REFERENCES } from "../utils/upload.util";
 import { Button } from "../components/ui/button";
@@ -361,12 +362,12 @@ export function BackgroundStudioPage() {
             </p>
             <p className="mt-1 text-sm text-gray-600">
               {studio.running
-                ? `Đang tạo bằng ${studio.runningProvider}.`
+                ? `Đang tạo bằng ${studio.runningProvider}. Xử lý tối đa ${MAX_CONCURRENT_BACKGROUND_REQUESTS} ảnh đồng thời.`
                 : !studio.product.file || !studio.selected.length
                   ? "Thêm sản phẩm gốc và chọn ít nhất một ảnh tham chiếu để bắt đầu."
                   : !studio.providerReady
                     ? `${studio.providerName} chưa sẵn sàng cho tác vụ ảnh. Hãy kiểm tra hoặc chọn provider khác.`
-                    : "Mỗi kết quả giữ nguyên ảnh mẫu, chỉ thay hình in/họa tiết trên sản phẩm tương ứng."}
+                    : `Xử lý tối đa ${MAX_CONCURRENT_BACKGROUND_REQUESTS} ảnh đồng thời. Mỗi kết quả giữ nguyên ảnh mẫu, chỉ thay hình in/họa tiết trên sản phẩm tương ứng.`}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -417,7 +418,7 @@ export function BackgroundStudioPage() {
                 {studio.running && (
                   <Loader2
                     aria-hidden="true"
-                    className="h-4 w-4 motion-safe:animate-spin"
+                    className="h-4 w-4 studio-loading-spinner"
                   />
                 )}
                 {studio.running ? "Đang xử lý" : "Đã xử lý"} {finished}/

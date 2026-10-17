@@ -41,6 +41,7 @@ const blockingErrors = new Set([
   "AI_MODEL_UNAVAILABLE",
   "AI_CONFIGURATION_ERROR",
   "AI_QUOTA_EXCEEDED",
+  "AI_RATE_LIMITED",
   "AI_PROVIDER_INVALID",
   "AI_PROVIDER_NOT_CONFIGURED",
   "AI_CAPABILITY_UNAVAILABLE",
@@ -51,6 +52,7 @@ const blockingErrors = new Set([
   "STORAGE_UNAVAILABLE",
 ]);
 export const MAX_BACKGROUND_RESULTS = 20;
+export const MAX_CONCURRENT_BACKGROUND_REQUESTS = 3;
 
 export function useBackgroundStudio() {
   const product = useImageInput();
@@ -184,10 +186,12 @@ export function useBackgroundStudio() {
       ),
     );
     let successes = 0;
-    try {
-      for (let index = 0; index < queue.length; index++) {
-        if (!isCurrent(task)) break;
-        const job = queue[index];
+    let nextIndex = 0;
+    let halted = false;
+    const worker = async () => {
+      while (isCurrent(task) && !halted && nextIndex < queue.length) {
+        // Claim a slot before awaiting so each job is sent exactly once.
+        const job = queue[nextIndex++];
         patchJob(job.id, { status: "processing", error: undefined });
         try {
           const result = await replaceProductBackground({
@@ -199,7 +203,7 @@ export function useBackgroundStudio() {
             variationIndex: job.variation,
             signal: task.signal,
           });
-          if (!isCurrent(task)) break;
+          if (!isCurrent(task)) return;
           if (!result.url)
             throw new Error("Không nhận được ảnh kết quả từ API.");
           patchJob(job.id, {
@@ -211,23 +215,34 @@ export function useBackgroundStudio() {
           recordActivity("background", 1);
           successes++;
         } catch (error) {
-          if (!isCurrent(task)) break;
+          if (!isCurrent(task)) return;
           const message = getErrorMessage(error);
           patchJob(job.id, { status: "error", error: message });
-          if (blockingErrors.has(getApiErrorCode(error) || "")) {
+          if (!halted && blockingErrors.has(getApiErrorCode(error) || "")) {
+            // Do not launch more work; retain results from requests already sent.
+            halted = true;
             setBatchError(message);
             const remaining = new Set(
-              queue.slice(index + 1).map((item) => item.id),
+              queue.slice(nextIndex).map((item) => item.id),
             );
             setJobs((items) =>
               items.map((item) =>
                 remaining.has(item.id) ? { ...item, status: "paused" } : item,
               ),
             );
-            break;
           }
         }
       }
+    };
+    try {
+      await Promise.all(
+        Array.from(
+          {
+            length: Math.min(MAX_CONCURRENT_BACKGROUND_REQUESTS, queue.length),
+          },
+          worker,
+        ),
+      );
       if (isCurrent(task) && successes)
         toast.success(
           `Đã tạo ${successes} ảnh áp hình in. Các kết quả đã hoàn tất được giữ lại.`,
