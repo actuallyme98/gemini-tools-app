@@ -4,6 +4,8 @@ import { readFile } from "node:fs/promises";
 import {
   BACKGROUND_STUDIO_BASE_PROMPT,
   MAX_BACKGROUND_PROMPT_LENGTH,
+  MAX_BACKGROUND_INSTRUCTIONS_LENGTH,
+  buildBackgroundPrompt,
 } from "../src/constants/background-studio-prompt";
 const png = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aWQAAAABJRU5ErkJggg==",
@@ -300,6 +302,105 @@ test("cancelling unlocks model selection and an old response cannot unlock a new
   await expect(model).toBeEnabled();
 });
 
+test("async image jobs survive long processing and retry status reads without repeating generation", async ({
+  page,
+}) => {
+  const id = "a0123456-0000-4000-8000-012345678901";
+  let posts = 0;
+  let polls = 0;
+  let done = false;
+  await page.route("**/api/backgrounds/replace", (route) => {
+    posts++;
+    expect(route.request().postData()).toContain('name="async"\r\n\r\ntrue');
+    return route.fulfill({
+      status: 202,
+      json: { jobId: id, requestId: id, state: "pending" },
+    });
+  });
+  await page.route("**/api/backgrounds/jobs/*", (route) => {
+    polls++;
+    if (polls === 2)
+      return route.fulfill({ status: 502, body: "Temporary proxy error" });
+    return route.fulfill({
+      json: done
+        ? {
+            state: "done",
+            result: {
+              url: "https://cdn.example/async.png",
+              mimeType: "image/png",
+              requestId: id,
+            },
+          }
+        : { state: "pending" },
+    });
+  });
+  const studio = await setupBackgrounds(page, ["scene.png"]);
+  await studio
+    .getByLabel("Custom prompt", { exact: true })
+    .fill("Replace the ornaments in the reference with the source ornament.");
+  await expect(
+    studio.getByLabel("Final prompt", { exact: true }),
+  ).toContainText("ĐẦU RA KHÔNG WATERMARK");
+  await page.clock.install();
+  await studio.getByRole("button", { name: "Tạo 1 ảnh", exact: true }).click();
+  await expect.poll(() => polls).toBeGreaterThan(0);
+  const model = page.getByRole("combobox", { name: "Model tạo / sửa ảnh" });
+  await expect(model).toBeDisabled();
+  await page.clock.fastForward(150000);
+  await expect.poll(() => polls).toBeGreaterThan(1);
+  await page.clock.fastForward(2000);
+  await expect.poll(() => polls).toBeGreaterThan(2);
+  await expect(model).toBeDisabled();
+  expect(posts).toBe(1);
+  done = true;
+  await page.clock.fastForward(2000);
+  await expect(
+    studio.getByRole("button", { name: "Tải 1 ảnh (ZIP)", exact: true }),
+  ).toBeEnabled();
+  await expect(studio).toContainText(id);
+  await expect(model).toBeEnabled();
+  expect(posts).toBe(1);
+});
+
+test("failed async jobs expose the original request trace and stop polling without retrying AI", async ({
+  page,
+}) => {
+  const id = "b0123456-0000-4000-8000-012345678901";
+  let posts = 0;
+  let polls = 0;
+  await page.route("**/api/backgrounds/replace", (route) => {
+    posts++;
+    return route.fulfill({
+      status: 202,
+      json: { jobId: id, requestId: id, state: "pending" },
+    });
+  });
+  await page.route("**/api/backgrounds/jobs/*", (route) => {
+    polls++;
+    return route.fulfill({
+      json: {
+        state: "failed",
+        error: {
+          statusCode: 429,
+          code: "AI_RATE_LIMITED",
+          message: "Provider 1: quá nhiều yêu cầu, vui lòng thử lại sau.",
+          requestId: id,
+          retryable: true,
+        },
+      },
+    });
+  });
+  const studio = await setupBackgrounds(page, ["scene.png"]);
+  await studio.getByRole("button", { name: "Tạo 1 ảnh", exact: true }).click();
+  await expect(studio).toContainText("quá nhiều yêu cầu");
+  await expect(studio).toContainText(id);
+  await expect(
+    page.getByRole("combobox", { name: "Model tạo / sửa ảnh" }),
+  ).toBeEnabled();
+  expect(posts).toBe(1);
+  expect(polls).toBe(1);
+});
+
 test("image model selection locks during a batch and persists while Gemini stays hidden", async ({
   page,
 }) => {
@@ -550,7 +651,10 @@ test("background batch sends one product and one selected reference per result, 
   expect(BACKGROUND_STUDIO_BASE_PROMPT.length).toBeLessThanOrEqual(
     MAX_BACKGROUND_PROMPT_LENGTH,
   );
-  await expect(customPrompt).toHaveAttribute("maxlength", "12000");
+  await expect(customPrompt).toHaveAttribute(
+    "maxlength",
+    String(MAX_BACKGROUND_INSTRUCTIONS_LENGTH),
+  );
   await expect(
     studio.getByRole("heading", { name: "Ảnh tham chiếu", exact: true }),
   ).toBeVisible();
@@ -561,7 +665,10 @@ test("background batch sends one product and one selected reference per result, 
   const instructions = "Only edit the product on the left";
   await customPrompt.fill(instructions);
   await expect(
-    studio.getByText(`${instructions.length}/12000 ký tự`, { exact: true }),
+    studio.getByText(
+      `${buildBackgroundPrompt(instructions).replace(/\r?\n/g, "\r\n").length}/12000 ký tự`,
+      { exact: true },
+    ),
   ).toBeVisible();
   await studio.getByRole("button", { name: "Tạo 4 ảnh", exact: true }).click();
   await expect.poll(() => bodies.length).toBe(3);
@@ -596,7 +703,7 @@ test("background batch sends one product and one selected reference per result, 
     expect(body).not.toContain("unused.png");
     expect(body).toContain(instructions);
     expect(body.match(/name="instructions"\r\n\r\n([\s\S]*?)\r\n--/)?.[1]).toBe(
-      instructions,
+      buildBackgroundPrompt(instructions).replace(/\n/g, "\r\n"),
     );
     expect(body).not.toContain("Additional user preferences");
   }
@@ -679,7 +786,13 @@ test("background prompt is fully editable, required, restorable and sent in full
   expect(bodies).toHaveLength(1);
   expect(
     bodies[0].match(/name="instructions"\r\n\r\n([\s\S]*?)\r\n--/)?.[1],
-  ).toBe(finalPrompt.replace(/\n/g, "\r\n"));
+  ).toBe(buildBackgroundPrompt(finalPrompt).replace(/\n/g, "\r\n"));
+  await expect(studio.getByLabel("Final prompt", { exact: true })).toHaveText(
+    buildBackgroundPrompt(finalPrompt),
+  );
+  expect(buildBackgroundPrompt(finalPrompt)).toContain(
+    "ĐẦU RA KHÔNG WATERMARK",
+  );
   expect(bodies[0]).not.toContain("Edit IMAGE 2 in place");
   await page.getByRole("button", { name: /^Image Editor/ }).click();
   await page.getByRole("button", { name: /^Mockup Studio/ }).click();
@@ -950,7 +1063,9 @@ test("Mockup Studio keeps three requests active, refills slots immediately and m
       'name="imageModel"\r\n\r\ngemini-3-pro-image-preview',
     );
     expect(item.body).toContain(
-      'name="instructions"\r\n\r\nApply this same final prompt to each reference.',
+      buildBackgroundPrompt(
+        "Apply this same final prompt to each reference.",
+      ).replace(/\n/g, "\r\n"),
     );
     await expect(
       studio.getByRole("img", {

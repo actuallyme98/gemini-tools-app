@@ -14,6 +14,7 @@ import { useImageInput } from "./use-image-input";
 import { useRequest } from "./use-request";
 import {
   BACKGROUND_STUDIO_BASE_PROMPT,
+  buildBackgroundPrompt,
   MAX_BACKGROUND_PROMPT_LENGTH,
 } from "../constants/background-studio-prompt";
 
@@ -38,6 +39,7 @@ export type BackgroundJob = {
   requestId?: string;
 };
 const blockingErrors = new Set([
+  "BACKGROUND_BUSY",
   "AI_BILLING_BLOCKED",
   "AI_AUTHENTICATION_FAILED",
   "AI_PERMISSION_DENIED",
@@ -158,9 +160,10 @@ export function useBackgroundStudio() {
   };
   const selected = backgrounds.filter((item) => item.selected);
   const total = selected.length * variations;
+  const finalPrompt = buildBackgroundPrompt(instructions);
+  const finalPromptLength = finalPrompt.replace(/\r?\n/g, "\r\n").length;
   const promptValid =
-    !!instructions.trim() &&
-    instructions.length <= MAX_BACKGROUND_PROMPT_LENGTH;
+    !!instructions.trim() && finalPromptLength <= MAX_BACKGROUND_PROMPT_LENGTH;
   const providerEntry = catalog?.providers.find((item) => item.id === provider);
   const providerReady =
     !loading &&
@@ -284,7 +287,7 @@ export function useBackgroundStudio() {
           file: source.file,
           preview: snapshot,
           product: product.file,
-          instructions,
+          instructions: finalPrompt,
           variation,
           status: "queued",
         });
@@ -324,6 +327,8 @@ export function useBackgroundStudio() {
     variations,
     setVariations,
     instructions,
+    finalPrompt,
+    finalPromptLength,
     setInstructions,
     promptValid,
     resetInstructions: () => {

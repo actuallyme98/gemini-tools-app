@@ -23,7 +23,10 @@ import { Card } from "../components/ui/card";
 import { Progress } from "../components/ui/progress";
 import { ImageUploadSection } from "../components/ImageUploadSection";
 import { BackgroundResults } from "../components/background-studio/BackgroundResults";
-import { MAX_BACKGROUND_PROMPT_LENGTH } from "../constants/background-studio-prompt";
+import {
+  MAX_BACKGROUND_PROMPT_LENGTH,
+  MAX_BACKGROUND_INSTRUCTIONS_LENGTH,
+} from "../constants/background-studio-prompt";
 
 export function BackgroundStudioPage() {
   const studio = useBackgroundStudio();
@@ -311,15 +314,16 @@ export function BackgroundStudioPage() {
                 className="mt-1 text-sm text-gray-600"
               >
                 Prompt gốc đã được điền sẵn. Bạn có thể sửa hoặc thay thế toàn
-                bộ nội dung. Nội dung cuối cùng trong ô này sẽ được dùng cho tất
-                cả ảnh tham chiếu, không thêm yêu cầu ẩn.
+                bộ nội dung. Quy ước ảnh đích/ảnh nguồn và không thêm watermark
+                luôn được ghép vào final prompt hiển thị bên dưới. ẢNH 1 là ảnh
+                tham chiếu cần chỉnh sửa; ẢNH 2 là sản phẩm gốc để lấy thiết kế.
               </p>
               <textarea
                 id={`${id}-instructions`}
                 aria-describedby={`${id}-instructions-help ${id}-instructions-count${!studio.promptValid ? ` ${id}-instructions-error` : ""}`}
                 aria-invalid={!studio.promptValid}
                 value={studio.instructions}
-                maxLength={MAX_BACKGROUND_PROMPT_LENGTH}
+                maxLength={MAX_BACKGROUND_INSTRUCTIONS_LENGTH}
                 disabled={studio.running}
                 onChange={(event) => studio.setInstructions(event.target.value)}
                 rows={14}
@@ -330,9 +334,22 @@ export function BackgroundStudioPage() {
                 id={`${id}-instructions-count`}
                 className="mt-1 text-right text-xs text-gray-600"
               >
-                {studio.instructions.length}/{MAX_BACKGROUND_PROMPT_LENGTH} ký
-                tự
+                {studio.finalPromptLength}/{MAX_BACKGROUND_PROMPT_LENGTH} ký tự
               </p>
+              <details
+                className="mt-3 rounded-lg border border-gray-200 bg-white p-3"
+                open
+              >
+                <summary className="cursor-pointer text-sm font-medium text-gray-900">
+                  Final prompt gửi tới model
+                </summary>
+                <pre
+                  className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-words text-sm text-gray-700"
+                  aria-label="Final prompt"
+                >
+                  {studio.finalPrompt}
+                </pre>
+              </details>
               {!studio.promptValid && (
                 <p
                   id={`${id}-instructions-error`}

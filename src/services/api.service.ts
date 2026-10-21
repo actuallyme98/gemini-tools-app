@@ -1,4 +1,4 @@
-import Axios from "axios";
+import Axios, { type AxiosResponse } from "axios";
 import { maskAIProviderNames } from "../utils/ai-provider.util";
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
@@ -283,6 +283,7 @@ export async function replaceProductBackground(params: {
   if (params.imageModel) body.append("imageModel", params.imageModel);
   body.append("variationIndex", String(params.variationIndex));
   body.append("instructions", params.instructions);
+  body.append("async", "true");
   const response = await axios.post<BackgroundReplacement>(
     "/api/backgrounds/replace",
     body,
@@ -290,6 +291,85 @@ export async function replaceProductBackground(params: {
       signal: params.signal,
     },
   );
+  const accepted = response.data as BackgroundReplacement & { jobId?: string };
+  if (accepted.jobId) {
+    type JobStatus = {
+      state: "pending" | "done" | "failed";
+      result?: BackgroundReplacement;
+      error?: {
+        statusCode: number;
+        code: string;
+        message: string;
+        requestId: string;
+      };
+    };
+    const deadline = Date.now() + 20 * 60 * 1000;
+    while (Date.now() < deadline) {
+      params.signal?.throwIfAborted();
+      let poll: AxiosResponse<JobStatus> | undefined;
+      try {
+        poll = await axios.get<JobStatus>(
+          `/api/backgrounds/jobs/${encodeURIComponent(accepted.jobId)}`,
+          {
+            signal: params.signal,
+            timeout: 15000,
+          },
+        );
+      } catch (error) {
+        // Retry reads only; a temporary polling failure must never start another paid image request.
+        if (
+          !Axios.isAxiosError(error) ||
+          Axios.isCancel(error) ||
+          (error.response &&
+            ![429, 500, 502, 503, 504, 520, 522, 524].includes(
+              error.response.status,
+            ))
+        )
+          throw error;
+      }
+      if (poll?.data.state === "done" && poll.data.result?.url)
+        return poll.data.result;
+      if (poll?.data.state === "failed" && poll.data.error)
+        throw new Axios.AxiosError(
+          poll.data.error.message,
+          poll.data.error.code,
+          poll.config,
+          undefined,
+          {
+            ...poll,
+            data: poll.data.error,
+            status: poll.data.error.statusCode,
+          },
+        );
+      await new Promise<void>((resolve, reject) => {
+        const abort = () => {
+          clearTimeout(timer);
+          params.signal?.removeEventListener("abort", abort);
+          reject(new Axios.CanceledError());
+        };
+        const timer = setTimeout(() => {
+          params.signal?.removeEventListener("abort", abort);
+          resolve();
+        }, 2000);
+        if (params.signal?.aborted) abort();
+        else params.signal?.addEventListener("abort", abort, { once: true });
+      });
+    }
+    throw new Axios.AxiosError(
+      "Tác vụ chưa hoàn tất sau 20 phút. Liên hệ quản trị viên kèm mã yêu cầu.",
+      "BACKGROUND_JOB_TIMEOUT",
+      response.config,
+      undefined,
+      {
+        ...response,
+        data: {
+          message: "Tác vụ chưa hoàn tất sau 20 phút.",
+          requestId: accepted.requestId,
+        },
+        status: 504,
+      },
+    );
+  }
   const requestId = response.data.requestId || response.headers["x-request-id"];
   return {
     ...response.data,
