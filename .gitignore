@@ -32,3 +32,6 @@ playwright-report/
 scripts/.deploy-config
 *.pem
 *.key
+
+# Local CodeGraph index
+.codegraph/

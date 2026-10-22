@@ -9,3 +9,7 @@ scripts/.deploy-config
 **/*.pem
 **/*.key
 .github
+.codegraph
+codegraph.json
+test-results
+playwright-report

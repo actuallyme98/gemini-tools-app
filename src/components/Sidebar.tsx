@@ -8,6 +8,7 @@ import {
   Sparkles,
   Lightbulb,
   Layers,
+  Bot,
 } from "lucide-react";
 import { cn } from "./ui/utils";
 import { AIProviderSelect } from "./AIProviderSelect";
@@ -18,6 +19,12 @@ interface SidebarProps {
 }
 
 const menuItems = [
+  {
+    id: "agent",
+    label: "POD Agent",
+    icon: Bot,
+    description: "Chat và tự động hóa POD",
+  },
   {
     id: "home",
     label: "Dashboard",

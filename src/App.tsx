@@ -5,6 +5,7 @@ import { MockupGeneratorPage } from "./pages/MockupGeneratorPage";
 import { IdeaGeneratorPage } from "./pages/IdeaGeneratorPage";
 import { ImageProcessingPage } from "./pages/ImageProcessingPage";
 import { BackgroundStudioPage } from "./pages/BackgroundStudioPage";
+import { AgentPage } from "./pages/AgentPage";
 import { Sidebar } from "./components/Sidebar";
 import { AIImageModelPanel } from "./components/AIImageModelPanel";
 import { AIProviderProvider } from "./context/AIProviderProvider";
@@ -18,6 +19,7 @@ import {
 } from "./components/ui/sheet";
 
 const pages = [
+  "agent",
   "home",
   "mockup-generator",
   "background-studio",
@@ -84,6 +86,9 @@ export default function App() {
           >
             <div className="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
               <AIImageModelPanel />
+              <section hidden={page !== "agent"} aria-label="POD Agent">
+                <AgentPage />
+              </section>
               <section hidden={page !== "home"} aria-label="Dashboard">
                 <HomePage onNavigate={navigate} />
               </section>
