@@ -58,7 +58,7 @@ docker compose up --build
 
 Truy cập http://localhost:5173. Nếu dùng hai host riêng, cấu hình VITE_API_BASE_URL thành origin của API (không thêm /api) trước khi build; Docker hỗ trợ build arg cùng tên.
 
-Production dùng **https://lcgmedia.uk** cho app và **https://api.lcgmedia.uk** cho API. Workflow publish truyền `VITE_API_BASE_URL=https://api.lcgmedia.uk` vào Docker build; endpoint vẫn giữ prefix `/api`. Cấu hình CORS của API và R2 cho origin `https://lcgmedia.uk`. Cấu hình host Nginx/SSL nằm trong repo API tại `deploy/nginx-lcgmedia.conf`.
+Production dùng **https://tools.lcgmedia.uk** cho app và **https://api.lcgmedia.uk** cho API. Workflow publish truyền `VITE_API_BASE_URL=https://api.lcgmedia.uk` vào Docker build; endpoint vẫn giữ prefix `/api`. Cấu hình CORS của API và R2 cho origin `https://tools.lcgmedia.uk`. Cấu hình host Nginx/SSL nằm trong repo API tại `deploy/nginx-lcgmedia.conf`.
 
 Ảnh đầu ra nằm trên R2. Để tải ảnh/ZIP trong trình duyệt, cấu hình bucket/public domain cho phép CORS GET từ origin frontend. Lỗi tải ảnh sẽ hiển thị; ZIP báo chính xác số ảnh tải thành công.
 
