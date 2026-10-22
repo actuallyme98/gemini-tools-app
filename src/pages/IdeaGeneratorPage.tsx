@@ -254,7 +254,7 @@ export function IdeaGeneratorPage() {
             <Button
               onClick={handleGenerateIdeas}
               disabled={isGenerating || !imageModelReady}
-              className="w-full h-12 text-base bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700"
+              className="w-full h-12 text-base bg-primary hover:bg-primary/90"
               size="lg"
             >
               {isGenerating ? (
@@ -275,7 +275,7 @@ export function IdeaGeneratorPage() {
         {/* Right Column */}
         <div className="space-y-6">
           {/* Instructions */}
-          <Card className="p-6 bg-gradient-to-br from-blue-50 to-purple-50 border-blue-200">
+          <Card className="p-6 bg-slate-50 border-slate-200">
             <h3 className="font-semibold text-gray-900 mb-3">
               Hướng Dẫn Sử Dụng
             </h3>

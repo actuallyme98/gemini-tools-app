@@ -19,7 +19,7 @@ export function AIImageModelPanel() {
     <div
       role="region"
       aria-label="Cấu hình model ảnh"
-      className="mb-6 rounded-xl border border-blue-200 bg-white p-4 sm:p-5"
+      className="model-settings rounded-xl border border-slate-200 bg-white p-4 sm:p-5"
     >
       {provider === "shopaikey" ? (
         <>

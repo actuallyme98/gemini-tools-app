@@ -49,7 +49,7 @@ export function BackgroundStudioPage() {
     <div className="space-y-6 pb-4">
       <header className="space-y-3">
         <div className="flex flex-wrap items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 text-white">
+          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-slate-800 text-white">
             <Layers aria-hidden="true" className="h-6 w-6" />
           </div>
           <h2 className="text-3xl font-bold tracking-tight text-gray-900">
@@ -370,7 +370,7 @@ export function BackgroundStudioPage() {
           </div>
         </Card>
       </div>
-      <Card className="gap-3 border-blue-200 bg-gradient-to-r from-blue-50 to-purple-50 p-5">
+      <Card className="gap-3 border-slate-200 bg-white p-5">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <p className="text-lg font-semibold text-gray-900">

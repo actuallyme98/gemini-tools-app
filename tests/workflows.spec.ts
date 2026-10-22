@@ -110,10 +110,12 @@ test("mobile menu, deep links and back navigation", async ({ page }) => {
     if (hash === "background-studio") {
       await expect(page.getByLabel("Custom prompt")).toBeVisible();
     }
-    expect(await page.locator("main").evaluate((el) => el.scrollWidth)).toBe(
-      390,
-    );
-    await expect(page.locator("main section:visible")).toHaveCount(1);
+    expect(
+      await page.locator("main").evaluate((el) => el.scrollWidth),
+    ).toBeLessThanOrEqual(390);
+    await expect(
+      page.locator("main .agent-tool-page > section:visible"),
+    ).toHaveCount(1);
     expect(
       await page
         .locator("main")
@@ -139,11 +141,13 @@ test("default provider loads image models without opening the mobile menu", asyn
   const model = panel.getByRole("combobox", { name: "Model tạo / sửa ảnh" });
   await expect(model).toBeVisible();
   await expect(model).toBeEnabled();
-  expect((await model.boundingBox())!.y).toBeLessThan(250);
+  expect((await model.boundingBox())!.y).toBeLessThan(600);
   await expect(model).toHaveValue("gemini-3.1-flash-image-preview");
   await model.selectOption("gemini-nano-banana-2.1");
   await expect(model).toHaveValue("gemini-nano-banana-2.1");
-  await expect(panel).toContainText("Gemini 3.8 Flash và Gemini 4 Argon");
+  await expect(panel).toContainText(
+    "Chỉ hiển thị model hỗ trợ tạo và chỉnh sửa ảnh",
+  );
   await model.selectOption("gemini-3-pro-image-preview");
   for (const hash of [
     "mockup-generator",
@@ -248,14 +252,11 @@ test("model stays locked across tabs and concurrent requests, then unlocks after
   await expect(model).toBeVisible();
   await expect(model).toBeDisabled();
   await page.getByRole("button", { name: "Mở menu" }).click();
-  await expect(
-    page.getByRole("dialog").getByRole("combobox", { name: "Provider AI" }),
-  ).toBeDisabled();
-  finishReference();
-  await expect(
-    page.getByRole("dialog").getByRole("combobox", { name: "Provider AI" }),
-  ).toBeEnabled();
+  await expect(page.getByRole("dialog")).toBeVisible();
   await page.keyboard.press("Escape");
+  await expect(provider).toBeDisabled();
+  finishReference();
+  await expect(provider).toBeEnabled();
   await expect(model).toBeEnabled();
   await model.selectOption("gemini-3.1-flash-image-preview");
   await expect(model).toHaveValue("gemini-3.1-flash-image-preview");
@@ -742,7 +743,7 @@ test("background batch sends one product and one selected reference per result, 
       "product__garden__4-v2.png",
     ].sort(),
   );
-  await page.getByRole("button", { name: "Dashboard", exact: true }).click();
+  await page.getByRole("button", { name: "Công cụ", exact: true }).click();
   await expect(
     page.getByText("Đã tạo 1 ảnh áp hình in", { exact: true }),
   ).toHaveCount(4);
@@ -1344,9 +1345,9 @@ test("saved Gemini selection migrates to Provider 1 and stays hidden on desktop 
   await expect(select).toHaveValue("shopaikey");
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByRole("button", { name: "Mở menu" }).click();
-  const mobileSelect = page
-    .getByRole("dialog")
-    .getByRole("combobox", { name: "Provider AI" });
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await page.keyboard.press("Escape");
+  const mobileSelect = page.getByRole("combobox", { name: "Provider AI" });
   await expect(mobileSelect).toHaveValue("shopaikey");
   await expect(mobileSelect.locator('option[value="shopaikey"]')).toHaveText(
     "Provider 1 (mặc định)",
@@ -1357,7 +1358,6 @@ test("saved Gemini selection migrates to Provider 1 and stays hidden on desktop 
     "shopaikey",
   );
   await mobileSelect.selectOption("shopaikey");
-  await page.keyboard.press("Escape");
   await page.setViewportSize({ width: 1280, height: 900 });
   await expect(select).toHaveValue("shopaikey");
   await select.selectOption("shopaikey");
@@ -2025,10 +2025,14 @@ test("ZIP reports failed downloads, retains page results and updates dashboard",
     .click();
   await expect(page.getByText("Mockup #1", { exact: true })).toBeVisible();
   await expect(page.getByText("Mockup #2", { exact: true })).toBeVisible();
-  await page.locator("nav").getByRole("button", { name: "Dashboard" }).click();
+  await page.locator("nav").getByRole("button", { name: "Công cụ" }).click();
   await expect(page.getByText("Đã tạo 1 mockup", { exact: true })).toHaveCount(
     2,
   );
+  await page
+    .locator("nav")
+    .getByText("Công cụ bổ trợ", { exact: true })
+    .click();
   await page
     .locator("nav")
     .getByRole("button", { name: "Mockup Generator" })

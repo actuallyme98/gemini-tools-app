@@ -31,7 +31,7 @@ export function AIProviderSelect() {
     );
 
   return (
-    <div className="p-4 border-b border-gray-200 space-y-2 shrink-0 max-h-[60dvh] overflow-y-auto">
+    <div className="provider-select space-y-2 min-w-0">
       <label htmlFor={id} className="block text-sm font-medium text-gray-900">
         Provider AI
       </label>
@@ -42,7 +42,7 @@ export function AIProviderSelect() {
           onChange={(event) => selectProvider(event.target.value)}
           disabled={loading || isProcessingRequest}
           aria-describedby={`${id}-status ${id}-help`}
-          className="h-11 w-full appearance-none rounded-lg border border-blue-200 bg-gradient-to-r from-blue-50 to-purple-50 pl-3 pr-9 text-base md:text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-60"
+          className="h-11 w-full appearance-none rounded-lg border border-slate-200 bg-white pl-3 pr-9 text-base md:text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-60"
         >
           {provider &&
             isVisibleAIProvider(provider) &&

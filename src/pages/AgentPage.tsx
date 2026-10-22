@@ -1,5 +1,29 @@
-import { useCallback, useContext, useEffect, useRef, useState } from "react";
-import { Bot, Loader2, LogOut, MessageSquarePlus, Send } from "lucide-react";
+import {
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+import {
+  AlertCircle,
+  ArrowRight,
+  ArrowUp,
+  ArrowUpRight,
+  Bot,
+  ImagePlus,
+  Layers,
+  Lightbulb,
+  Loader2,
+  Paperclip,
+  Plus,
+  ScanLine,
+  Settings2,
+  ShieldCheck,
+  Sparkles,
+  X,
+} from "lucide-react";
 import { AIProviderContext } from "../context/ai-provider-context";
 import {
   agentClient,
@@ -21,15 +45,32 @@ import { Button } from "../components/ui/button";
 import { AgentRunCard } from "../components/agent/AgentRunCard";
 import { TemplateEditor } from "../components/agent/TemplateEditor";
 import { AgentImage } from "../components/agent/AgentImage";
+import { AgentShell } from "../components/agent/AgentShell";
+import {
+  AgentJobs,
+  AgentLibrary,
+  AgentTemplates,
+  WorkspaceHeading,
+} from "../components/agent/AgentWorkspaceViews";
+import { AIProviderSelect } from "../components/AIProviderSelect";
+import { AIImageModelPanel } from "../components/AIImageModelPanel";
 
-const field =
-  "mt-1 w-full min-w-0 rounded-md border bg-white p-2 text-sm disabled:bg-gray-100";
-export function AgentPage() {
+const field = "agent-field";
+export function AgentPage({
+  page,
+  onNavigate,
+  children,
+}: {
+  page: string;
+  onNavigate: (page: string) => void;
+  children: ReactNode;
+}) {
   const ai = useContext(AIProviderContext)!;
   const [status, setStatus] = useState<{
     enabled: boolean;
     setupRequired: boolean;
   }>();
+  const [connectionKey, setConnectionKey] = useState(0);
   const [user, setUser] = useState<AgentUser>();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -61,6 +102,7 @@ export function AgentPage() {
     MockupTemplate | "new" | null
   >(null);
   const messageId = useRef<string | null>(null);
+  const restoredConversation = useRef("");
   const reload = useCallback(async () => {
     setRevision((value) => value + 1);
   }, []);
@@ -80,6 +122,13 @@ export function AgentPage() {
     setTemplates([]);
     setTemplateEditor(null);
     setBrief("");
+    setResearch("");
+    setSources("");
+    setCategory("Sản phẩm POD");
+    setCount(3);
+    setOperation("auto");
+    setValidateVisually(true);
+    restoredConversation.current = "";
   }, []);
   useEffect(() => {
     const expire = () => {
@@ -119,7 +168,7 @@ export function AgentPage() {
         }
       });
     return () => controller.abort();
-  }, []);
+  }, [connectionKey]);
 
   useEffect(() => {
     if (!user) return;
@@ -219,667 +268,1095 @@ export function AgentPage() {
       list.includes(id) ? list.filter((value) => value !== id) : [...list, id],
     );
   const current = detail?.conversation.id === selectedId ? detail : undefined;
-  const selectedActive = current?.runs.some(activeRun);
+  const selectedActive =
+    current?.runs.some(activeRun) || Boolean(selectedId && !current);
+  useEffect(() => {
+    if (!current || restoredConversation.current === selectedId) return;
+    restoredConversation.current = selectedId;
+    const run = current.runs.at(-1);
+    if (!run) return;
+    setSourceIds(run.sourceIds || []);
+    setTargetIds(run.targetIds || []);
+    setTemplateIds(run.templateIds || []);
+    setOperation(run.operation || "auto");
+    setCategory(run.productType || "Sản phẩm POD");
+  }, [current, selectedId]);
 
-  if (!user)
-    return (
-      <div className="mx-auto max-w-lg space-y-5 py-8">
-        <div className="flex items-center gap-3">
-          <Bot className="size-8 text-blue-600" aria-hidden="true" />
-          <div>
-            <h2 className="text-2xl font-bold">POD Agent</h2>
-            <p className="text-sm text-gray-600">
-              Giao việc qua chat. Theo dõi toàn bộ quy trình.
-            </p>
-          </div>
-        </div>
-        {error && (
-          <p
-            role="alert"
-            className="whitespace-pre-wrap rounded-lg bg-red-50 p-3 text-sm text-red-800"
-          >
-            {error}
-          </p>
-        )}
-        {!status ? (
-          <p role="status">Đang kết nối Agent…</p>
-        ) : !status.enabled || status.setupRequired ? (
-          <div className="rounded-xl border bg-white p-5">
-            <p>
-              {!status.enabled
-                ? "Agent chưa được bật trên máy chủ."
-                : "Quản trị viên cần tạo tài khoản đầu tiên trước khi sử dụng Agent."}
-            </p>
-            <p className="mt-2 text-sm text-gray-600">
-              Các công cụ hiện tại vẫn dùng được trong menu.
-            </p>
-          </div>
-        ) : (
-          <form
-            className="space-y-4 rounded-xl border bg-white p-5"
-            onSubmit={(event) => {
-              event.preventDefault();
-              act(async () => {
-                const response = await agentClient.post<{
-                  token: string;
-                  user: AgentUser;
-                }>("/auth/login", { email, password });
-                authorizeAgent(response.data.token);
-                setAgentToken(response.data.token);
-                setUser(response.data.user);
-                setPassword("");
-              });
-            }}
-          >
-            <h3 className="font-semibold">Đăng nhập không gian làm việc</h3>
-            <label className="block text-sm">
-              Email
-              <input
-                className={field}
-                type="email"
-                autoComplete="username"
-                required
-                maxLength={254}
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
-            </label>
-            <label className="block text-sm">
-              Mật khẩu
-              <input
-                className={field}
-                type="password"
-                autoComplete="current-password"
-                minLength={12}
-                maxLength={128}
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-            </label>
-            <Button type="submit" disabled={busy}>
-              {busy ? "Đang đăng nhập…" : "Đăng nhập"}
-            </Button>
-          </form>
-        )}
-      </div>
-    );
+  const activeCount = allRuns.filter(activeRun).length;
+  const agentView = [
+    "agent",
+    "jobs",
+    "library",
+    "templates",
+    "settings",
+  ].includes(page);
+  const [contextOpen, setContextOpen] = useState(
+    () => window.matchMedia("(min-width: 1101px)").matches,
+  );
+  const newConversation = () => {
+    if (busy) return;
+    restoredConversation.current = "";
+    setSelectedId("");
+    setDetail(undefined);
+    setFocusedRun(undefined);
+    setExpandedRuns([]);
+    setSourceIds([]);
+    setTargetIds([]);
+    setTemplateIds([]);
+    setBrief("");
+    setResearch("");
+    setSources("");
+    setOperation("auto");
+    messageId.current = null;
+    onNavigate("agent");
+  };
+  const openConversation = (id: string) => {
+    if (busy) return;
+    if (selectedId !== id) {
+      restoredConversation.current = "";
+      setSourceIds([]);
+      setTargetIds([]);
+      setTemplateIds([]);
+      setResearch("");
+      setSources("");
+      setDetail(undefined);
+      setFocusedRun(undefined);
+      setExpandedRuns([]);
+      setBrief("");
+      messageId.current = null;
+    }
+    setSelectedId(id);
+    onNavigate("agent");
+  };
+  const logout = () =>
+    act(async () => {
+      await agentClient.post("/auth/logout");
+      clearSession();
+    });
+  const sendBrief = () => {
+    if (busy || selectedActive || brief.trim().length < 3) return;
+    act(async () => {
+      const researchSources = sources
+        .split("\n")
+        .map((value) => value.trim())
+        .filter(Boolean)
+        .map((url) => {
+          const parsed = new URL(url);
+          if (!["http:", "https:"].includes(parsed.protocol))
+            throw new Error("Nguồn tham khảo phải là URL HTTP/HTTPS.");
+          return {
+            title: parsed.hostname,
+            url: parsed.href,
+            retrievedAt: new Date().toISOString(),
+          };
+        });
+      let id = selectedId;
+      if (!id) {
+        id = (
+          await agentClient.post<Conversation>("/conversations", {
+            title: brief.slice(0, 120),
+          })
+        ).data.id;
+        setSelectedId(id);
+      }
+      messageId.current ??= crypto.randomUUID();
+      await agentClient.post(`/conversations/${id}/messages`, {
+        id: messageId.current,
+        text: brief,
+        operation,
+        sourceIds,
+        targetIds:
+          operation === "mockup_ai" || operation === "auto" ? targetIds : [],
+        templateIds:
+          operation === "mockup_template" || operation === "auto"
+            ? templateIds
+            : [],
+        count,
+        provider: ai.provider,
+        ...(ai.imageModel ? { imageModel: ai.imageModel } : {}),
+        productType: category,
+        research,
+        researchSources,
+        validateVisually,
+      });
+      messageId.current = null;
+      setBrief("");
+      setFocusedRun(undefined);
+    });
+  };
+  const selectLibraryAsset = (id: string, role: "source" | "reference") => {
+    newConversation();
+    if (role === "source") setSourceIds([id]);
+    else setTargetIds([id]);
+    setContextOpen(true);
+  };
+  const selectTemplate = (template: MockupTemplate) => {
+    newConversation();
+    setOperation("mockup_template");
+    setTemplateIds([template.id]);
+    setCategory(template.category);
+    setContextOpen(true);
+  };
+  const pickedAssets = [
+    ...sourceIds.map((id) => ({
+      id,
+      role: "Nguồn",
+      remove: () => setSourceIds((ids) => ids.filter((value) => value !== id)),
+    })),
+    ...targetIds.map((id) => ({
+      id,
+      role: "Tham chiếu",
+      remove: () => setTargetIds((ids) => ids.filter((value) => value !== id)),
+    })),
+  ];
+  const modelSettings = (
+    <div className="workspace-model-settings">
+      <AIImageModelPanel />
+      <details
+        className="provider-connection"
+        open={page !== "agent" || undefined}
+      >
+        <summary>Kết nối AI</summary>
+        <AIProviderSelect />
+      </details>
+    </div>
+  );
+  const notice = error && (
+    <div role="alert" className="workspace-alert">
+      <AlertCircle size={18} aria-hidden="true" />
+      <p>{error}</p>
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => {
+          setError("");
+          void reload();
+        }}
+      >
+        Tải lại
+      </Button>
+    </div>
+  );
 
   return (
-    <div className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="flex items-center gap-2 text-2xl font-bold">
-            <Bot aria-hidden="true" className="text-blue-600" />
-            POD Agent
-          </h2>
-          <p className="mt-1 text-sm text-gray-600">
-            Mockup và ý tưởng thiết kế · {user.email}
-          </p>
-        </div>
-        <Button
-          variant="outline"
-          disabled={busy}
-          onClick={() =>
-            act(async () => {
-              try {
-                await agentClient.post("/auth/logout");
-              } finally {
-                clearSession();
-              }
-            })
-          }
-        >
-          <LogOut aria-hidden="true" />
-          Đăng xuất
-        </Button>
-      </div>
-      {error && (
-        <div
-          role="alert"
-          className="flex items-start justify-between gap-2 rounded-lg border border-red-200 bg-red-50 p-3"
-        >
-          <p className="min-w-0 whitespace-pre-wrap break-words text-sm text-red-800">
-            {error}
-          </p>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => {
-              setError("");
-              void reload();
-            }}
-          >
-            Tải lại
-          </Button>
-        </div>
-      )}
-      <div className="grid min-w-0 gap-5 xl:grid-cols-[220px_minmax(0,1fr)]">
-        <aside className="min-w-0 space-y-3">
-          <Button
-            className="w-full"
-            variant="outline"
-            disabled={busy}
-            onClick={() => {
-              setSelectedId("");
-              setDetail(undefined);
-              messageId.current = null;
-            }}
-          >
-            <MessageSquarePlus aria-hidden="true" />
-            Công việc mới
-          </Button>
-          <nav
-            aria-label="Lịch sử công việc"
-            className="flex max-h-64 gap-2 overflow-auto xl:max-h-[65vh] xl:flex-col"
-          >
-            {conversations.map((conversation) => (
-              <button
-                key={conversation.id}
-                type="button"
-                aria-current={
-                  selectedId === conversation.id ? "page" : undefined
-                }
-                className={`min-w-40 rounded-lg border p-3 text-left text-sm xl:min-w-0 ${selectedId === conversation.id ? "border-blue-300 bg-blue-50 text-blue-900" : "bg-white hover:bg-gray-50"}`}
-                onClick={() => {
-                  setSelectedId(conversation.id);
-                  setDetail(undefined);
-                  messageId.current = null;
-                  setFocusedRun(undefined);
-                }}
-              >
-                <span className="line-clamp-2 break-words font-medium">
-                  {conversation.title}
-                </span>
-                <span className="mt-1 block text-xs text-gray-500">
-                  {new Date(conversation.updatedAt).toLocaleString("vi-VN")}
-                </span>
-              </button>
-            ))}
-          </nav>
-        </aside>
-        <div className="min-w-0 space-y-5">
-          <section
-            className="space-y-4 rounded-xl border bg-white p-4 sm:p-5"
-            aria-label="Giao việc cho Agent"
-          >
-            <div className="grid gap-3 sm:grid-cols-3">
-              <label className="text-sm">
-                Quy trình
-                <select
-                  aria-label="Quy trình"
-                  className={field}
-                  value={operation}
-                  disabled={busy || selectedActive}
-                  onChange={(e) => setOperation(e.target.value as Operation)}
-                >
-                  <option value="auto">Agent tự chọn quy trình</option>
-                  <option value="mockup_ai">Mockup từ ảnh tham chiếu</option>
-                  <option value="mockup_template">
-                    Ghép thiết kế lên template
-                  </option>
-                  <option value="design">Ý tưởng và Design</option>
-                </select>
-              </label>
-              <label className="text-sm">
-                Nhóm sản phẩm
-                <input
-                  className={field}
-                  list="pod-categories"
-                  value={category}
-                  required
-                  maxLength={100}
-                  disabled={busy || selectedActive}
-                  onChange={(e) => setCategory(e.target.value)}
-                />
-                <datalist id="pod-categories">
-                  {["T-shirt", "Sweatshirt", "Ornament", "Doormat"].map(
-                    (value) => (
-                      <option key={value} value={value} />
-                    ),
-                  )}
-                </datalist>
-              </label>
-              {(operation === "design" || operation === "auto") && (
-                <label className="text-sm">
-                  Số ý tưởng/biến thể
-                  <input
-                    className={field}
-                    type="number"
-                    min={1}
-                    max={20}
-                    value={count}
-                    disabled={busy || selectedActive}
-                    onChange={(e) => setCount(Number(e.target.value))}
-                  />
-                </label>
-              )}
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <label className="block text-sm font-medium">
-                {operation === "mockup_template"
-                  ? "File thiết kế nguồn (nên dùng PNG trong suốt)"
-                  : "Ảnh sản phẩm/thiết kế nguồn"}
-                <input
-                  className={field}
-                  type="file"
-                  accept="image/png,image/jpeg,image/webp"
-                  multiple={operation !== "design"}
-                  disabled={busy || selectedActive}
-                  onChange={(e) => {
-                    upload(e.target.files, "source");
-                    e.target.value = "";
-                  }}
-                />
-              </label>
-              {(operation === "mockup_ai" || operation === "auto") && (
-                <label className="block text-sm font-medium">
-                  Ảnh tham chiếu — cảnh cần giữ
-                  <input
-                    className={field}
-                    type="file"
-                    accept="image/png,image/jpeg,image/webp"
-                    multiple
-                    disabled={busy || selectedActive}
-                    onChange={(e) => {
-                      upload(e.target.files, "reference");
-                      e.target.value = "";
-                    }}
-                  />
-                </label>
-              )}
-            </div>
-            {operation === "design" && (
-              <p className="text-xs text-gray-600">
-                Không cần ảnh nguồn nếu tạo thiết kế mới. Chọn một ảnh nguồn nếu
-                cần tạo biến thể.
+    <AgentShell
+      currentPage={page}
+      onPageChange={onNavigate}
+      user={user}
+      conversations={conversations}
+      selectedId={selectedId}
+      onConversation={openConversation}
+      onNew={newConversation}
+      onLogout={logout}
+      activeCount={activeCount}
+      busy={busy}
+    >
+      <div hidden={!agentView}>
+        {!user ? (
+          <div className="agent-login-layout">
+            <section className="login-story">
+              <span className="login-wordmark">
+                <Bot size={25} aria-hidden="true" /> LCG Agent
+              </span>
+              <span className="login-story-label">YOUR CREATIVE PARTNER</span>
+              <h1>
+                Bạn có ý tưởng.
+                <br />
+                Agent có kế hoạch.
+              </h1>
+              <p>
+                Một không gian để biến yêu cầu thành mockup và thiết kế sản
+                phẩm. Bạn định hướng, Agent xử lý, bạn duyệt kết quả.
               </p>
-            )}
-            <div className="flex flex-wrap gap-3">
-              {[
-                ...sourceIds.map((id) => ({
-                  id,
-                  role: "Nguồn",
-                  remove: () =>
-                    setSourceIds((current) =>
-                      current.filter((value) => value !== id),
-                    ),
-                })),
-                ...targetIds.map((id) => ({
-                  id,
-                  role: "Tham chiếu",
-                  remove: () =>
-                    setTargetIds((current) =>
-                      current.filter((value) => value !== id),
-                    ),
-                })),
-              ].map(({ id, role, remove }) => {
-                const asset =
-                  assets.find((value) => value.id === id) ??
-                  current?.results.find((value) => value.id === id);
-                return (
-                  <div key={`${role}:${id}`} className="w-28 min-w-0 space-y-1">
-                    <AgentImage id={id} name={asset?.name ?? role} />
-                    <p className="text-xs font-medium">{role}</p>
-                    <p className="truncate text-xs text-gray-600">
-                      {asset?.name}
-                    </p>
-                    <button
-                      type="button"
-                      className="min-h-6 text-xs text-red-700 underline"
-                      disabled={busy || selectedActive}
-                      onClick={remove}
-                    >
-                      Bỏ chọn
-                    </button>
+              <ol>
+                <li>
+                  <span>01</span>
+                  <div>
+                    <strong>Giao việc qua chat</strong>
+                    <p>Thêm ảnh, mô tả ý tưởng và điều bạn muốn giữ nguyên.</p>
                   </div>
-                );
-              })}
-            </div>
-            <details className="rounded-lg border p-3">
-              <summary className="cursor-pointer text-sm font-medium">
-                Chọn ảnh từ thư viện ({assets.length})
-              </summary>
-              <div className="mt-3 grid max-h-64 gap-2 overflow-auto sm:grid-cols-2">
-                {assets
-                  .filter((asset) => asset.kind !== "template")
-                  .map((asset) => (
-                    <div
-                      key={asset.id}
-                      className="min-w-0 rounded border p-2 text-xs"
+                </li>
+                <li>
+                  <span>02</span>
+                  <div>
+                    <strong>Thống nhất kế hoạch</strong>
+                    <p>Kiểm tra và chỉnh sửa prompt trước khi tạo ảnh.</p>
+                  </div>
+                </li>
+                <li>
+                  <span>03</span>
+                  <div>
+                    <strong>Duyệt và sẵn sàng sử dụng</strong>
+                    <p>Lưu phiên bản, kiểm tra kết quả và tải cả bộ.</p>
+                  </div>
+                </li>
+              </ol>
+              <span className="login-story-footer">BUILT FOR POD CREATORS</span>
+            </section>
+            <section className="login-form-panel">
+              <div className="login-form-content">
+                <p className="eyebrow">KHÔNG GIAN CỦA BẠN</p>
+                <h2>Chào mừng trở lại.</h2>
+                <p className="login-description">
+                  Đăng nhập để tiếp tục những ý tưởng còn dang dở.
+                </p>
+                {notice}
+                {!status ? (
+                  <div role="status" className="connection-status">
+                    <Loader2
+                      className="studio-loading-spinner"
+                      size={20}
+                      aria-hidden="true"
+                    />
+                    Đang kết nối Agent…
+                    {error && (
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setError("");
+                          setConnectionKey((value) => value + 1);
+                        }}
+                      >
+                        Kết nối lại
+                      </Button>
+                    )}
+                  </div>
+                ) : !status.enabled || status.setupRequired ? (
+                  <div className="workspace-setup">
+                    <Bot size={28} aria-hidden="true" />
+                    <h3>Workspace đang được chuẩn bị</h3>
+                    <p>
+                      {!status.enabled
+                        ? "Agent chưa được bật trên máy chủ."
+                        : "Quản trị viên cần tạo tài khoản đầu tiên trước khi sử dụng Agent."}
+                    </p>
+                    <Button
+                      variant="outline"
+                      onClick={() => onNavigate("home")}
                     >
-                      <p className="truncate" title={asset.name}>
-                        {asset.name} · v{asset.revision} ·{" "}
-                        {asset.review === "approved"
-                          ? "Đã duyệt"
-                          : "Chưa duyệt"}
-                      </p>
-                      <div className="mt-2 flex flex-wrap gap-3">
-                        <label className="flex items-center gap-1">
-                          <input
-                            type="checkbox"
-                            checked={sourceIds.includes(asset.id)}
-                            disabled={
-                              busy ||
-                              selectedActive ||
-                              targetIds.includes(asset.id)
-                            }
-                            onChange={() =>
-                              choose(asset.id, sourceIds, setSourceIds)
+                      Mở công cụ bổ trợ
+                    </Button>
+                  </div>
+                ) : (
+                  <form
+                    className="agent-login-form"
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      act(async () => {
+                        const response = await agentClient.post<{
+                          token: string;
+                          user: AgentUser;
+                        }>("/auth/login", { email, password });
+                        authorizeAgent(response.data.token);
+                        setAgentToken(response.data.token);
+                        setUser(response.data.user);
+                        setPassword("");
+                      });
+                    }}
+                  >
+                    <label>
+                      Email
+                      <input
+                        className={field}
+                        type="email"
+                        autoComplete="username"
+                        required
+                        maxLength={254}
+                        value={email}
+                        onChange={(event) => setEmail(event.target.value)}
+                        placeholder="you@company.com"
+                      />
+                    </label>
+                    <label>
+                      Mật khẩu
+                      <input
+                        className={field}
+                        type="password"
+                        autoComplete="current-password"
+                        required
+                        minLength={12}
+                        maxLength={128}
+                        value={password}
+                        onChange={(event) => setPassword(event.target.value)}
+                        placeholder="Nhập mật khẩu của bạn"
+                      />
+                    </label>
+                    <Button type="submit" disabled={busy}>
+                      {busy ? (
+                        <Loader2
+                          aria-hidden="true"
+                          className="studio-loading-spinner"
+                        />
+                      ) : (
+                        <ArrowRight aria-hidden="true" />
+                      )}
+                      {busy ? "Đang đăng nhập…" : "Đăng nhập"}
+                    </Button>
+                  </form>
+                )}
+                <p className="login-privacy">
+                  <ShieldCheck size={16} aria-hidden="true" />
+                  Ảnh và lịch sử nằm trong tài khoản của bạn.
+                </p>
+              </div>
+              <p className="login-footer">
+                LCG Media · Không gian sáng tạo với AI
+              </p>
+            </section>
+          </div>
+        ) : (
+          <>
+            {notice}
+            <section
+              hidden={page !== "agent"}
+              className="agent-chat-workspace"
+              aria-label="Trợ lý AI"
+            >
+              <div className="agent-chat-column">
+                {!selectedId && (
+                  <div className="agent-welcome">
+                    <span className="welcome-kicker">
+                      <span className="tiny-agent-mark">
+                        <Bot size={17} aria-hidden="true" />
+                      </span>{" "}
+                      CỘNG SỰ SÁNG TẠO CỦA BẠN
+                    </span>
+                    <h1>
+                      Một ý tưởng.
+                      <br />
+                      <span>Cả quy trình.</span>
+                    </h1>
+                    <p>
+                      Chia sẻ điều bạn muốn tạo. Agent sẽ lên kế hoạch,
+                      <br className="hidden sm:block" /> xử lý và mang kết quả
+                      về để bạn duyệt.
+                    </p>
+                  </div>
+                )}
+                {selectedId && (
+                  <div className="conversation-heading">
+                    <div>
+                      <p className="eyebrow">CUỘC TRÒ CHUYỆN</p>
+                      <h1>
+                        {current?.conversation.title || "Đang mở công việc…"}
+                      </h1>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={newConversation}
+                    >
+                      <Plus aria-hidden="true" />
+                      Mới
+                    </Button>
+                  </div>
+                )}
+                {selectedId && !current && (
+                  <p role="status" className="connection-status">
+                    <Loader2
+                      className="studio-loading-spinner"
+                      size={18}
+                      aria-hidden="true"
+                    />
+                    Đang tải công việc…
+                  </p>
+                )}
+                {current && (
+                  <div className="conversation-thread">
+                    <section aria-label="Hội thoại" className="chat-messages">
+                      {current.conversation.messages.map((message) => (
+                        <div
+                          className={`chat-message ${message.role === "user" ? "chat-message-user" : "chat-message-agent"}`}
+                          key={message.id}
+                        >
+                          <span className="message-avatar">
+                            {message.role === "user" ? (
+                              user.email.slice(0, 1).toUpperCase()
+                            ) : (
+                              <Bot size={17} aria-hidden="true" />
+                            )}
+                          </span>
+                          <div>
+                            <p className="message-author">
+                              {message.role === "user" ? "Bạn" : "LCG Agent"}
+                            </p>
+                            <p className="message-text">{message.text}</p>
+                            {message.runId && (
+                              <button
+                                type="button"
+                                className="text-action"
+                                onClick={() =>
+                                  setFocusedRun({
+                                    conversationId: selectedId,
+                                    runId: message.runId!,
+                                  })
+                                }
+                              >
+                                Xem công việc này{" "}
+                                <ArrowRight size={14} aria-hidden="true" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </section>
+                    <div
+                      role="status"
+                      aria-live="polite"
+                      aria-atomic="true"
+                      className="sr-only"
+                    >
+                      {current.runs.filter(activeRun).length} công việc đang xử
+                      lý.
+                    </div>
+                    {focusedRun?.conversationId === selectedId && (
+                      <Button
+                        variant="outline"
+                        onClick={() => setFocusedRun(undefined)}
+                      >
+                        Xem các lần chạy gần đây
+                      </Button>
+                    )}
+                    {current.runs.map((run, index) =>
+                      index === current.runs.length - 1 ||
+                      activeRun(run) ||
+                      expandedRuns.includes(run.id) ? (
+                        <AgentRunCard
+                          key={`${run.id}:${run.updatedAt}`}
+                          run={run}
+                          steps={current.steps.filter(
+                            (step) => step.runId === run.id,
+                          )}
+                          results={current.results}
+                          assets={assets}
+                          busy={busy}
+                          act={act}
+                          onSource={(id) => {
+                            setSourceIds([id]);
+                            setTargetIds([]);
+                            setOperation("design");
+                            setBrief("Tạo biến thể từ ảnh nguồn này: ");
+                            setContextOpen(true);
+                          }}
+                        />
+                      ) : (
+                        <Button
+                          key={run.id}
+                          variant="outline"
+                          className="h-auto w-full justify-start whitespace-normal p-3 text-left"
+                          onClick={() =>
+                            setExpandedRuns((ids) => [...ids, run.id])
+                          }
+                        >
+                          Mở lần chạy trước: {run.brief}
+                        </Button>
+                      ),
+                    )}
+                  </div>
+                )}
+                <form
+                  className="agent-composer"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    sendBrief();
+                  }}
+                >
+                  <label className="sr-only" htmlFor="agent-brief">
+                    Giao việc hoặc yêu cầu chỉnh tiếp
+                  </label>
+                  <textarea
+                    id="agent-brief"
+                    placeholder="Bạn muốn Agent giúp gì hôm nay?"
+                    required
+                    minLength={3}
+                    maxLength={12000}
+                    value={brief}
+                    onChange={(event) => {
+                      setBrief(event.target.value);
+                      messageId.current = null;
+                    }}
+                    disabled={busy || selectedActive}
+                  />
+                  {!!pickedAssets.length && (
+                    <div className="composer-attachments">
+                      {pickedAssets.map(({ id, role, remove }) => (
+                        <div className="attachment-chip" key={`${role}:${id}`}>
+                          <AgentImage
+                            id={id}
+                            name={
+                              assets.find((asset) => asset.id === id)?.name ||
+                              role
                             }
                           />
-                          Nguồn
-                        </label>
-                        {(operation === "mockup_ai" ||
-                          operation === "auto") && (
-                          <label className="flex items-center gap-1">
-                            <input
-                              type="checkbox"
-                              checked={targetIds.includes(asset.id)}
-                              disabled={
-                                busy ||
-                                selectedActive ||
-                                sourceIds.includes(asset.id)
-                              }
-                              onChange={() =>
-                                choose(asset.id, targetIds, setTargetIds)
-                              }
-                            />
-                            Tham chiếu
-                          </label>
-                        )}
-                      </div>
+                          <div>
+                            <strong>
+                              {assets.find((asset) => asset.id === id)?.name ||
+                                role}
+                            </strong>
+                            <small>{role}</small>
+                          </div>
+                          <button
+                            type="button"
+                            className="icon-button"
+                            aria-label={`Bỏ chọn ${role} ${assets.find((asset) => asset.id === id)?.name || "ảnh"}`}
+                            disabled={busy || selectedActive}
+                            onClick={remove}
+                          >
+                            <X size={14} aria-hidden="true" />
+                          </button>
+                        </div>
+                      ))}
                     </div>
-                  ))}
+                  )}
+                  <div className="composer-actions">
+                    <button
+                      type="button"
+                      className="composer-context-toggle"
+                      aria-expanded={contextOpen}
+                      aria-controls="agent-context"
+                      onClick={() => setContextOpen((value) => !value)}
+                    >
+                      <Paperclip size={17} aria-hidden="true" />
+                      <span>Ngữ cảnh & tệp</span>
+                      {pickedAssets.length > 0 && (
+                        <span className="nav-count">{pickedAssets.length}</span>
+                      )}
+                    </button>
+                    <span className="composer-mode">
+                      <Sparkles size={14} aria-hidden="true" />
+                      {operation === "auto"
+                        ? "Agent tự chọn"
+                        : operation === "design"
+                          ? "Ý tưởng & thiết kế"
+                          : "Mockup"}
+                    </span>
+                    <Button
+                      type="submit"
+                      disabled={
+                        busy ||
+                        selectedActive ||
+                        brief.trim().length < 3 ||
+                        (operation !== "mockup_template" && !ai.imageModelReady)
+                      }
+                    >
+                      {busy || selectedActive ? (
+                        <Loader2
+                          aria-hidden="true"
+                          className="studio-loading-spinner"
+                        />
+                      ) : (
+                        <ArrowUp size={18} aria-hidden="true" />
+                      )}
+                      <span>Lập kế hoạch</span>
+                    </Button>
+                  </div>
+                </form>
+                <p className="composer-footnote">
+                  <ShieldCheck size={13} aria-hidden="true" />
+                  Bạn duyệt prompt trước khi Agent tạo ảnh. Bước lập kế hoạch có
+                  thể gọi model phân tích.
+                </p>
+                {!selectedId && (
+                  <>
+                    <div className="starter-heading">
+                      <span>BẠN CÓ THỂ BẮT ĐẦU VỚI</span>
+                      <span aria-hidden="true">↘</span>
+                    </div>
+                    <div className="agent-starters">
+                      {[
+                        {
+                          icon: Layers,
+                          title: "Tạo mockup sản phẩm",
+                          text: "Giữ sản phẩm, thay bối cảnh",
+                          operation: "mockup_ai",
+                          brief:
+                            "Thay sản phẩm trong các ảnh tham chiếu bằng sản phẩm nguồn. Giữ nguyên thiết kế sản phẩm và bối cảnh ảnh tham chiếu.",
+                        },
+                        {
+                          icon: Lightbulb,
+                          title: "Phát triển ý tưởng",
+                          text: "Từ keyword đến bộ thiết kế",
+                          operation: "design",
+                          brief: "Đề xuất 3 ý tưởng thiết kế POD từ chủ đề: ",
+                        },
+                        {
+                          icon: ScanLine,
+                          title: "Ghép lên template",
+                          text: "Một mẫu chuẩn, nhiều thiết kế",
+                          operation: "mockup_template",
+                          brief:
+                            "Ghép các thiết kế nguồn lên template đã chọn. Giữ đúng tỉ lệ và màu sắc thiết kế.",
+                        },
+                      ].map(
+                        ({
+                          icon: Icon,
+                          title,
+                          text,
+                          operation: mode,
+                          brief: value,
+                        }) => (
+                          <button
+                            type="button"
+                            key={mode}
+                            disabled={busy}
+                            className={`agent-starter starter-${mode}`}
+                            onClick={() => {
+                              setOperation(mode as Operation);
+                              setBrief(value);
+                              setContextOpen(true);
+                              document.getElementById("agent-brief")?.focus();
+                            }}
+                          >
+                            <Icon size={21} aria-hidden="true" />
+                            <strong>{title}</strong>
+                            <span>{text}</span>
+                            <ArrowUpRight size={15} aria-hidden="true" />
+                          </button>
+                        ),
+                      )}
+                    </div>
+                    <div className="agent-process-note">
+                      <span>01&nbsp; Giao việc</span>
+                      <ArrowRight size={14} aria-hidden="true" />
+                      <span>02&nbsp; Duyệt kế hoạch</span>
+                      <ArrowRight size={14} aria-hidden="true" />
+                      <span>03&nbsp; Nhận kết quả</span>
+                    </div>
+                  </>
+                )}
               </div>
-            </details>
-            {(operation === "mockup_template" || operation === "auto") && (
-              <div className="space-y-3">
-                <p className="text-sm font-medium">Templates đã chuẩn hóa</p>
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {templates.map((template) => (
-                    <div key={template.id} className="rounded-lg border p-3">
-                      <label className="flex gap-2 text-sm">
+              <aside
+                id="agent-context"
+                className={`agent-context ${contextOpen ? "context-open" : ""}`}
+                aria-label="Ngữ cảnh công việc"
+              >
+                <div className="context-heading">
+                  <div>
+                    <h2>Ngữ cảnh công việc</h2>
+                    <p>Để Agent hiểu đúng ý bạn.</p>
+                  </div>
+                  <button
+                    type="button"
+                    className="icon-button context-close"
+                    aria-label="Đóng ngữ cảnh"
+                    onClick={() => setContextOpen(false)}
+                  >
+                    <X size={17} aria-hidden="true" />
+                  </button>
+                </div>
+                <div className="context-section context-models">
+                  <div className="section-label">
+                    <span>MODEL XỬ LÝ</span>
+                    <Settings2 size={14} aria-hidden="true" />
+                  </div>
+                  {page === "agent" && modelSettings}
+                </div>
+                <div className="context-section">
+                  <label className="context-label">
+                    Quy trình
+                    <select
+                      aria-label="Quy trình"
+                      className={field}
+                      value={operation}
+                      disabled={busy || selectedActive}
+                      onChange={(event) =>
+                        setOperation(event.target.value as Operation)
+                      }
+                    >
+                      <option value="auto">Agent tự chọn quy trình</option>
+                      <option value="mockup_ai">
+                        Mockup từ ảnh tham chiếu
+                      </option>
+                      <option value="mockup_template">
+                        Ghép thiết kế lên template
+                      </option>
+                      <option value="design">Ý tưởng và Design</option>
+                    </select>
+                  </label>
+                  <div className="context-field-grid">
+                    <label className="context-label">
+                      Nhóm sản phẩm
+                      <input
+                        className={field}
+                        list="pod-categories"
+                        maxLength={100}
+                        value={category}
+                        disabled={busy || selectedActive}
+                        onChange={(event) => setCategory(event.target.value)}
+                      />
+                      <datalist id="pod-categories">
+                        {["T-shirt", "Sweatshirt", "Ornament", "Doormat"].map(
+                          (value) => (
+                            <option key={value} value={value} />
+                          ),
+                        )}
+                      </datalist>
+                    </label>
+                    {(operation === "auto" || operation === "design") && (
+                      <label className="context-label">
+                        Số ý tưởng/biến thể
                         <input
-                          type="checkbox"
-                          checked={templateIds.includes(template.id)}
+                          className={field}
+                          type="number"
+                          min={1}
+                          max={20}
+                          value={count}
                           disabled={busy || selectedActive}
-                          onChange={() =>
-                            choose(template.id, templateIds, setTemplateIds)
+                          onChange={(event) =>
+                            setCount(Number(event.target.value))
                           }
                         />
-                        <span>
-                          {template.name} · {template.category}
-                        </span>
                       </label>
-                      <button
-                        type="button"
-                        className="mt-2 text-xs text-blue-700 underline"
-                        disabled={busy || selectedActive}
-                        onClick={() => setTemplateEditor(template)}
-                      >
-                        Mở cấu hình / tạo bản mới
-                      </button>
-                    </div>
-                  ))}
-                </div>
-                <Button
-                  variant="outline"
-                  disabled={busy || selectedActive}
-                  onClick={() =>
-                    setTemplateEditor(templateEditor ? null : "new")
-                  }
-                >
-                  {templateEditor ? "Đóng cấu hình" : "Thêm template"}
-                </Button>
-                {templateEditor && (
-                  <TemplateEditor
-                    key={
-                      typeof templateEditor === "string"
-                        ? "new"
-                        : templateEditor.id
-                    }
-                    assets={assets}
-                    initial={
-                      typeof templateEditor === "string"
-                        ? undefined
-                        : templateEditor
-                    }
-                    onSaved={reload}
-                  />
-                )}
-              </div>
-            )}
-            {(operation === "design" || operation === "auto") && (
-              <details className="space-y-3 rounded-lg border p-3">
-                <summary className="cursor-pointer text-sm font-medium">
-                  Keyword và dữ liệu nghiên cứu
-                </summary>
-                <p className="mt-3 text-xs text-gray-600">
-                  Agent dùng dữ liệu bạn cung cấp. Chưa tự thu thập số liệu thị
-                  trường hoặc kiểm chứng nội dung các URL.
-                </p>
-                <label className="block text-sm">
-                  Dữ liệu keyword / brief nghiên cứu
-                  <textarea
-                    className={`${field} min-h-24`}
-                    maxLength={20000}
-                    value={research}
-                    onChange={(e) => setResearch(e.target.value)}
-                    disabled={busy || selectedActive}
-                  />
-                </label>
-                <label className="block text-sm">
-                  Nguồn tham khảo — mỗi dòng một URL
-                  <textarea
-                    className={field}
-                    value={sources}
-                    onChange={(e) => setSources(e.target.value)}
-                    disabled={busy || selectedActive}
-                  />
-                </label>
-              </details>
-            )}
-            <form
-              className="space-y-3"
-              onSubmit={(event) => {
-                event.preventDefault();
-                act(async () => {
-                  const researchSources = sources
-                    .split("\n")
-                    .map((value) => value.trim())
-                    .filter(Boolean)
-                    .map((url) => {
-                      const parsed = new URL(url);
-                      if (!["http:", "https:"].includes(parsed.protocol))
-                        throw new Error(
-                          "Nguồn tham khảo phải là URL HTTP/HTTPS.",
-                        );
-                      return {
-                        title: parsed.hostname,
-                        url: parsed.href,
-                        retrievedAt: new Date().toISOString(),
-                      };
-                    });
-                  let id = selectedId;
-                  if (!id) {
-                    id = (
-                      await agentClient.post<Conversation>("/conversations", {
-                        title: brief.slice(0, 120),
-                      })
-                    ).data.id;
-                    setSelectedId(id);
-                  }
-                  messageId.current ??= crypto.randomUUID();
-                  await agentClient.post(`/conversations/${id}/messages`, {
-                    id: messageId.current,
-                    text: brief,
-                    operation,
-                    sourceIds,
-                    targetIds:
-                      operation === "mockup_ai" || operation === "auto"
-                        ? targetIds
-                        : [],
-                    templateIds:
-                      operation === "mockup_template" || operation === "auto"
-                        ? templateIds
-                        : [],
-                    count,
-                    provider: ai.provider,
-                    ...(ai.imageModel ? { imageModel: ai.imageModel } : {}),
-                    productType: category,
-                    research,
-                    researchSources,
-                    validateVisually,
-                  });
-                  messageId.current = null;
-                  setBrief("");
-                  setFocusedRun(undefined);
-                });
-              }}
-            >
-              <label className="block text-sm font-medium">
-                Giao việc hoặc yêu cầu chỉnh tiếp
-                <textarea
-                  className={`${field} min-h-28`}
-                  placeholder="Ví dụ: Thay ornament trong các ảnh tham chiếu bằng sản phẩm nguồn. Giữ cảnh và ánh sáng; không đổi thiết kế sản phẩm."
-                  required
-                  minLength={3}
-                  maxLength={12000}
-                  value={brief}
-                  onChange={(e) => {
-                    setBrief(e.target.value);
-                    messageId.current = null;
-                  }}
-                  disabled={busy || selectedActive}
-                />
-              </label>
-              <label className="flex items-start gap-2 text-sm text-gray-700">
-                <input
-                  type="checkbox"
-                  className="mt-1"
-                  checked={validateVisually}
-                  disabled={busy || selectedActive}
-                  onChange={(e) => setValidateVisually(e.target.checked)}
-                />
-                <span>
-                  Kiểm tra kết quả bằng AI — có thể thêm một request phân tích
-                  cho mỗi ảnh; vẫn cần duyệt thủ công.
-                </span>
-              </label>
-              <Button
-                type="submit"
-                disabled={
-                  busy ||
-                  selectedActive ||
-                  !brief.trim() ||
-                  (operation !== "mockup_template" && !ai.imageModelReady)
-                }
-              >
-                {busy || selectedActive ? (
-                  <Loader2
-                    aria-hidden="true"
-                    className="animate-spin motion-reduce:animate-none"
-                  />
-                ) : (
-                  <Send aria-hidden="true" />
-                )}
-                Lập kế hoạch
-              </Button>
-              <p className="text-xs text-gray-500">
-                Bước này có thể gọi model phân tích và text. Ảnh chỉ được tạo
-                sau khi bạn kiểm tra kế hoạch và bấm bắt đầu.
-              </p>
-            </form>
-          </section>
-          {selectedId && !current && (
-            <p role="status" className="text-sm text-gray-600">
-              Đang tải công việc…
-            </p>
-          )}
-          {current && (
-            <>
-              <section aria-label="Hội thoại" className="space-y-3">
-                {current.conversation.messages.map((message) => (
-                  <div
-                    key={message.id}
-                    className={`rounded-xl p-4 text-sm whitespace-pre-wrap break-words ${message.role === "user" ? "ml-4 bg-blue-50 text-blue-950" : "mr-4 border bg-white text-gray-800"}`}
-                  >
-                    <p className="mb-1 text-xs font-semibold">
-                      {message.role === "user" ? "Bạn" : "POD Agent"}
-                    </p>
-                    {message.text}
-                    {message.runId && (
-                      <button
-                        type="button"
-                        className="mt-2 block min-h-8 text-xs font-medium text-blue-700 underline"
-                        onClick={() =>
-                          setFocusedRun({
-                            conversationId: selectedId,
-                            runId: message.runId!,
-                          })
-                        }
-                      >
-                        Xem công việc này
-                      </button>
                     )}
                   </div>
-                ))}
-              </section>
-              <div
-                role="status"
-                aria-live="polite"
-                aria-atomic="true"
-                className="sr-only"
-              >
-                {current.runs.filter(activeRun).length} công việc đang xử lý.
-              </div>
-              {focusedRun?.conversationId === selectedId && (
-                <Button
-                  variant="outline"
-                  onClick={() => setFocusedRun(undefined)}
-                >
-                  Xem các lần chạy gần đây
-                </Button>
-              )}
-              {current.runs.map((run, index) =>
-                index === current.runs.length - 1 ||
-                activeRun(run) ||
-                expandedRuns.includes(run.id) ? (
-                  <AgentRunCard
-                    key={`${run.id}:${run.updatedAt}`}
-                    run={run}
-                    steps={current.steps.filter(
-                      (step) => step.runId === run.id,
+                </div>
+                <div className="context-section">
+                  <div className="section-label">
+                    <span>ẢNH ĐẦU VÀO</span>
+                    <span>{pickedAssets.length}/40</span>
+                  </div>
+                  <label className="context-upload">
+                    <ImagePlus size={20} aria-hidden="true" />
+                    <strong>
+                      {operation === "mockup_template"
+                        ? "Thiết kế nguồn"
+                        : "Sản phẩm / thiết kế nguồn"}
+                    </strong>
+                    <span>
+                      {sourceIds.length
+                        ? `${sourceIds.length} ảnh đã chọn · thêm ảnh`
+                        : "PNG, JPG, WebP · tối đa 16 MB/ảnh"}
+                    </span>
+                    <input
+                      type="file"
+                      aria-label={
+                        operation === "mockup_template"
+                          ? "File thiết kế nguồn (nên dùng PNG trong suốt)"
+                          : "Ảnh sản phẩm/thiết kế nguồn"
+                      }
+                      accept="image/png,image/jpeg,image/webp"
+                      multiple={operation !== "design"}
+                      disabled={busy || selectedActive}
+                      onChange={(event) => {
+                        upload(event.target.files, "source");
+                        event.target.value = "";
+                      }}
+                    />
+                  </label>
+                  {(operation === "auto" || operation === "mockup_ai") && (
+                    <label className="context-upload context-upload-reference">
+                      <ScanLine size={20} aria-hidden="true" />
+                      <strong>Ảnh tham chiếu</strong>
+                      <span>
+                        {targetIds.length
+                          ? `${targetIds.length} ảnh đã chọn · thêm ảnh`
+                          : "Bối cảnh cần giữ trong kết quả"}
+                      </span>
+                      <input
+                        type="file"
+                        aria-label="Ảnh tham chiếu — cảnh cần giữ"
+                        accept="image/png,image/jpeg,image/webp"
+                        multiple
+                        disabled={busy || selectedActive}
+                        onChange={(event) => {
+                          upload(event.target.files, "reference");
+                          event.target.value = "";
+                        }}
+                      />
+                    </label>
+                  )}
+                  {operation === "design" && (
+                    <p className="context-help">
+                      Không cần ảnh nguồn khi tạo thiết kế mới. Thêm một ảnh để
+                      tạo biến thể.
+                    </p>
+                  )}
+                  <details className="context-details">
+                    <summary>Chọn ảnh từ thư viện ({assets.length})</summary>
+                    <div className="context-asset-picker">
+                      {assets
+                        .filter((asset) => asset.kind !== "template")
+                        .map((asset) => (
+                          <div key={asset.id}>
+                            <p title={asset.name}>
+                              {asset.name} · v{asset.revision}
+                            </p>
+                            <div>
+                              <label>
+                                <input
+                                  type="checkbox"
+                                  checked={sourceIds.includes(asset.id)}
+                                  disabled={
+                                    busy ||
+                                    selectedActive ||
+                                    targetIds.includes(asset.id) ||
+                                    (!sourceIds.includes(asset.id) &&
+                                      sourceIds.length >= 20)
+                                  }
+                                  onChange={() =>
+                                    choose(asset.id, sourceIds, setSourceIds)
+                                  }
+                                />
+                                Nguồn
+                              </label>
+                              {(operation === "auto" ||
+                                operation === "mockup_ai") && (
+                                <label>
+                                  <input
+                                    type="checkbox"
+                                    checked={targetIds.includes(asset.id)}
+                                    disabled={
+                                      busy ||
+                                      selectedActive ||
+                                      sourceIds.includes(asset.id) ||
+                                      (!targetIds.includes(asset.id) &&
+                                        targetIds.length >= 20)
+                                    }
+                                    onChange={() =>
+                                      choose(asset.id, targetIds, setTargetIds)
+                                    }
+                                  />
+                                  Tham chiếu
+                                </label>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      {!assets.length && (
+                        <p>
+                          Thư viện sẽ hiển thị ảnh bạn tải lên và ảnh Agent đã
+                          tạo.
+                        </p>
+                      )}
+                    </div>
+                  </details>
+                </div>
+                {(operation === "auto" || operation === "mockup_template") && (
+                  <div className="context-section">
+                    <div className="section-label">
+                      <span>TEMPLATES</span>
+                      <button
+                        type="button"
+                        className="text-action"
+                        disabled={busy || selectedActive}
+                        onClick={() => {
+                          setTemplateEditor("new");
+                          onNavigate("templates");
+                        }}
+                      >
+                        Thêm template <Plus size={13} aria-hidden="true" />
+                      </button>
+                    </div>
+                    {templates.length ? (
+                      templates.map((template) => (
+                        <label key={template.id} className="context-template">
+                          <input
+                            type="checkbox"
+                            checked={templateIds.includes(template.id)}
+                            disabled={busy || selectedActive}
+                            onChange={() =>
+                              choose(template.id, templateIds, setTemplateIds)
+                            }
+                          />
+                          <span>
+                            {template.name}
+                            <small>{template.category}</small>
+                          </span>
+                        </label>
+                      ))
+                    ) : (
+                      <p className="context-help">
+                        Tạo mẫu chuẩn để dùng lại vị trí và phối cảnh cho nhiều
+                        thiết kế.
+                      </p>
                     )}
-                    results={current.results}
-                    assets={assets}
-                    busy={busy}
-                    act={act}
-                    onSource={(id) => {
-                      setSourceIds([id]);
-                      setTargetIds([]);
-                      setOperation("design");
-                      setBrief("Tạo biến thể từ ảnh nguồn này: ");
-                    }}
-                  />
-                ) : (
-                  <Button
-                    key={run.id}
-                    variant="outline"
-                    className="h-auto w-full justify-start whitespace-normal p-3 text-left"
-                    onClick={() =>
-                      setExpandedRuns((current) => [...current, run.id])
+                  </div>
+                )}
+                <div className="context-section">
+                  <label className="context-check">
+                    <input
+                      type="checkbox"
+                      checked={validateVisually}
+                      disabled={busy || selectedActive}
+                      onChange={(event) =>
+                        setValidateVisually(event.target.checked)
+                      }
+                    />
+                    <span>
+                      Kiểm tra kết quả bằng AI
+                      <small>
+                        Thêm một lần phân tích cho mỗi ảnh. Vẫn cần bạn duyệt
+                        kết quả.
+                      </small>
+                    </span>
+                  </label>
+                </div>
+                {(operation === "auto" || operation === "design") && (
+                  <details className="context-details context-section">
+                    <summary>Keyword & dữ liệu nghiên cứu</summary>
+                    <p className="context-help">
+                      Agent dùng dữ liệu bạn cung cấp. Chưa tự thu thập số liệu
+                      thị trường hoặc kiểm chứng URL.
+                    </p>
+                    <label className="context-label">
+                      Dữ liệu keyword / brief nghiên cứu
+                      <textarea
+                        className={field}
+                        maxLength={20000}
+                        value={research}
+                        disabled={busy || selectedActive}
+                        onChange={(event) => setResearch(event.target.value)}
+                      />
+                    </label>
+                    <label className="context-label">
+                      Nguồn tham khảo — mỗi dòng một URL
+                      <textarea
+                        className={field}
+                        value={sources}
+                        disabled={busy || selectedActive}
+                        onChange={(event) => setSources(event.target.value)}
+                      />
+                    </label>
+                  </details>
+                )}
+              </aside>
+            </section>
+            {page === "jobs" && (
+              <AgentJobs
+                conversations={conversations}
+                runs={allRuns}
+                onOpen={openConversation}
+                onNew={newConversation}
+              />
+            )}
+            {page === "library" && (
+              <AgentLibrary
+                key={user.id}
+                assets={assets}
+                busy={busy}
+                act={act}
+                onUpload={(files) => {
+                  if (!files?.length) return;
+                  const list = Array.from(files);
+                  act(async () => {
+                    if (list.length > 20)
+                      throw new Error("Mỗi lần tải tối đa 20 ảnh.");
+                    for (const file of list) {
+                      const asset = await agentUpload(file, "source", category);
+                      setAssets((value) => [asset, ...value]);
                     }
+                  });
+                }}
+                onSource={(id) => selectLibraryAsset(id, "source")}
+                onReference={(id) => selectLibraryAsset(id, "reference")}
+              />
+            )}
+            {page === "templates" && (
+              <>
+                <AgentTemplates
+                  templates={templates}
+                  busy={busy || !!selectedActive}
+                  onNew={() => setTemplateEditor("new")}
+                  onEdit={setTemplateEditor}
+                  onUse={selectTemplate}
+                />
+                {templateEditor && (
+                  <section
+                    className="workspace-template-editor"
+                    aria-label="Cấu hình template"
                   >
-                    Mở lần chạy trước: {run.brief}
-                  </Button>
-                ),
-              )}
-            </>
-          )}
-        </div>
+                    <div className="context-heading">
+                      <h2>
+                        {typeof templateEditor === "string"
+                          ? "Tạo template"
+                          : "Tạo phiên bản template mới"}
+                      </h2>
+                      <Button
+                        variant="ghost"
+                        onClick={() => setTemplateEditor(null)}
+                      >
+                        Đóng cấu hình
+                      </Button>
+                    </div>
+                    <TemplateEditor
+                      key={
+                        typeof templateEditor === "string"
+                          ? "new"
+                          : templateEditor.id
+                      }
+                      assets={assets}
+                      initial={
+                        typeof templateEditor === "string"
+                          ? undefined
+                          : templateEditor
+                      }
+                      onSaved={reload}
+                    />
+                  </section>
+                )}
+              </>
+            )}
+            {page === "settings" && (
+              <div className="workspace-page">
+                <WorkspaceHeading
+                  eyebrow="AGENT CỦA BẠN"
+                  title="Một cấu hình, mọi công việc."
+                  description="Chọn model cho ảnh đầu ra và hiểu cách Agent xử lý yêu cầu."
+                />
+                <div className="settings-grid">
+                  <section className="settings-card">
+                    <h2>Model & kết nối AI</h2>
+                    <p>
+                      Model được giữ nguyên trong mỗi công việc. Các lựa chọn sẽ
+                      khóa khi đang có yêu cầu xử lý.
+                    </p>
+                    {modelSettings}
+                  </section>
+                  <section className="settings-card">
+                    <ShieldCheck size={25} aria-hidden="true" />
+                    <h2>Bạn luôn kiểm soát bước tạo ảnh</h2>
+                    <p>
+                      Agent phân tích yêu cầu và đề xuất kế hoạch. Bạn xem đầy
+                      đủ final prompt, lưu chỉnh sửa và bấm bắt đầu.
+                    </p>
+                    <ul>
+                      <li>Không tự gửi lại tác vụ ảnh chưa rõ kết quả.</li>
+                      <li>Hủy sẽ dừng những yêu cầu chưa gửi đến model.</li>
+                      <li>Ảnh và lịch sử gắn với tài khoản đăng nhập.</li>
+                    </ul>
+                    <div className="account-settings">
+                      <strong>{user.email}</strong>
+                      <span>
+                        {user.role === "admin" ? "Quản trị viên" : "Designer"}
+                      </span>
+                    </div>
+                  </section>
+                </div>
+              </div>
+            )}
+          </>
+        )}
       </div>
-    </div>
+      <div hidden={agentView} className="agent-tool-page">
+        <div className="tool-context-strip">
+          <div>
+            <p className="eyebrow">CÔNG CỤ BỔ TRỢ</p>
+            <p>Một bước xử lý riêng cho quy trình sáng tạo của bạn.</p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => onNavigate("agent")}
+          >
+            <Bot aria-hidden="true" />
+            Giao việc cho Agent
+          </Button>
+        </div>
+        {!agentView && (
+          <div className="tool-model-controls">{modelSettings}</div>
+        )}
+        {children}
+      </div>
+    </AgentShell>
   );
 }

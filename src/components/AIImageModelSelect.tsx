@@ -113,9 +113,8 @@ export function AIImageModelSelect() {
         )}
       </div>
       <p id={`${id}-help`} className="text-xs text-gray-500">
-        Chỉ hiển thị model tạo/chỉnh ảnh. Gemini 3.8 Flash và Gemini 4 Argon chỉ
-        trả văn bản nên không có trong danh sách này. Phân tích ảnh dùng model
-        riêng.
+        Chỉ hiển thị model hỗ trợ tạo và chỉnh sửa ảnh. Agent dùng model phân
+        tích riêng để đọc ảnh và lập kế hoạch.
         {imageModel?.startsWith("grok-imagine-image") &&
           " Grok nhận tối đa 5 ảnh, gồm sản phẩm gốc và 4 ảnh tham chiếu."}
       </p>

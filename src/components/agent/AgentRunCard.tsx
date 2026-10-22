@@ -66,9 +66,44 @@ export function AgentRunCard({
     results.find((asset) => asset.id === id);
   return (
     <article
-      className="min-w-0 space-y-4 rounded-xl border bg-white p-4 sm:p-5"
+      className="agent-run-card min-w-0 space-y-4 border bg-white p-4 sm:p-5"
       aria-label={`Công việc ${run.brief.slice(0, 60)}`}
     >
+      <div className="run-stage-strip" aria-label="Các bước xử lý">
+        <span
+          className={
+            run.state === "planning"
+              ? "stage-current"
+              : run.items.length
+                ? "stage-complete"
+                : ""
+          }
+        >
+          01 · Phân tích
+        </span>
+        <span
+          className={
+            ["draft", "needs_input"].includes(run.state)
+              ? "stage-current"
+              : ["queued", "running", "review", "completed"].includes(run.state)
+                ? "stage-complete"
+                : ""
+          }
+        >
+          02 · Duyệt kế hoạch
+        </span>
+        <span
+          className={
+            activeRun(run) && run.state !== "planning"
+              ? "stage-current"
+              : ["review", "completed"].includes(run.state)
+                ? "stage-complete"
+                : ""
+          }
+        >
+          03 · Kết quả
+        </span>
+      </div>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="flex items-center gap-2 font-semibold">
@@ -83,9 +118,10 @@ export function AgentRunCard({
           <p className="mt-1 break-words text-sm text-gray-600">
             {run.summary || run.brief}
           </p>
-          <p className="mt-1 break-all text-xs text-gray-500">
-            Mã công việc: {run.id}
-          </p>
+          <details className="mt-2 text-xs text-slate-500">
+            <summary>Thông tin công việc</summary>
+            <p className="mt-1 break-all">Mã công việc: {run.id}</p>
+          </details>
         </div>
         {(activeRun(run) ||
           run.state === "draft" ||

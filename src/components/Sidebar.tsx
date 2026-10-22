@@ -1,163 +1,199 @@
 import {
-  Wand2,
-  Image,
-  Layout,
-  Settings,
-  Home,
-  FileImage,
-  Sparkles,
-  Lightbulb,
-  Layers,
+  ArrowUpRight,
   Bot,
+  Boxes,
+  ChevronRight,
+  FolderOpen,
+  Image,
+  Layers,
+  Lightbulb,
+  LogOut,
+  MessageSquare,
+  Plus,
+  Settings2,
+  Wand2,
 } from "lucide-react";
-import { cn } from "./ui/utils";
-import { AIProviderSelect } from "./AIProviderSelect";
+import type { AgentUser, Conversation } from "../services/agent.service";
 
-interface SidebarProps {
-  currentPage: string;
-  onPageChange: (page: string) => void;
-}
-
-const menuItems = [
-  {
-    id: "agent",
-    label: "POD Agent",
-    icon: Bot,
-    description: "Chat và tự động hóa POD",
-  },
-  {
-    id: "home",
-    label: "Dashboard",
-    icon: Home,
-    description: "Tổng quan hệ thống",
-  },
-  {
-    id: "mockup-generator",
-    label: "Mockup Generator",
-    icon: Wand2,
-    description: "Tạo mockup tự động",
-  },
-  {
-    id: "background-studio",
-    label: "Mockup Studio",
-    icon: Layers,
-    description: "Áp hình in lên ảnh mẫu",
-  },
-  {
-    id: "idea-generator",
-    label: "Idea Generator",
-    icon: Lightbulb,
-    description: "Tạo ý tưởng sản phẩm",
-  },
-  {
-    id: "image-editor",
-    label: "Image Editor",
-    icon: Image,
-    description: "Chỉnh sửa ảnh",
-  },
-  {
-    id: "batch-processing",
-    label: "Batch Processing",
-    icon: FileImage,
-    description: "Xử lý hàng loạt",
-    disabled: true,
-  },
-  {
-    id: "ai-enhance",
-    label: "AI Enhance",
-    icon: Sparkles,
-    description: "Nâng cao chất lượng",
-    disabled: true,
-  },
-  {
-    id: "templates",
-    label: "Templates",
-    icon: Layout,
-    description: "Quản lý mẫu",
-    disabled: true,
-  },
-  {
-    id: "settings",
-    label: "Settings",
-    icon: Settings,
-    description: "Cài đặt",
-    disabled: true,
-  },
+const navigation = [
+  { id: "agent", label: "Trợ lý AI", icon: MessageSquare },
+  { id: "jobs", label: "Công việc", icon: Boxes },
+  { id: "library", label: "Thư viện", icon: FolderOpen },
+  { id: "templates", label: "Templates", icon: Layers },
+];
+const tools = [
+  { id: "mockup-generator", label: "Mockup Generator", icon: Wand2 },
+  { id: "background-studio", label: "Mockup Studio", icon: Layers },
+  { id: "idea-generator", label: "Idea Generator", icon: Lightbulb },
+  { id: "image-editor", label: "Image Editor", icon: Image },
 ];
 
-export function Sidebar({ currentPage, onPageChange }: SidebarProps) {
+export interface SidebarProps {
+  currentPage: string;
+  onPageChange: (page: string) => void;
+  user?: AgentUser;
+  conversations?: Conversation[];
+  selectedId?: string;
+  onConversation?: (id: string) => void;
+  onNew?: () => void;
+  onLogout?: () => void;
+  activeCount?: number;
+  busy?: boolean;
+}
+
+export function Sidebar({
+  currentPage,
+  onPageChange,
+  user,
+  conversations = [],
+  selectedId,
+  onConversation,
+  onNew,
+  onLogout,
+  activeCount = 0,
+  busy = false,
+}: SidebarProps) {
   return (
-    <aside className="w-64 shrink-0 bg-white border-r border-gray-200 flex flex-col h-full">
-      {/* Logo/Brand */}
-      <div className="p-6 border-b border-gray-200">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg">
-            <Wand2 className="w-6 h-6 text-white" />
-          </div>
-          <div>
-            <h1 className="font-bold text-lg text-gray-900">Creative Studio</h1>
-            <p className="text-xs text-gray-500">AI-Powered Tools</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Navigation */}
-      <AIProviderSelect />
-      <nav className="flex-1 p-4 overflow-y-auto">
-        <div className="space-y-1">
-          {menuItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = currentPage === item.id;
-            const isDisabled = item.disabled;
-
-            return (
-              <button
-                key={item.id}
-                onClick={() => !isDisabled && onPageChange(item.id)}
-                disabled={isDisabled}
-                aria-current={isActive ? "page" : undefined}
-                className={cn(
-                  "w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left transition-all",
-                  isActive &&
-                    "bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200",
-                  !isActive && !isDisabled && "hover:bg-gray-50",
-                  isDisabled && "opacity-50 cursor-not-allowed",
-                )}
-              >
-                <Icon
-                  className={cn(
-                    "w-5 h-5",
-                    isActive ? "text-blue-600" : "text-gray-400",
-                  )}
-                />
-                <div className="flex-1">
-                  <div
-                    className={cn(
-                      "text-sm font-medium",
-                      isActive ? "text-blue-900" : "text-gray-700",
-                    )}
-                  >
-                    {item.label}
-                  </div>
-                  {isActive && (
-                    <div className="text-xs text-gray-500 mt-0.5">
-                      {item.description}
-                    </div>
-                  )}
-                </div>
-                {isDisabled && (
-                  <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded">
-                    Soon
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
+    <aside className="workspace-sidebar">
+      <button
+        type="button"
+        className="workspace-brand"
+        onClick={() => onPageChange("agent")}
+        aria-label="LCG Agent — trang chính"
+      >
+        <span className="brand-symbol">
+          <Bot aria-hidden="true" />
+        </span>
+        <span>
+          <strong>
+            LCG<span className="font-normal"> Agent</span>
+          </strong>
+          <small>CREATIVE WORKSPACE</small>
+        </span>
+      </button>
+      <button
+        type="button"
+        className="new-conversation"
+        onClick={onNew}
+        disabled={busy}
+      >
+        <Plus size={18} aria-hidden="true" /> Cuộc trò chuyện mới <span>+</span>
+      </button>
+      <nav aria-label="Điều hướng chính" className="workspace-navigation">
+        <p className="nav-caption">KHÔNG GIAN LÀM VIỆC</p>
+        {navigation.map(({ id, label, icon: Icon }) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => onPageChange(id)}
+            aria-current={currentPage === id ? "page" : undefined}
+            className="workspace-nav-item"
+          >
+            <Icon size={18} aria-hidden="true" />
+            <span>{label}</span>
+            {id === "jobs" && activeCount > 0 && (
+              <span className="nav-count">{activeCount}</span>
+            )}
+          </button>
+        ))}
+        <div className="nav-divider" />
+        <button
+          type="button"
+          className="workspace-nav-item"
+          aria-current={currentPage === "home" ? "page" : undefined}
+          onClick={() => onPageChange("home")}
+        >
+          <Wand2 size={18} aria-hidden="true" />
+          <span>Công cụ</span>
+          <ArrowUpRight size={14} aria-hidden="true" />
+        </button>
+        <details
+          className="tool-navigation"
+          open={tools.some((tool) => tool.id === currentPage) || undefined}
+        >
+          <summary>
+            Công cụ bổ trợ <ChevronRight size={14} aria-hidden="true" />
+          </summary>
+          {tools.map(({ id, label, icon: Icon }) => (
+            <button
+              key={id}
+              type="button"
+              className="workspace-nav-item"
+              onClick={() => onPageChange(id)}
+              aria-current={currentPage === id ? "page" : undefined}
+            >
+              <Icon size={16} aria-hidden="true" />
+              <span>{label}</span>
+            </button>
+          ))}
+        </details>
       </nav>
-
-      <div className="p-4 border-t text-xs text-gray-600">
-        Công cụ sáng tạo và xử lý ảnh với AI
+      <div className="recent-conversations">
+        <p className="nav-caption">TRÒ CHUYỆN GẦN ĐÂY</p>
+        {conversations.length ? (
+          <nav aria-label="Lịch sử công việc">
+            {conversations.slice(0, 8).map((conversation) => (
+              <button
+                type="button"
+                key={conversation.id}
+                className="recent-conversation"
+                aria-current={
+                  currentPage === "agent" && selectedId === conversation.id
+                    ? "page"
+                    : undefined
+                }
+                onClick={() => onConversation?.(conversation.id)}
+                disabled={busy}
+              >
+                <MessageSquare size={14} aria-hidden="true" />
+                <span>{conversation.title}</span>
+              </button>
+            ))}
+          </nav>
+        ) : (
+          <p className="sidebar-empty">
+            {user
+              ? "Ý tưởng tiếp theo bắt đầu từ một cuộc trò chuyện."
+              : "Đăng nhập để lưu ý tưởng và công việc của bạn."}
+          </p>
+        )}
+      </div>
+      <div className="sidebar-bottom">
+        <button
+          type="button"
+          className="workspace-nav-item"
+          aria-current={currentPage === "settings" ? "page" : undefined}
+          onClick={() => onPageChange("settings")}
+        >
+          <Settings2 size={18} aria-hidden="true" />
+          <span>Cấu hình Agent</span>
+        </button>
+        <div className="workspace-account">
+          <span className="account-avatar">
+            {user?.email.slice(0, 1).toUpperCase() || "L"}
+          </span>
+          <div>
+            <strong>{user?.email.split("@")[0] || "LCG Media"}</strong>
+            <small>
+              {user
+                ? user.role === "admin"
+                  ? "Quản trị viên"
+                  : "Không gian cá nhân"
+                : "AI cho sản phẩm POD"}
+            </small>
+          </div>
+          {user && (
+            <button
+              type="button"
+              className="icon-button"
+              aria-label="Đăng xuất"
+              onClick={onLogout}
+              disabled={busy}
+            >
+              <LogOut size={17} aria-hidden="true" />
+            </button>
+          )}
+        </div>
       </div>
     </aside>
   );

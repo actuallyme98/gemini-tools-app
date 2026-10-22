@@ -182,12 +182,14 @@ async function setup(page: Page) {
       json: { message: `Unexpected request: ${path}` },
     });
   });
-  await page.goto("/#agent");
+  await page.goto("/");
   await page.getByLabel("Email", { exact: true }).fill("designer@example.com");
   await page
     .getByLabel("Mật khẩu", { exact: true })
     .fill("test-password-at-least-12");
   await page.getByRole("button", { name: "Đăng nhập", exact: true }).click();
+  if ((page.viewportSize()?.width ?? 1280) <= 1100)
+    await page.getByRole("button", { name: /Ngữ cảnh & tệp/ }).click();
   await expect(page.getByLabel("Quy trình", { exact: true })).toBeVisible();
   return {
     errors,
@@ -230,6 +232,82 @@ async function setup(page: Page) {
   };
 }
 
+test("agent workspace is the default and supports navigation, asset reuse and export", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  const fixture = await setup(page);
+  await expect(page).toHaveTitle(/LCG Agent/);
+  await expect(
+    page.getByRole("heading", { name: /Một ý tưởng.*Cả quy trình/ }),
+  ).toBeVisible();
+  await page.screenshot({
+    path: test.info().outputPath("agent-welcome-desktop.png"),
+    fullPage: true,
+  });
+  await page.getByRole("button", { name: /Phát triển ý tưởng/ }).click();
+  await expect(page.getByLabel("Quy trình", { exact: true })).toHaveValue(
+    "design",
+  );
+  await expect(
+    page.getByLabel("Giao việc hoặc yêu cầu chỉnh tiếp"),
+  ).toHaveValue(/Đề xuất 3 ý tưởng/);
+  expect(fixture.message).toBeUndefined();
+  await page.getByRole("button", { name: "Thư viện", exact: true }).click();
+  await expect(page.getByText("Một thư viện cho mọi sáng tạo")).toBeVisible();
+  await page
+    .getByLabel("Tải ảnh vào thư viện")
+    .setInputFiles(image("library.png"));
+  await expect(
+    page.getByRole("heading", { name: "library.png", exact: true }),
+  ).toBeVisible();
+  await page.getByLabel("Chọn library.png", { exact: true }).check();
+  const download = page.waitForEvent("download");
+  await page
+    .getByRole("button", { name: "Tải bộ ảnh ZIP", exact: true })
+    .click();
+  expect((await download).suggestedFilename()).toMatch(/\.zip$/);
+  await page.getByRole("button", { name: "Tham chiếu", exact: true }).click();
+  await expect(page).toHaveURL(/#agent$/);
+  await expect(
+    page.getByLabel("Giao việc hoặc yêu cầu chỉnh tiếp"),
+  ).toHaveValue("");
+  await expect(page.locator(".attachment-chip")).toContainText("library.png");
+  await expect(page.locator(".attachment-chip")).toContainText("Tham chiếu");
+  await page.getByRole("button", { name: "Công việc", exact: true }).click();
+  await expect(
+    page.getByText("Công việc tiếp theo bắt đầu từ bạn"),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Cấu hình Agent", exact: true })
+    .click();
+  await page
+    .getByLabel("Model tạo / sửa ảnh", { exact: true })
+    .selectOption("gpt-image-1.5-all");
+  await page.getByRole("button", { name: "Trợ lý AI", exact: true }).click();
+  await expect(
+    page.getByLabel("Model tạo / sửa ảnh", { exact: true }),
+  ).toHaveValue("gpt-image-1.5-all");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page
+    .getByRole("button", { name: "Đóng ngữ cảnh", exact: true })
+    .click();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(
+    390,
+  );
+  await page.screenshot({
+    path: test.info().outputPath("agent-welcome-mobile.png"),
+    fullPage: true,
+  });
+  await page.getByRole("button", { name: "Mở menu", exact: true }).click();
+  await page.getByRole("button", { name: "Thư viện", exact: true }).click();
+  await expect(page).toHaveURL(/#library$/);
+  await page.getByRole("button", { name: "Mở menu", exact: true }).click();
+  await page.getByRole("button", { name: "Đăng xuất", exact: true }).click();
+  await expect(page.getByLabel("Email", { exact: true })).toBeVisible();
+  expect(fixture.errors).toEqual([]);
+});
+
 test("agent preserves edited prompt, locks the image model while running, restores history and exports results", async ({
   page,
 }) => {
@@ -267,6 +345,16 @@ test("agent preserves edited prompt, locks the image model while running, restor
   await expect(
     page.getByLabel("Model tạo / sửa ảnh", { exact: true }),
   ).toBeDisabled();
+  await page
+    .getByRole("button", { name: "Cấu hình Agent", exact: true })
+    .click();
+  await expect(
+    page.getByLabel("Model tạo / sửa ảnh", { exact: true }),
+  ).toBeDisabled();
+  await page.getByRole("button", { name: "Trợ lý AI", exact: true }).click();
+  await expect(
+    page.getByLabel("Model tạo / sửa ảnh", { exact: true }),
+  ).toBeDisabled();
   fixture.complete();
   await expect(page.getByLabel("Duyệt ảnh 1", { exact: true })).toBeVisible();
   await expect(
@@ -288,6 +376,7 @@ test("agent preserves edited prompt, locks the image model while running, restor
   await expect(page.getByLabel("Duyệt ảnh 1", { exact: true })).toHaveValue(
     "approved",
   );
+  await expect(page.locator(".attachment-chip")).toHaveCount(2);
   expect(fixture.errors).toEqual([]);
   await page.screenshot({
     path: test.info().outputPath("agent-desktop.png"),
