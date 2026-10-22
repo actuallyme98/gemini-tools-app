@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { getAIProviderLabel } from "../utils/ai-provider.util";
 import {
   getApiErrorCode,
+  blockingErrors,
   getApiRequestId,
   getErrorMessage,
   replaceProductBackground,
@@ -38,24 +39,7 @@ export type BackgroundJob = {
   error?: string;
   requestId?: string;
 };
-const blockingErrors = new Set([
-  "BACKGROUND_BUSY",
-  "AI_BILLING_BLOCKED",
-  "AI_AUTHENTICATION_FAILED",
-  "AI_PERMISSION_DENIED",
-  "AI_MODEL_UNAVAILABLE",
-  "AI_CONFIGURATION_ERROR",
-  "AI_QUOTA_EXCEEDED",
-  "AI_RATE_LIMITED",
-  "AI_PROVIDER_INVALID",
-  "AI_PROVIDER_NOT_CONFIGURED",
-  "AI_CAPABILITY_UNAVAILABLE",
-  "AI_IMAGE_MODEL_INVALID",
-  "AI_IMAGE_MODEL_UNSUPPORTED",
-  "STORAGE_ACCESS_DENIED",
-  "STORAGE_BUCKET_NOT_FOUND",
-  "STORAGE_UNAVAILABLE",
-]);
+
 export const MAX_BACKGROUND_RESULTS = 20;
 export const MAX_CONCURRENT_BACKGROUND_REQUESTS = 3;
 

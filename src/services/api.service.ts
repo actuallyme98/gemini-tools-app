@@ -75,6 +75,7 @@ type GenerateMockupsResponse = {
     index: number;
     prompt: string;
     url: string;
+    requestId?: string;
   }[];
 };
 export const manualGenerateMockups = async (
@@ -90,14 +91,26 @@ export const manualGenerateMockups = async (
 
   formData.append("image", file);
   formData.append("prompts", JSON.stringify(prompts));
+  formData.append("async", "true");
 
-  return (
-    await axios.post<GenerateMockupsResponse>(
-      "/api/mockups/generate-mockups",
-      formData,
-      { signal },
-    )
-  ).data;
+  const response = await axios.post<
+    GenerateMockupsResponse & BackgroundReplacement & { jobId?: string }
+  >("/api/mockups/generate-mockups", formData, { signal });
+  if (response.data.jobId) {
+    const result = await readImageJob(response, "/api/mockups", signal);
+    return {
+      total: 1,
+      results: [
+        {
+          index: 0,
+          prompt: prompts[0],
+          url: result.url,
+          requestId: result.requestId,
+        },
+      ],
+    };
+  }
+  return response.data;
 };
 
 export const autoGeneratePrompts = async (
@@ -291,85 +304,8 @@ export async function replaceProductBackground(params: {
       signal: params.signal,
     },
   );
-  const accepted = response.data as BackgroundReplacement & { jobId?: string };
-  if (accepted.jobId) {
-    type JobStatus = {
-      state: "pending" | "done" | "failed";
-      result?: BackgroundReplacement;
-      error?: {
-        statusCode: number;
-        code: string;
-        message: string;
-        requestId: string;
-      };
-    };
-    const deadline = Date.now() + 20 * 60 * 1000;
-    while (Date.now() < deadline) {
-      params.signal?.throwIfAborted();
-      let poll: AxiosResponse<JobStatus> | undefined;
-      try {
-        poll = await axios.get<JobStatus>(
-          `/api/backgrounds/jobs/${encodeURIComponent(accepted.jobId)}`,
-          {
-            signal: params.signal,
-            timeout: 15000,
-          },
-        );
-      } catch (error) {
-        // Retry reads only; a temporary polling failure must never start another paid image request.
-        if (
-          !Axios.isAxiosError(error) ||
-          Axios.isCancel(error) ||
-          (error.response &&
-            ![429, 500, 502, 503, 504, 520, 522, 524].includes(
-              error.response.status,
-            ))
-        )
-          throw error;
-      }
-      if (poll?.data.state === "done" && poll.data.result?.url)
-        return poll.data.result;
-      if (poll?.data.state === "failed" && poll.data.error)
-        throw new Axios.AxiosError(
-          poll.data.error.message,
-          poll.data.error.code,
-          poll.config,
-          undefined,
-          {
-            ...poll,
-            data: poll.data.error,
-            status: poll.data.error.statusCode,
-          },
-        );
-      await new Promise<void>((resolve, reject) => {
-        const abort = () => {
-          clearTimeout(timer);
-          params.signal?.removeEventListener("abort", abort);
-          reject(new Axios.CanceledError());
-        };
-        const timer = setTimeout(() => {
-          params.signal?.removeEventListener("abort", abort);
-          resolve();
-        }, 2000);
-        if (params.signal?.aborted) abort();
-        else params.signal?.addEventListener("abort", abort, { once: true });
-      });
-    }
-    throw new Axios.AxiosError(
-      "Tác vụ chưa hoàn tất sau 20 phút. Liên hệ quản trị viên kèm mã yêu cầu.",
-      "BACKGROUND_JOB_TIMEOUT",
-      response.config,
-      undefined,
-      {
-        ...response,
-        data: {
-          message: "Tác vụ chưa hoàn tất sau 20 phút.",
-          requestId: accepted.requestId,
-        },
-        status: 504,
-      },
-    );
-  }
+  if (response.data && "jobId" in response.data)
+    return readImageJob(response, "/api/backgrounds", params.signal);
   const requestId = response.data.requestId || response.headers["x-request-id"];
   return {
     ...response.data,
@@ -422,3 +358,111 @@ export async function getAIImageModels(
     )
   ).data;
 }
+
+async function readImageJob(
+  response: AxiosResponse<BackgroundReplacement>,
+  basePath: string,
+  signal?: AbortSignal,
+): Promise<BackgroundReplacement> {
+  const accepted = response.data as BackgroundReplacement & { jobId?: string };
+  if (accepted.jobId) {
+    type JobStatus = {
+      state: "pending" | "done" | "failed";
+      result?: BackgroundReplacement;
+      error?: {
+        statusCode: number;
+        code: string;
+        message: string;
+        requestId: string;
+      };
+    };
+    const deadline = Date.now() + 20 * 60 * 1000;
+    while (Date.now() < deadline) {
+      signal?.throwIfAborted();
+      let poll: AxiosResponse<JobStatus> | undefined;
+      try {
+        poll = await axios.get<JobStatus>(
+          `${basePath}/jobs/${encodeURIComponent(accepted.jobId)}`,
+          {
+            signal: signal,
+            timeout: 15000,
+          },
+        );
+      } catch (error) {
+        // Retry reads only; a temporary polling failure must never start another paid image request.
+        if (
+          !Axios.isAxiosError(error) ||
+          Axios.isCancel(error) ||
+          (error.response &&
+            ![429, 500, 502, 503, 504, 520, 522, 524].includes(
+              error.response.status,
+            ))
+        )
+          throw error;
+      }
+      if (poll?.data.state === "done" && poll.data.result?.url)
+        return poll.data.result;
+      if (poll?.data.state === "failed" && poll.data.error)
+        throw new Axios.AxiosError(
+          poll.data.error.message,
+          poll.data.error.code,
+          poll.config,
+          undefined,
+          {
+            ...poll,
+            data: poll.data.error,
+            status: poll.data.error.statusCode,
+          },
+        );
+      await new Promise<void>((resolve, reject) => {
+        const abort = () => {
+          clearTimeout(timer);
+          signal?.removeEventListener("abort", abort);
+          reject(new Axios.CanceledError());
+        };
+        const timer = setTimeout(() => {
+          signal?.removeEventListener("abort", abort);
+          resolve();
+        }, 2000);
+        if (signal?.aborted) abort();
+        else signal?.addEventListener("abort", abort, { once: true });
+      });
+    }
+    throw new Axios.AxiosError(
+      "Tác vụ chưa hoàn tất sau 20 phút. Liên hệ quản trị viên kèm mã yêu cầu.",
+      "BACKGROUND_JOB_TIMEOUT",
+      response.config,
+      undefined,
+      {
+        ...response,
+        data: {
+          message: "Tác vụ chưa hoàn tất sau 20 phút.",
+          requestId: accepted.requestId,
+        },
+        status: 504,
+      },
+    );
+  }
+  return response.data;
+}
+
+export const blockingErrors = new Set([
+  "BACKGROUND_BUSY",
+  "AI_IMAGE_URL_UNTRUSTED",
+  "AI_IMAGE_DOWNLOAD_FAILED",
+  "AI_BILLING_BLOCKED",
+  "AI_AUTHENTICATION_FAILED",
+  "AI_PERMISSION_DENIED",
+  "AI_MODEL_UNAVAILABLE",
+  "AI_CONFIGURATION_ERROR",
+  "AI_QUOTA_EXCEEDED",
+  "AI_RATE_LIMITED",
+  "AI_PROVIDER_INVALID",
+  "AI_PROVIDER_NOT_CONFIGURED",
+  "AI_CAPABILITY_UNAVAILABLE",
+  "AI_IMAGE_MODEL_INVALID",
+  "AI_IMAGE_MODEL_UNSUPPORTED",
+  "STORAGE_ACCESS_DENIED",
+  "STORAGE_BUCKET_NOT_FOUND",
+  "STORAGE_UNAVAILABLE",
+]);

@@ -16,7 +16,21 @@ import { ResultSection } from "../components/mockup-generator/ResultSection";
 import {
   manualGenerateMockups,
   autoGeneratePrompts,
+  getErrorMessage,
+  getApiErrorCode,
+  blockingErrors,
 } from "../services/api.service";
+
+type MockupJob = {
+  id: string;
+  index: number;
+  prompt: string;
+  file: File;
+  status: "queued" | "processing" | "done" | "error" | "paused" | "cancelled";
+  url?: string;
+  error?: string;
+  requestId?: string;
+};
 
 export function MockupGeneratorPage() {
   const { provider, imageModel, imageModelReady } = useAIProvider();
@@ -30,7 +44,13 @@ export function MockupGeneratorPage() {
   const [mockupCount, setMockupCount] = useState(3);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [resultUrls, setResultUrls] = useState<string[]>([]);
+  const [jobs, setJobs] = useState<MockupJob[]>([]);
+  const results = jobs.flatMap((job) =>
+    job.status === "done" && job.url
+      ? [{ index: job.index, url: job.url }]
+      : [],
+  );
+  const resultUrls = results.map((result) => result.url);
   const { start, cancel, isCurrent, finish } = useRequest();
   const resetState = useCallback(() => {
     cancel();
@@ -39,7 +59,7 @@ export function MockupGeneratorPage() {
     setMockupCount(3);
     setIsGenerating(false);
     setIsProcessing(false);
-    setResultUrls([]);
+    setJobs([]);
   }, [cancel]);
   const handleGeneratePrompts = async () => {
     if (!sampleImage || isGenerating || isProcessing) return;
@@ -62,6 +82,93 @@ export function MockupGeneratorPage() {
       finish(task);
     }
   };
+  const runJobs = async (queue: MockupJob[]) => {
+    if (isProcessing || isGenerating || !imageModelReady || !queue.length)
+      return;
+    const task = start();
+    const chosenProvider = provider;
+    const chosenModel = imageModel;
+    setIsProcessing(true);
+    const pendingIds = new Set(queue.map((job) => job.id));
+    setJobs((items) =>
+      items.map((job) =>
+        pendingIds.has(job.id)
+          ? { ...job, status: "queued", error: undefined, requestId: undefined }
+          : job,
+      ),
+    );
+    const patch = (id: string, value: Partial<MockupJob>) =>
+      setJobs((items) =>
+        items.map((job) => (job.id === id ? { ...job, ...value } : job)),
+      );
+    let next = 0;
+    let halted = false;
+    let successes = 0;
+    const worker = async () => {
+      while (isCurrent(task) && !halted && next < queue.length) {
+        const job = queue[next++];
+        patch(job.id, {
+          status: "processing",
+          error: undefined,
+          requestId: undefined,
+        });
+        try {
+          const { results } = await manualGenerateMockups(
+            job.file,
+            [job.prompt],
+            task.signal,
+            chosenProvider || undefined,
+            chosenModel,
+          );
+          if (!isCurrent(task)) return;
+          const result = results[0];
+          if (!result?.url) throw new Error("API không trả ảnh kết quả.");
+          patch(job.id, {
+            status: "done",
+            url: result.url,
+            requestId: result.requestId,
+          });
+          recordActivity("mockup", 1);
+          successes++;
+        } catch (error) {
+          if (!isCurrent(task)) return;
+          patch(job.id, { status: "error", error: getErrorMessage(error) });
+          if (blockingErrors.has(getApiErrorCode(error) || "")) {
+            halted = true;
+            const unsent = new Set(queue.slice(next).map((item) => item.id));
+            setJobs((items) =>
+              items.map((item) =>
+                unsent.has(item.id) ? { ...item, status: "paused" } : item,
+              ),
+            );
+          }
+        }
+      }
+    };
+    try {
+      await Promise.all(
+        Array.from({ length: Math.min(3, queue.length) }, worker),
+      );
+      if (isCurrent(task) && successes)
+        toast.success(
+          `Đã tạo ${successes} mockup. Kết quả thành công được giữ lại.`,
+        );
+    } finally {
+      if (isCurrent(task)) setIsProcessing(false);
+      finish(task);
+    }
+  };
+  const stop = () => {
+    cancel();
+    setIsProcessing(false);
+    setJobs((items) =>
+      items.map((job) =>
+        ["queued", "processing"].includes(job.status)
+          ? { ...job, status: "cancelled" }
+          : job,
+      ),
+    );
+  };
   const handleGenerateImages = async () => {
     const validPrompts = prompts.map((p) => p.trim()).filter(Boolean);
     if (
@@ -76,27 +183,15 @@ export function MockupGeneratorPage() {
       toast.error("Mỗi prompt tối đa 4000 ký tự.");
       return;
     }
-    const task = start();
-    setIsProcessing(true);
-    setResultUrls([]);
-    try {
-      const { results } = await manualGenerateMockups(
-        sampleImage,
-        validPrompts,
-        task.signal,
-        provider || undefined,
-        imageModel,
-      );
-      if (!isCurrent(task)) return;
-      setResultUrls(results.map((r) => r.url));
-      recordActivity("mockup", results.length);
-      toast.success(`Đã tạo ${results.length} mockup thành công!`);
-    } catch (error) {
-      if (isCurrent(task)) notifyApiError(error);
-    } finally {
-      if (isCurrent(task)) setIsProcessing(false);
-      finish(task);
-    }
+    const queue: MockupJob[] = validPrompts.map((prompt, index) => ({
+      id: crypto.randomUUID(),
+      index,
+      prompt,
+      file: sampleImage,
+      status: "queued",
+    }));
+    setJobs(queue);
+    await runJobs(queue);
   };
   const canGenerate =
     sampleImage &&
@@ -127,6 +222,7 @@ export function MockupGeneratorPage() {
               resetState={resetState}
               title="Ảnh Mẫu"
               description="Tải ảnh sản phẩm hoặc thiết kế của bạn lên"
+              disabled={isGenerating || isProcessing}
             />
           </Card>
 
@@ -150,7 +246,10 @@ export function MockupGeneratorPage() {
           >
             {isProcessing ? (
               <>
-                <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                <Loader2
+                  aria-hidden="true"
+                  className="w-5 h-5 mr-2 studio-loading-spinner"
+                />
                 Đang xử lý...
               </>
             ) : (
@@ -160,6 +259,15 @@ export function MockupGeneratorPage() {
               </>
             )}
           </Button>
+          {isProcessing && (
+            <Button
+              variant="outline"
+              className="min-h-11 w-full"
+              onClick={stop}
+            >
+              Dừng tạo mockup
+            </Button>
+          )}
         </div>
 
         {/* Right Column - Output */}
@@ -193,8 +301,99 @@ export function MockupGeneratorPage() {
           </Card>
 
           {/* Result Section */}
+          {!!jobs.length && (
+            <Card
+              role="region"
+              className="p-5 space-y-3"
+              aria-label="Tiến độ tạo mockup"
+            >
+              <p role="status">
+                Hoàn tất{" "}
+                {
+                  jobs.filter((job) => ["done", "error"].includes(job.status))
+                    .length
+                }
+                /{jobs.length} ảnh · {resultUrls.length} thành công
+              </p>
+              <p className="text-sm text-gray-600">
+                Mỗi ảnh xử lý độc lập, tối đa 3 ảnh song song. Thử lại giữ
+                prompt của bộ hiện tại và chỉ tạo lại ảnh lỗi.
+              </p>
+              <ul className="space-y-3">
+                {jobs.map((job) => (
+                  <li
+                    key={job.id}
+                    className="rounded-lg border border-gray-200 p-3 text-sm"
+                  >
+                    <p className="flex items-center gap-2 font-medium">
+                      {job.status === "processing" && (
+                        <Loader2
+                          aria-hidden="true"
+                          className="h-4 w-4 studio-loading-spinner"
+                        />
+                      )}
+                      Ảnh {job.index + 1}:{" "}
+                      {
+                        {
+                          queued: "Đang chờ",
+                          processing: "Đang xử lý",
+                          done: "Thành công",
+                          error: "Lỗi",
+                          paused: "Tạm dừng",
+                          cancelled: "Đã dừng",
+                        }[job.status]
+                      }
+                    </p>
+                    {job.error && (
+                      <p
+                        role="alert"
+                        className="mt-2 whitespace-pre-wrap break-words text-red-800"
+                      >
+                        {job.error}
+                      </p>
+                    )}
+                    {job.requestId && (
+                      <p className="mt-1 break-all text-xs text-gray-600">
+                        Mã yêu cầu: {job.requestId}
+                      </p>
+                    )}
+                    {["error", "paused", "cancelled"].includes(job.status) && (
+                      <Button
+                        variant="outline"
+                        className="mt-2 min-h-11"
+                        disabled={
+                          isProcessing || isGenerating || !imageModelReady
+                        }
+                        onClick={() => runJobs([job])}
+                      >
+                        Thử lại ảnh {job.index + 1}
+                      </Button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+              {jobs.some((job) =>
+                ["error", "paused", "cancelled"].includes(job.status),
+              ) && (
+                <Button
+                  variant="outline"
+                  className="min-h-11"
+                  disabled={isProcessing || isGenerating || !imageModelReady}
+                  onClick={() =>
+                    runJobs(
+                      jobs.filter((job) =>
+                        ["error", "paused", "cancelled"].includes(job.status),
+                      ),
+                    )
+                  }
+                >
+                  Thử lại ảnh chưa hoàn tất
+                </Button>
+              )}
+            </Card>
+          )}
           <div id="result-section">
-            <ResultSection imageUrls={resultUrls} />
+            <ResultSection results={results} />
           </div>
 
           {/* Features */}

@@ -8,10 +8,10 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 interface ResultSectionProps {
-  imageUrls: string[];
+  results: { index: number; url: string }[];
 }
 
-export function ResultSection({ imageUrls }: ResultSectionProps) {
+export function ResultSection({ results }: ResultSectionProps) {
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [downloading, setDownloading] = useState(false);
 
@@ -36,14 +36,17 @@ export function ResultSection({ imageUrls }: ResultSectionProps) {
   };
 
   const handleDownloadAll = async () => {
-    if (imageUrls.length === 0) return;
+    if (results.length === 0) return;
 
     setDownloading(true);
     try {
-      const { downloaded, failed } = await downloadZip(imageUrls, "mockups");
+      const { downloaded, failed } = await downloadZip(
+        results.map((result) => result.url),
+        "mockups",
+      );
       if (failed)
         toast.warning(
-          `Đã tải ${downloaded}/${imageUrls.length} ảnh; ${failed} ảnh bị lỗi.`,
+          `Đã tải ${downloaded}/${results.length} ảnh; ${failed} ảnh bị lỗi.`,
         );
       else toast.success(`Đã tải xuống ${downloaded} ảnh`);
     } catch (error) {
@@ -53,15 +56,15 @@ export function ResultSection({ imageUrls }: ResultSectionProps) {
     }
   };
 
-  if (imageUrls.length === 0) return null;
+  if (results.length === 0) return null;
 
   return (
     <Card className="p-6 space-y-4">
       <div className="flex flex-wrap gap-2 items-center justify-between">
         <h3 className="font-medium">
-          Kết Quả ({imageUrls.length} mockup{imageUrls.length > 1 ? "s" : ""})
+          Kết Quả ({results.length} mockup{results.length > 1 ? "s" : ""})
         </h3>
-        {imageUrls.length > 1 && (
+        {results.length > 1 && (
           <Button
             onClick={handleDownloadAll}
             disabled={downloading}
@@ -84,7 +87,7 @@ export function ResultSection({ imageUrls }: ResultSectionProps) {
       </div>
 
       <div className="grid grid-cols-1 gap-4">
-        {imageUrls.map((url, index) => (
+        {results.map(({ url, index }) => (
           <div key={index} className="space-y-3 border rounded-lg p-4">
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium text-gray-700">

@@ -1719,6 +1719,268 @@ test("references default to three variations and reject an eleventh image", asyn
     page.getByText("Kết Quả (3 images)", { exact: true }),
   ).toBeVisible();
 });
+async function setupMockups(page: Page, prompts: string[]) {
+  await page.goto("/#mockup-generator");
+  await page
+    .getByLabel("Tải Ảnh Mẫu", { exact: true })
+    .setInputFiles(image("product.png"));
+  for (const [index, prompt] of prompts.entries()) {
+    if (index)
+      await page
+        .getByRole("button", { name: "Thêm Prompt", exact: false })
+        .click();
+    await page.getByLabel(`Prompt #${index + 1}`, { exact: true }).fill(prompt);
+  }
+  return page.getByRole("region", { name: "Mockup Generator", exact: true });
+}
+
+test("Mockup Generator runs three independent jobs, preserves out-of-order successes and retries only the failed prompt", async ({
+  page,
+}) => {
+  const submissions: { prompt: string; model: string; id: string }[] = [];
+  const states = new Map<string, "pending" | "done" | "failed">();
+  let pollFailures = 0;
+  await page.route("**/api/mockups/generate-mockups", (route) => {
+    const body = route.request().postDataBuffer()!.toString();
+    const prompts = JSON.parse(
+      body.match(/name="prompts"\r\n\r\n([^\r]*)/)![1],
+    ) as string[];
+    expect(prompts).toHaveLength(1);
+    expect(body).toContain('name="async"\r\n\r\ntrue');
+    const model = body.match(/name="imageModel"\r\n\r\n([^\r]*)/)![1];
+    const id = `a0000000-0000-4000-8000-${String(submissions.length + 1).padStart(12, "0")}`;
+    submissions.push({ prompt: prompts[0], model, id });
+    states.set(id, "pending");
+    return route.fulfill({
+      status: 202,
+      json: { jobId: id, requestId: id, state: "pending" },
+    });
+  });
+  await page.route("**/api/mockups/jobs/*", (route) => {
+    const id = route.request().url().split("/").at(-1)!;
+    if (!pollFailures++)
+      return route.fulfill({ status: 502, body: "Temporary proxy failure" });
+    const state = states.get(id);
+    return route.fulfill({
+      json: {
+        state,
+        ...(state === "done"
+          ? {
+              result: {
+                url: `https://cdn.example/${id}.png`,
+                mimeType: "image/png",
+                requestId: id,
+              },
+            }
+          : state === "failed"
+            ? {
+                error: {
+                  statusCode: 502,
+                  code: "AI_NO_IMAGE",
+                  message: "Model không tạo ảnh.",
+                  reason: "NO_IMAGE",
+                  requestId: id,
+                },
+              }
+            : {}),
+      },
+    });
+  });
+  const studio = await setupMockups(page, [
+    "original one",
+    "two",
+    "three",
+    "four",
+  ]);
+  const model = page.getByRole("combobox", { name: "Model tạo / sửa ảnh" });
+  await model.selectOption("gemini-3-pro-image-preview");
+  await page.clock.install();
+  await studio
+    .getByRole("button", { name: "Tạo 4 Mockup", exact: true })
+    .click();
+  await expect.poll(() => submissions.length).toBe(3);
+  await expect(model).toBeDisabled();
+  await expect(studio.getByLabel("Prompt #1", { exact: true })).toBeDisabled();
+  await page.clock.fastForward(150000);
+  states.set(submissions[1].id, "done");
+  await page.clock.fastForward(2000);
+  await expect(
+    studio.getByRole("img", { name: "Result 2", exact: true }),
+  ).toBeVisible();
+  await expect.poll(() => submissions.length).toBe(4);
+  states.set(submissions[0].id, "failed");
+  states.set(submissions[3].id, "done");
+  await page.clock.fastForward(2000);
+  await expect(studio).toContainText("NO_IMAGE");
+  await expect(studio).toContainText(submissions[0].id);
+  await expect(model).toBeDisabled();
+  states.set(submissions[2].id, "done");
+  await page.clock.fastForward(2000);
+  await expect(model).toBeEnabled();
+  expect(
+    submissions.every((job) => job.model === "gemini-3-pro-image-preview"),
+  ).toBe(true);
+  await expect(studio.getByRole("img", { name: /^Result / })).toHaveCount(3);
+  await studio
+    .getByLabel("Prompt #1", { exact: true })
+    .fill("changed for a new batch");
+  await model.selectOption("gpt-image-1.5-all");
+  await studio
+    .getByRole("button", { name: "Thử lại ảnh 1", exact: true })
+    .click();
+  await expect.poll(() => submissions.length).toBe(5);
+  expect(submissions[4].prompt).toBe("original one");
+  expect(submissions[4].model).toBe("gpt-image-1.5-all");
+  states.set(submissions[4].id, "done");
+  await page.clock.fastForward(2000);
+  await expect(studio.getByRole("img", { name: /^Result / })).toHaveCount(4);
+  await expect(model).toBeEnabled();
+});
+
+test("Mockup Generator pauses unsent work after billing errors and keeps completed images", async ({
+  page,
+}) => {
+  const submitted: string[] = [];
+  let complete = false;
+  await page.route("**/api/mockups/generate-mockups", (route) => {
+    const prompt = (
+      JSON.parse(
+        route
+          .request()
+          .postData()!
+          .match(/name="prompts"\r\n\r\n([^\r]*)/)![1],
+      ) as string[]
+    )[0];
+    submitted.push(prompt);
+    return route.fulfill({
+      status: 202,
+      json: {
+        jobId: prompt,
+        requestId: `b0000000-0000-4000-8000-${String(submitted.length).padStart(12, "0")}`,
+        state: "pending",
+      },
+    });
+  });
+  await page.route("**/api/mockups/jobs/*", (route) => {
+    const id = route.request().url().split("/").at(-1)!;
+    if (id === "one")
+      return route.fulfill({
+        json: {
+          state: "failed",
+          error: {
+            statusCode: 403,
+            code: "AI_BILLING_BLOCKED",
+            message: "Tài khoản thanh toán bị chặn.",
+            requestId: "b0000000-0000-4000-8000-000000000001",
+          },
+        },
+      });
+    return route.fulfill({
+      json: complete
+        ? {
+            state: "done",
+            result: {
+              url: `https://cdn.example/${id}.png`,
+              mimeType: "image/png",
+            },
+          }
+        : { state: "pending" },
+    });
+  });
+  const studio = await setupMockups(page, [
+    "one",
+    "two",
+    "three",
+    "four",
+    "five",
+  ]);
+  await page.clock.install();
+  await studio
+    .getByRole("button", { name: "Tạo 5 Mockup", exact: true })
+    .click();
+  await expect.poll(() => submitted.length).toBe(3);
+  await expect(studio).toContainText("Tài khoản thanh toán bị chặn.");
+  await expect(studio).toContainText("Ảnh 4: Tạm dừng");
+  complete = true;
+  await page.clock.fastForward(2000);
+  await expect(
+    page.getByRole("combobox", { name: "Model tạo / sửa ảnh" }),
+  ).toBeEnabled();
+  await expect(studio.getByRole("img", { name: /^Result / })).toHaveCount(2);
+  expect(submitted).toEqual(["one", "two", "three"]);
+  await studio
+    .getByRole("button", { name: "Thử lại ảnh 4", exact: true })
+    .click();
+  await expect.poll(() => submitted.length).toBe(4);
+  await expect(
+    studio.getByRole("img", { name: "Result 4", exact: true }),
+  ).toBeVisible();
+  expect(submitted).toEqual(["one", "two", "three", "four"]);
+});
+
+test("stopping a mockup job cancels polling and late results cannot change or unlock its retry", async ({
+  page,
+}) => {
+  let posts = 0;
+  const completed = new Set<string>();
+  await page.route("**/api/mockups/generate-mockups", (route) => {
+    const id = String(++posts);
+    return route.fulfill({
+      status: 202,
+      json: {
+        jobId: id,
+        state: "pending",
+        requestId: `c0000000-0000-4000-8000-${id.padStart(12, "0")}`,
+      },
+    });
+  });
+  await page.route("**/api/mockups/jobs/*", (route) => {
+    const id = route.request().url().split("/").at(-1)!;
+    return route.fulfill({
+      json: completed.has(id)
+        ? {
+            state: "done",
+            result: {
+              url: `https://cdn.example/retry-${id}.png`,
+              mimeType: "image/png",
+            },
+          }
+        : { state: "pending" },
+    });
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  const studio = await setupMockups(page, ["one"]);
+  await page.clock.install();
+  await studio
+    .getByRole("button", { name: "Tạo 1 Mockup", exact: true })
+    .click();
+  await expect.poll(() => posts).toBe(1);
+  await studio
+    .getByRole("button", { name: "Dừng tạo mockup", exact: true })
+    .click();
+  const model = page.getByRole("combobox", { name: "Model tạo / sửa ảnh" });
+  await expect(model).toBeEnabled();
+  await studio
+    .getByRole("button", { name: "Thử lại ảnh 1", exact: true })
+    .click();
+  await expect.poll(() => posts).toBe(2);
+  completed.add("1");
+  await page.clock.fastForward(2000);
+  await expect(model).toBeDisabled();
+  await expect(
+    studio.getByRole("img", { name: "Result 1", exact: true }),
+  ).toHaveCount(0);
+  completed.add("2");
+  await page.clock.fastForward(2000);
+  await expect(
+    studio.getByRole("img", { name: "Result 1", exact: true }),
+  ).toHaveAttribute("src", "https://cdn.example/retry-2.png");
+  await expect(model).toBeEnabled();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(
+    390,
+  );
+});
+
 test("ZIP reports failed downloads, retains page results and updates dashboard", async ({
   page,
 }) => {
@@ -1729,12 +1991,18 @@ test("ZIP reports failed downloads, retains page results and updates dashboard",
     expect(route.request().postData()).toMatch(
       /name="provider"\r\n\r\nshopaikey\r\n/,
     );
+    const second = route.request().postData()?.includes('["two"]');
     return route.fulfill({
       json: {
-        total: 2,
+        total: 1,
         results: [
-          { index: 0, prompt: "one", url: "https://cdn.example/good.png" },
-          { index: 1, prompt: "two", url: "https://cdn.example/bad.png" },
+          {
+            index: 0,
+            prompt: second ? "two" : "one",
+            url: second
+              ? "https://cdn.example/bad.png"
+              : "https://cdn.example/good.png",
+          },
         ],
       },
     });
@@ -1756,10 +2024,11 @@ test("ZIP reports failed downloads, retains page results and updates dashboard",
     .getByRole("button", { name: "Tạo 2 Mockup", exact: false })
     .click();
   await expect(page.getByText("Mockup #1", { exact: true })).toBeVisible();
+  await expect(page.getByText("Mockup #2", { exact: true })).toBeVisible();
   await page.locator("nav").getByRole("button", { name: "Dashboard" }).click();
-  await expect(
-    page.getByText("Đã tạo 2 mockup", { exact: true }),
-  ).toBeVisible();
+  await expect(page.getByText("Đã tạo 1 mockup", { exact: true })).toHaveCount(
+    2,
+  );
   await page
     .locator("nav")
     .getByRole("button", { name: "Mockup Generator" })
