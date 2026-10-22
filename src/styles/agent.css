@@ -1371,8 +1371,12 @@ input[type="checkbox"] {
   font-size: 12px;
   color: #7a879d;
 }
+.agent-auth-root {
+  min-height: 100dvh;
+  color: var(--workspace-ink);
+}
 .agent-login-layout {
-  min-height: calc(100dvh - 67px);
+  min-height: 100dvh;
   display: grid;
   grid-template-columns: 1fr 1fr;
   background: #fff;

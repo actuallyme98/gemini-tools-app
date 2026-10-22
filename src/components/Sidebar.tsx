@@ -11,15 +11,19 @@ import {
   MessageSquare,
   Plus,
   Settings2,
+  ShieldCheck,
   Wand2,
+  Workflow,
 } from "lucide-react";
 import type { AgentUser, Conversation } from "../services/agent.service";
+import { HistoryLoader } from "./agent/HistoryLoader";
 
 const navigation = [
   { id: "agent", label: "Trợ lý AI", icon: MessageSquare },
   { id: "jobs", label: "Công việc", icon: Boxes },
   { id: "library", label: "Thư viện", icon: FolderOpen },
   { id: "templates", label: "Templates", icon: Layers },
+  { id: "workflows", label: "Workflows", icon: Workflow },
 ];
 const tools = [
   { id: "mockup-generator", label: "Mockup Generator", icon: Wand2 },
@@ -39,6 +43,9 @@ export interface SidebarProps {
   onLogout?: () => void;
   activeCount?: number;
   busy?: boolean;
+  historyHasMore?: boolean;
+  historyLoading?: boolean;
+  onMoreHistory?: () => void;
 }
 
 export function Sidebar({
@@ -52,6 +59,9 @@ export function Sidebar({
   onLogout,
   activeCount = 0,
   busy = false,
+  historyHasMore,
+  historyLoading = false,
+  onMoreHistory,
 }: SidebarProps) {
   return (
     <aside className="workspace-sidebar">
@@ -131,8 +141,8 @@ export function Sidebar({
       <div className="recent-conversations">
         <p className="nav-caption">TRÒ CHUYỆN GẦN ĐÂY</p>
         {conversations.length ? (
-          <nav aria-label="Lịch sử công việc">
-            {conversations.slice(0, 8).map((conversation) => (
+          <nav aria-label="Lịch sử công việc" data-history-scroll>
+            {conversations.map((conversation) => (
               <button
                 type="button"
                 key={conversation.id}
@@ -149,6 +159,7 @@ export function Sidebar({
                 <span>{conversation.title}</span>
               </button>
             ))}
+            {historyHasMore && onMoreHistory && <HistoryLoader loading={historyLoading} onLoad={onMoreHistory} label="Tải thêm hội thoại" />}
           </nav>
         ) : (
           <p className="sidebar-empty">
@@ -159,6 +170,17 @@ export function Sidebar({
         )}
       </div>
       <div className="sidebar-bottom">
+        {user?.role === "admin" && (
+          <button
+            type="button"
+            className="workspace-nav-item"
+            aria-current={currentPage.startsWith("admin") ? "page" : undefined}
+            onClick={() => onPageChange("admin")}
+          >
+            <ShieldCheck size={18} aria-hidden="true" />
+            <span>Quản trị công ty</span>
+          </button>
+        )}
         <button
           type="button"
           className="workspace-nav-item"

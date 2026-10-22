@@ -7,6 +7,12 @@ export type AgentUser = {
   email: string;
   role: "admin" | "designer";
 };
+export type AgentAuthStatus = {
+  enabled: boolean;
+  setupRequired: boolean;
+  google?: { enabled: boolean; clientId?: string; allowedDomains: string[] };
+};
+export type AgentLogin = { token: string; user: AgentUser; expiresAt: number };
 export type Asset = {
   id: string;
   name: string;
@@ -41,6 +47,8 @@ export type MockupTemplate = {
 };
 export type Operation = "auto" | "mockup_ai" | "mockup_template" | "design";
 export type Run = {
+  workflow?: { executionId: string; name: string; revision: number; stage: number; total: number };
+  context?: { estimatedTokens: number; budget: number; recentMessages: number; summarizedMessages: number; compactedAt?: string };
   activeStepCount?: number;
   id: string;
   conversationId: string;
@@ -93,10 +101,13 @@ export type Conversation = {
   id: string;
   title: string;
   updatedAt: string;
+  pinnedRequirements?: string[];
   messages: {
     id: string;
     role: "user" | "assistant";
     text: string;
+    createdAt?: string;
+    attachments?: { sourceIds: string[]; targetIds: string[]; templateIds: string[] };
     runId?: string;
   }[];
 };
@@ -105,7 +116,14 @@ export type Detail = {
   runs: Run[];
   steps: Step[];
   results: Asset[];
+  messagePage?: { hasMore: boolean; nextCursor: string | null };
+  memory?: { summary: string; messageCount: number; updatedAt: string };
+  workflowExecutions?: WorkflowExecution[];
 };
+export type WorkflowStep = { name: string; operation: Exclude<Operation, "auto">; instructions: string; source: "initial" | "previous"; count: number };
+export type CustomWorkflow = { id: string; name: string; description: string; revision: number; steps: WorkflowStep[]; archived: boolean; updatedAt: string };
+export type WorkflowExecution = { id: string; workflow: CustomWorkflow; runIds: string[]; stage: number };
+export type HistoryPage = { items: Conversation[]; hasMore: boolean; nextCursor: string | null };
 export const activeRun = (run: Pick<Run, "state" | "activeStepCount">) =>
   ["planning", "queued", "running"].includes(run.state) ||
   (run.activeStepCount ?? 0) > 0;
@@ -135,18 +153,22 @@ export function authorizeAgent(token: string | null) {
   else delete agentClient.defaults.headers.common.Authorization;
 }
 authorizeAgent(readAgentToken());
+export function expireAgentSession() {
+  authorizeAgent(null);
+  setAgentToken(null);
+  window.dispatchEvent(new Event("agent-session-expired"));
+}
 agentClient.interceptors.response.use(
   (response) => response,
   (error: unknown) => {
     if (
       Axios.isAxiosError(error) &&
       error.response?.status === 401 &&
-      !error.config?.url?.endsWith("/auth/login")
+      !["/auth/login", "/auth/google", "/auth/google/challenge"].includes(
+        error.config?.url || "",
+      )
     ) {
-      authorizeAgent(null);
-      setAgentToken(null);
-      if (typeof window !== "undefined")
-        window.dispatchEvent(new Event("agent-session-expired"));
+      expireAgentSession();
     }
     return Promise.reject(error);
   },

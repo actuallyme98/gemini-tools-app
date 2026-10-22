@@ -1,4 +1,5 @@
 import Axios, { type AxiosResponse } from "axios";
+import { expireAgentSession, readAgentToken } from "./agent.service";
 import { maskAIProviderNames } from "../utils/ai-provider.util";
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
@@ -6,6 +7,20 @@ const BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
 const axios = Axios.create({
   baseURL: BASE_URL,
   timeout: 20 * 60 * 1000,
+});
+
+axios.interceptors.request.use(config => {
+  const token = readAgentToken();
+  if (token) config.headers.set('Authorization', 'Bearer ' + token);
+  if (config.method === 'post' && config.data instanceof FormData) {
+    config.headers.set('Idempotency-Key', crypto.randomUUID());
+    config.data.set('async', 'true');
+  }
+  return config;
+});
+axios.interceptors.response.use(response => response, (error: unknown) => {
+  if (Axios.isAxiosError(error) && error.response?.status === 401) expireAgentSession();
+  return Promise.reject(error);
 });
 
 export function getErrorMessage(error: unknown): string {
@@ -125,11 +140,7 @@ export const autoGeneratePrompts = async (
   formData.append("image", file);
   formData.append("count", count);
 
-  return (
-    await axios.post<string[]>("/api/mockups/generate-prompts", formData, {
-      signal,
-    })
-  ).data;
+  return readQueuedResult<string[]>(await axios.post<string[]>("/api/mockups/generate-prompts", formData, { signal }), "", signal);
 };
 
 export type ImageAnalysis = {
@@ -174,11 +185,7 @@ export const analyzeProductFromImage = async (
   if (provider) formData.append("provider", provider);
   formData.append("image", file);
 
-  return (
-    await axios.post<ImageAnalysis>("/api/ideas/analyze-product", formData, {
-      signal,
-    })
-  ).data;
+  return readQueuedResult<ImageAnalysis>(await axios.post<ImageAnalysis>("/api/ideas/analyze-product", formData, { signal }), "", signal);
 };
 
 export type GenerateIdeaReturn = {
@@ -201,13 +208,7 @@ export const generateProductIdeas = async (
   formData.append("basePrompt", basePrompt);
   formData.append("count", String(count));
 
-  return (
-    await axios.post<GenerateIdeaReturn[]>(
-      "/api/ideas/generate-ideas",
-      formData,
-      { signal },
-    )
-  ).data;
+  return readQueuedResult<GenerateIdeaReturn[]>(await axios.post<GenerateIdeaReturn[]>("/api/ideas/generate-ideas", formData, { signal }), "", signal);
 };
 
 export const generateImagesFromReferalImages = async (params: {
@@ -243,13 +244,7 @@ export const generateImagesFromReferalImages = async (params: {
     formData.append("variations", variations.toString());
   }
 
-  return (
-    await axios.post<string[]>(
-      "/api/ideas/generate-images-from-referal-images",
-      formData,
-      { signal },
-    )
-  ).data;
+  return readQueuedResult<string[]>(await axios.post<string[]>("/api/ideas/generate-images-from-referal-images", formData, { signal }), "", signal);
 };
 
 export type AICapability = "text" | "vision" | "image";
@@ -359,16 +354,20 @@ export async function getAIImageModels(
   ).data;
 }
 
-async function readImageJob(
-  response: AxiosResponse<BackgroundReplacement>,
+async function readImageJob(response: AxiosResponse<BackgroundReplacement>, basePath: string, signal?: AbortSignal): Promise<BackgroundReplacement> {
+  return readQueuedResult<BackgroundReplacement>(response, basePath, signal);
+}
+
+async function readQueuedResult<T>(
+  response: AxiosResponse<T>,
   basePath: string,
   signal?: AbortSignal,
-): Promise<BackgroundReplacement> {
-  const accepted = response.data as BackgroundReplacement & { jobId?: string };
+): Promise<T> {
+  const accepted = response.data as { jobId?: string; requestId?: string };
   if (accepted.jobId) {
     type JobStatus = {
       state: "pending" | "done" | "failed";
-      result?: BackgroundReplacement;
+      result?: T;
       error?: {
         statusCode: number;
         code: string;
@@ -382,7 +381,7 @@ async function readImageJob(
       let poll: AxiosResponse<JobStatus> | undefined;
       try {
         poll = await axios.get<JobStatus>(
-          `${basePath}/jobs/${encodeURIComponent(accepted.jobId)}`,
+          basePath ? `${basePath}/jobs/${encodeURIComponent(accepted.jobId)}` : `/api/image-jobs/${encodeURIComponent(accepted.jobId)}`,
           {
             signal: signal,
             timeout: 15000,
@@ -400,7 +399,7 @@ async function readImageJob(
         )
           throw error;
       }
-      if (poll?.data.state === "done" && poll.data.result?.url)
+      if (poll?.data.state === "done" && poll.data.result !== undefined)
         return poll.data.result;
       if (poll?.data.state === "failed" && poll.data.error)
         throw new Axios.AxiosError(

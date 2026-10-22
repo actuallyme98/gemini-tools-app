@@ -2,6 +2,8 @@
 
 CI/CD và deploy lên server EziHubb: [hướng dẫn production](docs/deployment.md).
 
+Tài khoản admin có mục **Quản trị công ty** tại `/#admin`: tổng quan, tài khoản, công việc, audit logs và cấu hình vận hành. Các dữ liệu/thao tác dùng API `/api/agent/admin`; API kiểm tra quyền admin độc lập với giao diện. Google login và cấu hình domain lấy từ API; khi chưa có Client ID, đăng nhập mật khẩu hiện có vẫn hoạt động.
+
 Frontend React + TypeScript cho Gemini Tools API: mockup, ý tưởng, chỉnh ảnh từ reference và áp hình in vào ảnh tham chiếu hàng loạt. Sidebar mặc định chọn Provider 1 (ShopAIKey), lưu lựa chọn trên trình duyệt và lấy khả năng từ GET /api/ai/providers. Gemini bị ẩn khỏi danh sách chọn; lựa chọn Gemini/VyceAI/mặc định hệ thống cũ được chuyển sang Provider 1. Provider chưa cấu hình bị khóa. Ảnh luôn dùng provider/model được chọn, không tự fallback. Text có định tuyến riêng VyceAI ưu tiên, ShopAIKey dự phòng khi bật AI_AUTO_TEXT_ROUTING. Credential và model mặc định chỉ nằm ở backend.
 
 ## Provider và model
@@ -69,6 +71,10 @@ Giới hạn: ảnh PNG/JPEG/WebP tối đa 10MB; 10 ảnh reference; 12 prompt 
 Hủy yêu cầu ngăn phản hồi cũ cập nhật giao diện. Backend dừng các bước còn lại khi client ngắt kết nối; lời gọi đã đến provider có thể vẫn được xử lý.
 
 ## API errors
+
+Agent có mục **Workflows** cho nhân viên tạo chuỗi bước riêng (thiết kế, mockup AI, template), chọn đầu vào ban đầu hoặc kết quả đã duyệt của bước trước. Mỗi bước cần duyệt final prompt và kết quả. Phiên chạy giữ snapshot workflow/model; hỗ trợ bổ sung thông tin và lập lại bước lỗi.
+
+Hội thoại lưu đầy đủ ở MongoDB. Cuộn lên để tải tin cũ, cuộn sidebar xuống để tải thêm hội thoại; có nút tải thủ công. Phần **Bộ nhớ & yêu cầu ghim** hiển thị bản compact và cho ghim yêu cầu xuyên suốt. Các giới hạn/context và migration được mô tả trong `docs/workflows-context-history.md` của repo API. Domain đăng nhập Google quản lý tại **Quản trị công ty → Vận hành**, không cấu hình danh sách domain ở `.env`.
 
 Tên provider trên giao diện dùng nhãn cố định: **Provider 1** cho ShopAIKey, được chọn mặc định và đứng đầu danh sách. Gemini được ẩn khỏi ô chọn; các lựa chọn Gemini/VyceAI đã lưu trước đây chuyển sang Provider 1. Các trạng thái và thông báo lỗi dùng nhãn trung lập; định tuyến text tự động hiển thị trung lập. ID gửi API và lựa chọn đã lưu vẫn dùng ID nội bộ.
 
