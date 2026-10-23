@@ -1,4 +1,5 @@
 import type { AgentUser } from "./agent.service";
+import type { BudgetSummary } from "./budget.service";
 
 export type ProviderUsage = {
   id: string;
@@ -25,6 +26,7 @@ export type PageResult<T> = {
   limit: number;
 };
 export type AdminUser = AgentUser & {
+  budget?: BudgetSummary;
   disabled: boolean;
   createdAt: string;
   updatedAt: string;

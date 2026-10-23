@@ -1,0 +1,18 @@
+export const sampleBudget = (owner: string) => ({
+  owner,
+  periodStart: "2026-10-18T17:00:00.000Z",
+  periodEnd: "2026-10-25T17:00:00.000Z",
+  timezone: "Asia/Bangkok",
+  limitUsd: 50,
+  defaultWeeklyUsd: 50,
+  overrideUsd: null as number | null,
+  policyVersion: 0,
+  spentUsd: 12,
+  reservedUsd: 3,
+  availableUsd: 35,
+  usedPercent: 30,
+  periods: ["2026-10-19"],
+  entries: [],
+  nextCursor: null,
+  totalEntries: 0,
+});

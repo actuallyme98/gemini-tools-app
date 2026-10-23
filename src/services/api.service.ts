@@ -9,19 +9,23 @@ const axios = Axios.create({
   timeout: 20 * 60 * 1000,
 });
 
-axios.interceptors.request.use(config => {
+axios.interceptors.request.use((config) => {
   const token = readAgentToken();
-  if (token) config.headers.set('Authorization', 'Bearer ' + token);
-  if (config.method === 'post' && config.data instanceof FormData) {
-    config.headers.set('Idempotency-Key', crypto.randomUUID());
-    config.data.set('async', 'true');
+  if (token) config.headers.set("Authorization", "Bearer " + token);
+  if (config.method === "post" && config.data instanceof FormData) {
+    config.headers.set("Idempotency-Key", crypto.randomUUID());
+    config.data.set("async", "true");
   }
   return config;
 });
-axios.interceptors.response.use(response => response, (error: unknown) => {
-  if (Axios.isAxiosError(error) && error.response?.status === 401) expireAgentSession();
-  return Promise.reject(error);
-});
+axios.interceptors.response.use(
+  (response) => response,
+  (error: unknown) => {
+    if (Axios.isAxiosError(error) && error.response?.status === 401)
+      expireAgentSession();
+    return Promise.reject(error);
+  },
+);
 
 export function getErrorMessage(error: unknown): string {
   if (Axios.isAxiosError(error)) {
@@ -140,7 +144,13 @@ export const autoGeneratePrompts = async (
   formData.append("image", file);
   formData.append("count", count);
 
-  return readQueuedResult<string[]>(await axios.post<string[]>("/api/mockups/generate-prompts", formData, { signal }), "", signal);
+  return readQueuedResult<string[]>(
+    await axios.post<string[]>("/api/mockups/generate-prompts", formData, {
+      signal,
+    }),
+    "",
+    signal,
+  );
 };
 
 export type ImageAnalysis = {
@@ -185,7 +195,13 @@ export const analyzeProductFromImage = async (
   if (provider) formData.append("provider", provider);
   formData.append("image", file);
 
-  return readQueuedResult<ImageAnalysis>(await axios.post<ImageAnalysis>("/api/ideas/analyze-product", formData, { signal }), "", signal);
+  return readQueuedResult<ImageAnalysis>(
+    await axios.post<ImageAnalysis>("/api/ideas/analyze-product", formData, {
+      signal,
+    }),
+    "",
+    signal,
+  );
 };
 
 export type GenerateIdeaReturn = {
@@ -208,7 +224,15 @@ export const generateProductIdeas = async (
   formData.append("basePrompt", basePrompt);
   formData.append("count", String(count));
 
-  return readQueuedResult<GenerateIdeaReturn[]>(await axios.post<GenerateIdeaReturn[]>("/api/ideas/generate-ideas", formData, { signal }), "", signal);
+  return readQueuedResult<GenerateIdeaReturn[]>(
+    await axios.post<GenerateIdeaReturn[]>(
+      "/api/ideas/generate-ideas",
+      formData,
+      { signal },
+    ),
+    "",
+    signal,
+  );
 };
 
 export const generateImagesFromReferalImages = async (params: {
@@ -244,7 +268,15 @@ export const generateImagesFromReferalImages = async (params: {
     formData.append("variations", variations.toString());
   }
 
-  return readQueuedResult<string[]>(await axios.post<string[]>("/api/ideas/generate-images-from-referal-images", formData, { signal }), "", signal);
+  return readQueuedResult<string[]>(
+    await axios.post<string[]>(
+      "/api/ideas/generate-images-from-referal-images",
+      formData,
+      { signal },
+    ),
+    "",
+    signal,
+  );
 };
 
 export type AICapability = "text" | "vision" | "image";
@@ -354,7 +386,11 @@ export async function getAIImageModels(
   ).data;
 }
 
-async function readImageJob(response: AxiosResponse<BackgroundReplacement>, basePath: string, signal?: AbortSignal): Promise<BackgroundReplacement> {
+async function readImageJob(
+  response: AxiosResponse<BackgroundReplacement>,
+  basePath: string,
+  signal?: AbortSignal,
+): Promise<BackgroundReplacement> {
   return readQueuedResult<BackgroundReplacement>(response, basePath, signal);
 }
 
@@ -381,7 +417,9 @@ async function readQueuedResult<T>(
       let poll: AxiosResponse<JobStatus> | undefined;
       try {
         poll = await axios.get<JobStatus>(
-          basePath ? `${basePath}/jobs/${encodeURIComponent(accepted.jobId)}` : `/api/image-jobs/${encodeURIComponent(accepted.jobId)}`,
+          basePath
+            ? `${basePath}/jobs/${encodeURIComponent(accepted.jobId)}`
+            : `/api/image-jobs/${encodeURIComponent(accepted.jobId)}`,
           {
             signal: signal,
             timeout: 15000,
@@ -446,6 +484,12 @@ async function readQueuedResult<T>(
 }
 
 export const blockingErrors = new Set([
+  "USER_BUDGET_EXCEEDED",
+  "BUDGET_PRICING_UNAVAILABLE",
+  "BUDGET_CONTEXT_MISSING",
+  "BUDGET_REQUEST_ALREADY_SUBMITTED",
+  "BUDGET_REQUEST_UNRESOLVED",
+  "BUDGET_JOURNAL_FULL",
   "BACKGROUND_BUSY",
   "AI_IMAGE_URL_UNTRUSTED",
   "AI_IMAGE_DOWNLOAD_FAILED",

@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { randomUUID } from "node:crypto";
+import { sampleBudget } from "./budget-fixture";
 
 const png = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aWQAAAABJRU5ErkJggg==",
@@ -7,7 +8,10 @@ const png = Buffer.from(
 );
 const image = (name: string) => ({ name, mimeType: "image/png", buffer: png });
 
-async function setup(page: Page, options: { skipLogin?: boolean } = {}) {
+async function setup(
+  page: Page,
+  options: { skipLogin?: boolean; templates?: Record<string, unknown>[] } = {},
+) {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   const user = {
@@ -16,7 +20,7 @@ async function setup(page: Page, options: { skipLogin?: boolean } = {}) {
     role: "designer",
   };
   const assets: Record<string, unknown>[] = [];
-  const templates: Record<string, unknown>[] = [];
+  const templates: Record<string, unknown>[] = options.templates ?? [];
   let conversation: Record<string, unknown> | undefined;
   let run: Record<string, unknown> | undefined;
   let message: Record<string, unknown> | undefined;
@@ -35,6 +39,8 @@ async function setup(page: Page, options: { skipLogin?: boolean } = {}) {
       method = route.request().method();
     const body = () =>
       route.request().postDataJSON() as Record<string, unknown>;
+    if (path === "/api/agent/usage")
+      return route.fulfill({ json: sampleBudget(user.id) });
     if (path === "/api/ai/providers")
       return route.fulfill({
         json: {
@@ -1080,32 +1086,97 @@ test("chat keyboard preserves line breaks and composition, and Enter submits onc
   expect(fixture.errors).toEqual([]);
 });
 
-test("employee builds a reusable workflow and launches it with selected references", async ({
+test("resource creation stays hidden on empty pages and in chat on desktop and mobile", async ({
+  page,
+}) => {
+  await setup(page);
+  for (const viewport of [
+    { width: 1440, height: 850 },
+    { width: 390, height: 844 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await page.goto("/#workflows");
+    await expect(
+      page.getByRole("heading", { name: "Chưa có workflow", exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Tạo workflow", exact: true }),
+    ).toHaveCount(0);
+    await page.goto("/#templates");
+    await expect(
+      page.getByRole("heading", { name: "Chưa có template", exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: /Thêm template|Tạo template đầu tiên/ }),
+    ).toHaveCount(0);
+    await page.goto("/#agent");
+    const context = page.locator("#agent-context");
+    if (!(await context.isVisible()))
+      await page.locator("#agent-context-toggle").click();
+    await page
+      .getByLabel("Quy trình", { exact: true })
+      .selectOption("mockup_template");
+    await expect(page.locator(".context-template-group")).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Thêm template", exact: true }),
+    ).toHaveCount(0);
+    await expect(page.locator(".context-template-group")).toContainText(
+      "Tính năng tạo template mới đang tạm ẩn.",
+    );
+    await expect(
+      page.locator(".workspace-template-editor, .workflow-editor"),
+    ).toHaveCount(0);
+  }
+});
+
+test("employee edits an existing workflow and launches it while creation is hidden", async ({
   page,
 }) => {
   const fixture = await setup(page);
-  const workflows: Record<string, unknown>[] = [];
+  const workflows: Record<string, unknown>[] = [
+    {
+      id: randomUUID(),
+      name: "Workflow có sẵn",
+      description: "",
+      revision: 1,
+      updatedAt: new Date().toISOString(),
+      archived: false,
+      steps: [
+        {
+          name: "Tạo thiết kế",
+          operation: "design",
+          instructions: "Tạo thiết kế mới.",
+          source: "initial",
+          count: 1,
+        },
+      ],
+    },
+  ];
   let launched: Record<string, unknown> | undefined;
   await page.route("**/api/agent/workflows**", async (route) => {
     if (route.request().url().endsWith("/launch")) {
       launched = route.request().postDataJSON() as Record<string, unknown>;
       return route.fulfill({ status: 201, json: { execution: {}, run: {} } });
     }
-    if (route.request().method() === "POST") {
+    if (route.request().method() === "PATCH") {
       const input = route.request().postDataJSON() as Record<string, unknown>;
       const workflow = {
         ...input,
-        id: randomUUID(),
-        revision: 1,
+        id: workflows[0].id,
+        revision: 2,
         updatedAt: new Date().toISOString(),
       };
-      workflows.push(workflow);
+      workflows[0] = workflow;
       return route.fulfill({ status: 201, json: workflow });
     }
     return route.fulfill({ json: workflows });
   });
-  await page.getByRole("button", { name: "Workflows", exact: true }).click();
-  await page.getByRole("button", { name: "Tạo workflow", exact: true }).click();
+  await page.goto("/#workflows");
+  await page.reload();
+  await expect(
+    page.getByRole("button", { name: "Tạo workflow", exact: true }),
+  ).toHaveCount(0);
+  await page.getByRole("button", { name: "Sửa", exact: true }).click();
   await page
     .getByLabel("Tên workflow", { exact: true })
     .fill("Bộ thiết kế camping");
@@ -1432,8 +1503,35 @@ test("workflow editor stays usable on a small screen and supports keyboard reord
 }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   await setup(page);
+  await page.route("**/api/agent/workflows", (route) =>
+    route.fulfill({
+      json: [
+        {
+          id: randomUUID(),
+          name: "Workflow có sẵn",
+          description: "",
+          revision: 1,
+          updatedAt: new Date().toISOString(),
+          archived: false,
+          steps: [
+            {
+              name: "Tạo thiết kế",
+              operation: "design",
+              instructions: "Tạo thiết kế mới.",
+              source: "initial",
+              count: 1,
+            },
+          ],
+        },
+      ],
+    }),
+  );
   await page.goto("/#workflows");
-  await page.getByRole("button", { name: "Tạo workflow", exact: true }).click();
+  await page.reload();
+  await expect(
+    page.getByRole("button", { name: "Tạo workflow", exact: true }),
+  ).toHaveCount(0);
+  await page.getByRole("button", { name: "Sửa", exact: true }).click();
   await page.getByRole("button", { name: "Thêm bước", exact: true }).click();
   await page
     .getByLabel("Tên bước", { exact: true })
@@ -1980,10 +2078,12 @@ test("agent preserves edited prompt, locks the image model while running, restor
   expect(fixture.message?.operation).toBe("auto");
   expect(fixture.message?.sourceIds).toHaveLength(1);
   expect(fixture.message?.targetIds).toHaveLength(1);
+  await page.setViewportSize({ width: 1440, height: 1400 });
   await page.screenshot({
     path: test.info().outputPath("guide-approval.png"),
     fullPage: true,
   });
+  await page.setViewportSize({ width: 1440, height: 1000 });
   await page.getByRole("button", { name: "Bắt đầu xử lý 1 ảnh" }).click();
   await expect(
     page.getByLabel("Model tạo / sửa ảnh", { exact: true }),
@@ -2001,10 +2101,12 @@ test("agent preserves edited prompt, locks the image model while running, restor
   await page
     .getByLabel("Duyệt ảnh 1", { exact: true })
     .selectOption("approved");
+  await page.setViewportSize({ width: 1440, height: 1500 });
   await page.screenshot({
     path: test.info().outputPath("guide-results.png"),
     fullPage: true,
   });
+  await page.setViewportSize({ width: 1440, height: 1000 });
   const downloaded = page.waitForEvent("download");
   await page.getByRole("button", { name: "Xuất bộ ảnh ZIP" }).click();
   expect((await downloaded).suggestedFilename()).toMatch(/^POD_.*\.zip$/);
@@ -2095,7 +2197,15 @@ test("usage guide covers the full flow with images, works on mobile and preserve
   const chapters = page
     .getByRole("navigation", { name: "Mục lục hướng dẫn" })
     .getByRole("button");
-  await expect(chapters).toHaveCount(8);
+  await expect(chapters).toHaveCount(7);
+  await expect(page.locator("#guide-workflows")).toHaveCount(0);
+  await expect(
+    page.locator('.user-guide img[src$="/workflow.webp"]'),
+  ).toHaveCount(0);
+  await expect(page.locator(".user-guide")).not.toContainText("Công cụ:");
+  await expect(page.locator(".user-guide")).not.toContainText("Tạo template,");
+  await expect(chapters.nth(5)).toContainText("6. Hội thoại");
+  await expect(chapters.nth(6)).toContainText("7. Xử lý tình huống");
   await chapters.nth(3).click();
   await expect(page.locator("#guide-heading-approve")).toBeFocused();
   for (const img of await page.locator(".guide-figure img").all()) {
@@ -2130,12 +2240,31 @@ test("agent template editor supports keyboard coordinates and has no horizontal 
   page,
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  const fixture = await setup(page);
+  const fixture = await setup(page, {
+    templates: [
+      {
+        id: randomUUID(),
+        assetId: randomUUID(),
+        name: "Mẫu có sẵn",
+        category: "T-shirt",
+        revision: 1,
+        corners: [
+          { x: 0.25, y: 0.25 },
+          { x: 0.75, y: 0.25 },
+          { x: 0.75, y: 0.75 },
+          { x: 0.25, y: 0.75 },
+        ],
+        opacity: 1,
+        blend: "over",
+      },
+    ],
+  });
+  await page.goto("/#templates");
+  await expect(
+    page.getByRole("button", { name: "Thêm template", exact: true }),
+  ).toHaveCount(0);
   await page
-    .getByLabel("Quy trình", { exact: true })
-    .selectOption("mockup_template");
-  await page
-    .getByRole("button", { name: "Thêm template", exact: true })
+    .getByRole("button", { name: "Chỉnh bản mới", exact: true })
     .click();
   await page
     .getByLabel("Tên template", { exact: true })

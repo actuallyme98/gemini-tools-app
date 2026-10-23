@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ArrowUpRight, Menu } from "lucide-react";
 import { Sidebar, type SidebarProps } from "../Sidebar";
+import { WeeklyBudget } from "./UsageBudget";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "../ui/sheet";
 
 const titles: Record<string, string> = {
@@ -86,6 +87,12 @@ export function AgentShell({
             <strong>{titles[props.currentPage] || "Trợ lý AI"}</strong>
           </div>
           <div className="workspace-header-end">
+            {props.user && (
+              <WeeklyBudget
+                userId={props.user.id}
+                activeCount={props.activeCount ?? 0}
+              />
+            )}
             {(props.activeCount ?? 0) > 0 ? (
               <span className="header-activity">
                 <i />

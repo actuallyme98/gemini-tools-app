@@ -49,6 +49,11 @@ import { saveBlob } from "../utils/download.util";
 import { toast } from "sonner";
 import { notifyApiError } from "../utils/api-error-toast";
 import "../styles/admin.css";
+import {
+  BudgetMeter,
+  EmployeeBudgetDialog,
+  BudgetPolicyPanel,
+} from "../components/agent/UsageBudget";
 
 function DialogContent(props: ComponentProps<typeof BaseDialogContent>) {
   const opener = useRef<HTMLElement | null>(null);
@@ -793,6 +798,7 @@ function CreateAccount({
 }
 
 function Accounts({ user }: { user: AgentUser }) {
+  const [budgetUser, setBudgetUser] = useState<AdminUser>();
   const [page, setPage] = useState(1);
   const [filters, setFilters] = useState("");
   const [selected, setSelected] = useState<AdminUser>();
@@ -894,6 +900,7 @@ function Accounts({ user }: { user: AgentUser }) {
                     <th>Nhân viên</th>
                     <th>Quyền & truy cập</th>
                     <th>Sử dụng</th>
+                    <th>Ngân sách AI / tuần</th>
                     <th>Đăng nhập gần nhất</th>
                     <th>
                       <span className="sr-only">Thao tác</span>
@@ -923,6 +930,22 @@ function Accounts({ user }: { user: AgentUser }) {
                         <small>
                           {account.usage.session?.count || 0} phiên còn hạn
                         </small>
+                      </td>
+                      <td>
+                        {account.budget ? (
+                          <BudgetMeter data={account.budget} />
+                        ) : (
+                          <span>Chưa tải ngân sách</span>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setBudgetUser(account)}
+                          id={`budget-user-${account.id}`}
+                        >
+                          Điều chỉnh ngân sách
+                          <span className="sr-only"> {account.email}</span>
+                        </Button>
                       </td>
                       <td>
                         {date(account.lastLoginAt)}
@@ -957,6 +980,13 @@ function Accounts({ user }: { user: AgentUser }) {
           </>
         )}
       </ResourceState>
+      {budgetUser && (
+        <EmployeeBudgetDialog
+          account={budgetUser}
+          close={() => setBudgetUser(undefined)}
+          onChanged={resource.reload}
+        />
+      )}
       <Dialog
         open={!!selected}
         onOpenChange={(open) => {
@@ -2009,6 +2039,7 @@ function Settings() {
           />
         )}
       </ResourceState>
+      <BudgetPolicyPanel />
     </>
   );
 }

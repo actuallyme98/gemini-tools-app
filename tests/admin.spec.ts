@@ -1,6 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import { randomUUID } from "node:crypto";
 import { promises as fs } from "node:fs";
+import { sampleBudget } from "./budget-fixture";
 
 async function setup(page: Page, role: "admin" | "designer" = "admin") {
   const rootId = randomUUID();
@@ -26,6 +27,7 @@ async function setup(page: Page, role: "admin" | "designer" = "admin") {
     lastLoginAt: now,
     hasPassword: true,
     googleLinked: index === 1,
+    budget: sampleBudget(index === 0 ? rootId : staffId),
     usage: {
       run: { count: index, bytes: 0 },
       asset: { count: index + 1, bytes: 2048 },
@@ -113,6 +115,11 @@ async function setup(page: Page, role: "admin" | "designer" = "admin") {
     if (path === "/auth/login")
       return json({ token: "a".repeat(64), user: profile });
     if (path === "/auth/me") return json(profile);
+    if (path === "/usage") return json(sampleBudget(profile.id));
+    if (path === "/admin/budget-policy" && method === "GET")
+      return json({ defaultWeeklyUsd: 50, prices: [], updatedAt: now });
+    if (/^\/admin\/users\/[^/]+\/usage$/.test(path) && method === "GET")
+      return json(sampleBudget(path.split("/")[3]));
     if (url.pathname === "/api/image-jobs") return json([]);
     if (path === "/history")
       return json({ items: [], nextCursor: null, hasMore: false });
@@ -383,6 +390,171 @@ async function setup(page: Page, role: "admin" | "designer" = "admin") {
     },
   };
 }
+
+test("admin adjusts employee weekly budgets with confirmation and retains input on conflicts", async ({
+  page,
+}) => {
+  const fixture = await setup(page);
+  let snapshot = sampleBudget(fixture.staffId);
+  let reject = true;
+  const changes: Record<string, unknown>[] = [];
+  await page.route(
+    `**/api/agent/admin/users/${fixture.staffId}/**`,
+    async (route) => {
+      if (route.request().method() === "GET")
+        return route.fulfill({ json: snapshot });
+      const body = route.request().postDataJSON() as Record<string, unknown>;
+      changes.push(body);
+      if (reject) {
+        reject = false;
+        return route.fulfill({
+          status: 409,
+          json: {
+            code: "BUDGET_CONFLICT",
+            message: "Hạn mức đã thay đổi. Tải lại trước khi lưu.",
+          },
+        });
+      }
+      snapshot = {
+        ...snapshot,
+        limitUsd: Number(body.weeklyUsd),
+        overrideUsd: Number(body.weeklyUsd),
+        availableUsd: Number(body.weeklyUsd) - 15,
+        policyVersion: 1,
+      };
+      return route.fulfill({ json: snapshot });
+    },
+  );
+  await page.goto("/#admin-users");
+  await page
+    .getByRole("button", {
+      name: "Điều chỉnh ngân sách staff@lcgmedia.uk",
+      exact: true,
+    })
+    .click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByRole("progressbar")).toHaveAttribute("value", "30");
+  await dialog.getByLabel(/Dùng mặc định công ty/).uncheck();
+  await dialog.getByLabel("Hạn mức mỗi tuần (USD)", { exact: true }).fill("80");
+  await dialog
+    .getByLabel("Lý do điều chỉnh", { exact: true })
+    .fill("Tăng ngân sách cho chiến dịch mới");
+  await dialog
+    .getByRole("button", { name: "Xem lại thay đổi", exact: true })
+    .click();
+  expect(changes).toHaveLength(0);
+  await dialog
+    .getByRole("button", { name: "Xác nhận lưu", exact: true })
+    .click();
+  await expect(
+    page.getByText("Hạn mức đã thay đổi. Tải lại trước khi lưu.", {
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(
+    dialog.getByLabel("Hạn mức mỗi tuần (USD)", { exact: true }),
+  ).toHaveValue("80");
+  await dialog
+    .getByRole("button", { name: "Quay lại chỉnh sửa", exact: true })
+    .click();
+  await dialog
+    .getByRole("button", { name: "Tải lại dữ liệu ngân sách", exact: true })
+    .click();
+  await dialog
+    .getByRole("button", { name: "Xem lại thay đổi", exact: true })
+    .click();
+  await dialog
+    .getByRole("button", { name: "Xác nhận lưu", exact: true })
+    .click();
+  await expect(
+    dialog.getByRole("button", { name: "Xem lại thay đổi", exact: true }),
+  ).toBeVisible();
+  expect(changes.at(-1)).toEqual({
+    weeklyUsd: 80,
+    policyVersion: 0,
+    reason: "Tăng ngân sách cho chiến dịch mới",
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect
+    .poll(async () => {
+      const box = await dialog.boundingBox();
+      return !!box && box.x >= 15 && box.x + box.width <= 375;
+    })
+    .toBe(true);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(
+    390,
+  );
+  await page.screenshot({
+    path: test.info().outputPath("employee-budget-mobile.png"),
+  });
+  await page.keyboard.press("Escape");
+  await expect(
+    page.getByRole("button", {
+      name: "Điều chỉnh ngân sách staff@lcgmedia.uk",
+      exact: true,
+    }),
+  ).toBeFocused();
+  expect(fixture.errors).toEqual([]);
+});
+
+test("admin configures weekly defaults and verified model prices with explicit confirmation", async ({
+  page,
+}) => {
+  const fixture = await setup(page);
+  let saved: Record<string, unknown> | undefined;
+  await page.route("**/api/agent/admin/budget-policy", async (route) => {
+    if (route.request().method() === "PATCH")
+      saved = route.request().postDataJSON() as Record<string, unknown>;
+    return route.fulfill({
+      json: {
+        defaultWeeklyUsd: 50,
+        prices: [],
+        updatedAt: new Date().toISOString(),
+        ...saved,
+      },
+    });
+  });
+  await page.goto("/#admin-settings");
+  await page
+    .getByLabel("Hạn mức mặc định mỗi tuần (USD)", { exact: true })
+    .fill("60");
+  await page
+    .getByRole("button", { name: "Thêm quy tắc giá", exact: true })
+    .click();
+  await page.getByLabel("Model", { exact: true }).fill("gemini-image-test");
+  await page
+    .getByLabel("Giữ chỗ tối đa / lượt (USD)", { exact: true })
+    .fill("0.5");
+  await page.getByLabel("Mỗi ảnh đầu ra (USD)", { exact: true }).fill("0.1");
+  await page
+    .getByLabel("Nguồn giá / căn cứ xác minh", { exact: true })
+    .fill("Verified account rate for test");
+  await page
+    .getByLabel("Lý do thay đổi chính sách", { exact: true })
+    .fill("Cập nhật bảng giá đã xác minh");
+  await page
+    .getByRole("button", { name: "Xem lại chính sách ngân sách", exact: true })
+    .click();
+  expect(saved).toBeUndefined();
+  await page
+    .getByRole("button", { name: "Xác nhận lưu chính sách", exact: true })
+    .click();
+  await expect.poll(() => saved).toBeTruthy();
+  expect(saved).toMatchObject({
+    defaultWeeklyUsd: 60,
+    prices: [
+      {
+        provider: "shopaikey",
+        model: "gemini-image-test",
+        operation: "image",
+        reserveUsd: 0.5,
+        imageUsd: 0.1,
+        source: "Verified account rate for test",
+      },
+    ],
+  });
+  expect(fixture.errors).toEqual([]);
+});
 
 test("admin dashboard shows real metrics, accessible tabs and works at mobile width", async ({
   page,

@@ -24,6 +24,7 @@ import {
 import { saveBlob } from "../../utils/download.util";
 import { AgentImage } from "./AgentImage";
 import { Button } from "../ui/button";
+import { agentResourceCreationEnabled } from "./agent-features";
 
 const stateLabels: Record<string, string> = {
   planning: "Đang lập kế hoạch",
@@ -417,10 +418,12 @@ export function AgentTemplates({
         title="Mẫu chuẩn cho từng sản phẩm."
         description="Chuẩn hóa vị trí, tỉ lệ và phối cảnh để ghép thiết kế lên ảnh mẫu."
       >
-        <Button disabled={busy} onClick={onNew}>
-          <Plus aria-hidden="true" />
-          Thêm template
-        </Button>
+        {agentResourceCreationEnabled && (
+          <Button disabled={busy} onClick={onNew}>
+            <Plus aria-hidden="true" />
+            Thêm template
+          </Button>
+        )}
       </WorkspaceHeading>
       <div className="asset-gallery">
         {templates.map((template) => (
@@ -463,14 +466,21 @@ export function AgentTemplates({
       {!templates.length && (
         <div className="workspace-empty">
           <Layers size={32} aria-hidden="true" />
-          <h2>Bắt đầu từ ảnh mẫu của bạn</h2>
+          <h2>
+            {agentResourceCreationEnabled
+              ? "Bắt đầu từ ảnh mẫu của bạn"
+              : "Chưa có template"}
+          </h2>
           <p>
-            Thêm ảnh nền và xác định bốn góc vùng đặt thiết kế. Agent sẽ giữ tỉ
-            lệ khi xử lý hàng loạt.
+            {agentResourceCreationEnabled
+              ? "Thêm ảnh nền và xác định bốn góc vùng đặt thiết kế. Agent sẽ giữ tỉ lệ khi xử lý hàng loạt."
+              : "Tính năng tạo template mới đang tạm ẩn. Bạn vẫn có thể tạo mockup từ ảnh tham chiếu trong Trợ lý AI."}
           </p>
-          <Button variant="outline" disabled={busy} onClick={onNew}>
-            Tạo template đầu tiên
-          </Button>
+          {agentResourceCreationEnabled && (
+            <Button variant="outline" disabled={busy} onClick={onNew}>
+              Tạo template đầu tiên
+            </Button>
+          )}
         </div>
       )}
     </div>

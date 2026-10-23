@@ -71,6 +71,7 @@ import { ToolJobs } from "../components/agent/ToolJobs";
 import { WorkflowLibrary } from "../components/agent/WorkflowLibrary";
 import { ConversationContext } from "../components/agent/ConversationContext";
 import { HistoryLoader } from "../components/agent/HistoryLoader";
+import { agentResourceCreationEnabled } from "../components/agent/agent-features";
 const AdminPage = lazy(() => import("./AdminPage"));
 const UserGuidePage = lazy(() => import("./UserGuidePage"));
 
@@ -1841,17 +1842,19 @@ export function AgentPage({
                   <summary>Templates ({templateIds.length} đã chọn)</summary>
                   <div className="section-label">
                     <span>TEMPLATES</span>
-                    <button
-                      type="button"
-                      className="text-action"
-                      disabled={busy || selectedActive}
-                      onClick={() => {
-                        setTemplateEditor("new");
-                        onNavigate("templates");
-                      }}
-                    >
-                      Thêm template <Plus size={13} aria-hidden="true" />
-                    </button>
+                    {agentResourceCreationEnabled && (
+                      <button
+                        type="button"
+                        className="text-action"
+                        disabled={busy || selectedActive}
+                        onClick={() => {
+                          setTemplateEditor("new");
+                          onNavigate("templates");
+                        }}
+                      >
+                        Thêm template <Plus size={13} aria-hidden="true" />
+                      </button>
+                    )}
                   </div>
                   {templates.length ? (
                     templates.map((template) => (
@@ -1870,8 +1873,9 @@ export function AgentPage({
                     ))
                   ) : (
                     <p className="context-help">
-                      Tạo mẫu chuẩn để dùng lại vị trí và phối cảnh cho nhiều
-                      thiết kế.
+                      {agentResourceCreationEnabled
+                        ? "Tạo mẫu chuẩn để dùng lại vị trí và phối cảnh cho nhiều thiết kế."
+                        : "Chưa có template. Tính năng tạo template mới đang tạm ẩn."}
                     </p>
                   )}
                 </details>

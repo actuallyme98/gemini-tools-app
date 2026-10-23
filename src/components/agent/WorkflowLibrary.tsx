@@ -3,6 +3,7 @@ import { ArrowDown, ArrowUp, Plus, Workflow, X } from "lucide-react";
 import { agentClient, type CustomWorkflow, type WorkflowStep } from "../../services/agent.service";
 import { Button } from "../ui/button";
 import { WorkspaceHeading } from "./AgentWorkspaceViews";
+import { agentResourceCreationEnabled } from "./agent-features";
 import "../../styles/workflows.css";
 
 const names = { design: "Ý tưởng & thiết kế", mockup_ai: "Mockup bằng AI", mockup_template: "Ghép lên template" };
@@ -23,7 +24,7 @@ export function WorkflowLibrary({ workflows, busy, act, onUse }: {
   });
   return <section className="workflow-workspace">
     <WorkspaceHeading eyebrow="QUY TRÌNH CỦA BẠN" title="Custom workflows" description="Biến cách làm quen thuộc thành quy trình có thể dùng lại. Mỗi bước đều có duyệt prompt và kết quả." />
-    <div className="workflow-toolbar"><p>{workflows.filter(workflow => !workflow.archived).length} workflow đang sử dụng</p><Button disabled={busy || editing !== undefined} onClick={() => open()}><Plus aria-hidden="true" />Tạo workflow</Button></div>
+    <div className="workflow-toolbar"><p>{workflows.filter(workflow => !workflow.archived).length} workflow đang sử dụng</p>{agentResourceCreationEnabled && <Button disabled={busy || editing !== undefined} onClick={() => open()}><Plus aria-hidden="true" />Tạo workflow</Button>}</div>
     {editing !== undefined && <form className="workflow-editor" onSubmit={event => {
       event.preventDefault(); act(async () => {
         const input = { name, description, steps, archived: false };
@@ -56,6 +57,6 @@ export function WorkflowLibrary({ workflows, busy, act, onUse }: {
       <ol>{workflow.steps.map((step, index) => <li key={index}><span>{index + 1}</span><div><strong>{step.name}</strong><small>{names[step.operation]} · {step.source === "previous" ? "Nhận kết quả bước trước" : "Đầu vào ban đầu"}</small></div></li>)}</ol>
       <div className="workflow-card-actions"><Button disabled={busy || workflow.archived} onClick={() => onUse(workflow)}>Sử dụng</Button><Button variant="outline" disabled={busy || editing !== undefined} onClick={() => open(workflow)}>Sửa</Button><Button variant="ghost" disabled={busy} onClick={() => act(async () => { await agentClient.patch(`/workflows/${workflow.id}`, { name: workflow.name, description: workflow.description, steps: workflow.steps, archived: !workflow.archived, updatedAt: workflow.updatedAt }); })}>{workflow.archived ? "Khôi phục" : "Lưu trữ"}</Button></div>
     </article>)}</div>
-    {!workflows.length && editing === undefined && <div className="workflow-empty"><Workflow size={32} aria-hidden="true" /><h2>Tạo quy trình đầu tiên</h2><p>Ví dụ: tạo thiết kế → ghép lên template → duyệt và xuất bộ ảnh.</p></div>}
+    {!workflows.length && editing === undefined && <div className="workflow-empty"><Workflow size={32} aria-hidden="true" /><h2>{agentResourceCreationEnabled ? "Tạo quy trình đầu tiên" : "Chưa có workflow"}</h2><p>{agentResourceCreationEnabled ? "Ví dụ: tạo thiết kế → ghép lên template → duyệt và xuất bộ ảnh." : "Tính năng tạo workflow mới đang tạm ẩn. Bạn vẫn có thể giao việc trực tiếp cho Trợ lý AI."}</p></div>}
   </section>;
 }

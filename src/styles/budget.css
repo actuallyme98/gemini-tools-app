@@ -1,0 +1,228 @@
+.budget-meter {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+  font-size: 13px;
+}
+.budget-meter > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  align-items: baseline;
+}
+.budget-meter progress {
+  display: block;
+  width: 100%;
+  height: 8px;
+  border: 0;
+  border-radius: 99px;
+  overflow: hidden;
+  accent-color: var(--brand-strong);
+}
+.budget-meter progress::-webkit-progress-bar {
+  background: var(--surface-subtle);
+  border-radius: 99px;
+}
+.budget-meter progress::-webkit-progress-value {
+  background: var(--brand-strong);
+  border-radius: 99px;
+}
+.budget-meter progress::-moz-progress-bar {
+  background: var(--brand-strong);
+}
+.budget-meter .budget-warning {
+  accent-color: #a63f24;
+}
+.budget-meter .budget-warning::-webkit-progress-value {
+  background: #a63f24;
+}
+.budget-meter p,
+.budget-meter small {
+  color: var(--workspace-muted);
+  line-height: 1.6;
+}
+.weekly-budget {
+  position: relative;
+  font-size: 12px;
+  max-width: 100%;
+}
+.weekly-budget > summary {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  cursor: pointer;
+  min-height: 36px;
+}
+.weekly-budget[open] > div {
+  position: absolute;
+  z-index: 20;
+  right: 0;
+  top: 100%;
+  width: min(340px, calc(100vw - 32px));
+  padding: 18px;
+  background: var(--surface);
+  border: 1px solid var(--workspace-line);
+  border-radius: 16px;
+  box-shadow: var(--surface-shadow-raised);
+}
+.budget-dialog {
+  width: calc(100vw - 32px);
+  max-width: min(860px, calc(100vw - 32px)) !important;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr);
+  max-height: 90dvh;
+  overflow: auto;
+  color: var(--workspace-ink);
+}
+.budget-form {
+  display: grid;
+  min-width: 0;
+  gap: 16px;
+}
+.budget-dialog label,
+.budget-policy label {
+  display: grid;
+  min-width: 0;
+  gap: 7px;
+  font-size: 13px;
+}
+.budget-dialog input:not([type="checkbox"]),
+.budget-dialog select,
+.budget-policy input,
+.budget-policy select {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  border: 1px solid var(--workspace-line);
+  border-radius: 10px;
+  background: var(--surface);
+  padding: 9px 12px;
+}
+.budget-dialog input:focus-visible,
+.budget-dialog select:focus-visible,
+.budget-policy input:focus-visible,
+.budget-policy select:focus-visible {
+  outline: 2px solid var(--brand-focus);
+  outline-offset: 2px;
+}
+.budget-dialog .budget-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+}
+.budget-form fieldset {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+.budget-form p,
+.budget-policy > p {
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--workspace-muted);
+}
+.budget-confirm {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 16px;
+  border: 1px solid var(--brand-border);
+  background: var(--brand-pale);
+  border-radius: 12px;
+}
+.budget-confirm > p {
+  width: 100%;
+}
+.budget-journal {
+  overflow: auto;
+  border: 1px solid var(--workspace-line);
+  border-radius: 12px;
+  max-height: 360px;
+}
+.budget-journal table {
+  width: 100%;
+  font-size: 12px;
+  text-align: left;
+  border-collapse: collapse;
+}
+.budget-journal td,
+.budget-journal th {
+  padding: 12px;
+  border-bottom: 1px solid var(--workspace-line);
+  min-width: 140px;
+  vertical-align: top;
+}
+.budget-journal small {
+  display: block;
+  overflow-wrap: anywhere;
+  max-width: 280px;
+  margin-top: 5px;
+  color: var(--workspace-muted);
+}
+.budget-journal > p {
+  padding: 16px;
+}
+.budget-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.budget-policy {
+  margin-top: 24px;
+}
+.budget-policy > h2 {
+  font-size: 20px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+.budget-policy > p {
+  margin-bottom: 20px;
+}
+.budget-price-rules {
+  display: grid;
+  gap: 18px;
+}
+.budget-price-rule {
+  border: 1px solid var(--workspace-line);
+  border-radius: 12px;
+  padding: 16px;
+}
+.budget-price-rule legend {
+  font-size: 13px;
+  font-weight: 600;
+  padding-inline: 6px;
+}
+.budget-price-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+.budget-price-source {
+  grid-column: 1/-1;
+}
+.admin-table .budget-meter {
+  min-width: 240px;
+}
+@media (max-width: 600px) {
+  .budget-price-grid {
+    grid-template-columns: 1fr;
+  }
+  .budget-dialog input,
+  .budget-dialog select,
+  .budget-policy input,
+  .budget-policy select {
+    font-size: 16px;
+  }
+  .workspace-header-end:has(.weekly-budget) {
+    gap: 8px;
+  }
+  .workspace-header-end:has(.weekly-budget) .workspace-label {
+    display: none;
+  }
+  .weekly-budget {
+    font-size: 10px;
+  }
+}

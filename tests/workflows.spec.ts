@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import JSZip from "jszip";
+import { sampleBudget } from "./budget-fixture";
 import { readFile } from "node:fs/promises";
 import {
   BACKGROUND_STUDIO_BASE_PROMPT,
@@ -109,6 +110,9 @@ test.beforeEach(async ({ page }) => {
     route.fulfill({ json: { items: [], hasMore: false, nextCursor: null } }),
   );
   await page.route("**/api/image-jobs", (route) => route.fulfill({ json: [] }));
+  await page.route("**/api/agent/usage", (route) =>
+    route.fulfill({ json: sampleBudget("employee-test") }),
+  );
   await page.route("**/api/ai/providers/shopaikey/image-models*", (route) =>
     route.fulfill({ json: imageModelCatalog }),
   );
@@ -150,10 +154,21 @@ test("mobile menu, deep links and back navigation", async ({ page }) => {
     ).toBe(390);
   }
   await page.getByRole("button", { name: "Mở menu" }).click();
-  await page.getByRole("button", { name: "Mockup Generator" }).click();
-  await expect(page).toHaveURL(/#mockup-generator$/);
+  await expect(page.locator(".tool-navigation:visible")).toHaveCount(0);
+  await expect(
+    page.getByRole("button", {
+      name: /^(Mockup Generator|Mockup Studio|Idea Generator|Image Editor|Tất cả công cụ)$/,
+    }),
+  ).toHaveCount(0);
+  await page.getByRole("button", { name: "Trợ lý AI", exact: true }).click();
+  await expect(page).toHaveURL(/#agent$/);
   await page.goBack();
   await expect(page).toHaveURL(/#image-editor$/);
+  await page.setViewportSize({ width: 1440, height: 850 });
+  await expect(page.locator(".tool-navigation")).toHaveCount(0);
+  await expect(
+    page.locator(".desktop-sidebar .workspace-navigation"),
+  ).not.toContainText("Công cụ");
 });
 
 test("default provider loads image models without opening the mobile menu", async ({
@@ -256,7 +271,9 @@ test("model stays locked across tabs and concurrent requests, then unlocks after
   await model.selectOption("gemini-3-pro-image-preview");
   await studio.getByRole("button", { name: "Tạo 1 ảnh", exact: true }).click();
   await expect.poll(() => backgroundCalls).toBe(1);
-  await page.getByRole("button", { name: "Image Editor", exact: true }).click();
+  await page.evaluate(() => {
+    location.hash = "image-editor";
+  });
   await expect(model).toBeDisabled();
   await page
     .getByLabel("Tải Ảnh sản phẩm", { exact: true })
@@ -495,7 +512,8 @@ test("image model selection locks during a batch and persists while Gemini stays
   expect(
     await sidebar.locator("nav").evaluate((element) => element.clientHeight),
   ).toBeGreaterThan(44);
-  await sidebar.getByRole("button", { name: /^Mockup Studio/ }).click();
+  await expect(sidebar.locator(".tool-navigation")).toHaveCount(0);
+  await sidebar.getByRole("button", { name: "Trợ lý AI", exact: true }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
 });
 
@@ -767,9 +785,9 @@ test("background batch sends one product and one selected reference per result, 
       "product__garden__4-v2.png",
     ].sort(),
   );
-  await page
-    .getByRole("button", { name: "Tất cả công cụ", exact: true })
-    .click();
+  await page.evaluate(() => {
+    location.hash = "home";
+  });
   await expect(
     page.getByText("Đã tạo 1 ảnh áp hình in", { exact: true }),
   ).toHaveCount(4);
@@ -821,8 +839,13 @@ test("background prompt is fully editable, required, restorable and sent in full
     "ĐẦU RA KHÔNG WATERMARK",
   );
   expect(bodies[0]).not.toContain("Edit IMAGE 2 in place");
-  await page.getByRole("button", { name: /^Image Editor/ }).click();
-  await page.getByRole("button", { name: /^Mockup Studio/ }).click();
+  await page.evaluate(() => {
+    location.hash = "image-editor";
+  });
+  await expect(page).toHaveURL(/#image-editor$/);
+  await page.evaluate(() => {
+    location.hash = "background-studio";
+  });
   await expect(prompt).toHaveValue(finalPrompt);
 });
 
@@ -2139,17 +2162,15 @@ test("ZIP reports failed downloads, retains page results and updates dashboard",
     .click();
   await expect(page.getByText("Mockup #1", { exact: true })).toBeVisible();
   await expect(page.getByText("Mockup #2", { exact: true })).toBeVisible();
-  await page
-    .locator("nav")
-    .getByRole("button", { name: "Tất cả công cụ" })
-    .click();
+  await page.evaluate(() => {
+    location.hash = "home";
+  });
   await expect(page.getByText("Đã tạo 1 mockup", { exact: true })).toHaveCount(
     2,
   );
-  await page
-    .locator("nav")
-    .getByRole("button", { name: "Mockup Generator" })
-    .click();
+  await page.evaluate(() => {
+    location.hash = "mockup-generator";
+  });
   await expect(page.getByText("Mockup #1", { exact: true })).toBeVisible();
   const downloaded = page.waitForEvent("download");
   await page

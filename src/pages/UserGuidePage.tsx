@@ -1,18 +1,25 @@
 import type { ReactNode } from "react";
 import { ArrowRight, BookOpen } from "lucide-react";
 import { Button } from "../components/ui/button";
+import {
+  agentResourceCreationEnabled,
+  agentToolsNavigationEnabled,
+} from "../components/agent/agent-features";
 import "../styles/guide.css";
 
 const chapters = [
-  ["start", "1. Đăng nhập & không gian làm việc"],
-  ["prepare", "2. Chọn quy trình, model và tệp"],
-  ["request", "3. Viết và gửi yêu cầu"],
-  ["approve", "4. Duyệt kế hoạch & final prompt"],
-  ["results", "5. Xử lý, duyệt ảnh & xuất file"],
-  ["workflows", "6. Tạo workflow dùng lại"],
-  ["history", "7. Hội thoại, bộ nhớ & thư viện"],
-  ["troubleshooting", "8. Xử lý tình huống thường gặp"],
-];
+  ["start", "Đăng nhập & không gian làm việc"],
+  ["prepare", "Chọn quy trình, model và tệp"],
+  ["request", "Viết và gửi yêu cầu"],
+  ["approve", "Duyệt kế hoạch & final prompt"],
+  ["results", "Xử lý, duyệt ảnh & xuất file"],
+  ["workflows", "Tạo workflow dùng lại"],
+  ["history", "Hội thoại, bộ nhớ & thư viện"],
+  ["troubleshooting", "Xử lý tình huống thường gặp"],
+]
+  .filter(([id]) => id !== "workflows" || agentResourceCreationEnabled)
+  .map(([id, title], index) => [id, `${index + 1}. ${title}`]);
+const chapterTitles = Object.fromEntries(chapters);
 
 function Chapter({
   id,
@@ -121,7 +128,7 @@ export default function UserGuidePage({
         ))}
       </ol>
 
-      <Chapter id="start" title={chapters[0][1]}>
+      <Chapter id="start" title={chapterTitles.start}>
         <ol>
           <li>
             Mở workspace và đăng nhập bằng email, mật khẩu được cấp. Nếu màn
@@ -151,7 +158,7 @@ export default function UserGuidePage({
         />
       </Chapter>
 
-      <Chapter id="prepare" title={chapters[1][1]}>
+      <Chapter id="prepare" title={chapterTitles.prepare}>
         <p>
           Mở <strong>Ngữ cảnh & tệp</strong>. Cấu hình ở đây áp dụng cho yêu cầu
           bạn sắp gửi; không cần tìm một trang Cấu hình Agent riêng.
@@ -244,7 +251,7 @@ export default function UserGuidePage({
         />
       </Chapter>
 
-      <Chapter id="request" title={chapters[2][1]}>
+      <Chapter id="request" title={chapterTitles.request}>
         <p>
           Trong ô giao việc, mô tả{" "}
           <strong>
@@ -297,7 +304,7 @@ export default function UserGuidePage({
         </p>
       </Chapter>
 
-      <Chapter id="approve" title={chapters[3][1]}>
+      <Chapter id="approve" title={chapterTitles.approve}>
         <ol>
           <li>
             Đọc tóm tắt và câu hỏi của Agent. Kiểm tra quy trình, số ảnh và đúng
@@ -325,7 +332,7 @@ export default function UserGuidePage({
         />
       </Chapter>
 
-      <Chapter id="results" title={chapters[4][1]}>
+      <Chapter id="results" title={chapterTitles.results}>
         <p>
           Công việc đi qua trạng thái chờ, đang xử lý và chờ duyệt/hoàn tất.
           Nhiều nhân viên và nhiều tab dùng chung hàng đợi; một yêu cầu đã tiếp
@@ -365,51 +372,54 @@ export default function UserGuidePage({
         </p>
       </Chapter>
 
-      <Chapter id="workflows" title={chapters[5][1]}>
-        <p>
-          Workflow phù hợp với công việc lặp lại, ví dụ{" "}
-          <strong>
-            tạo thiết kế → duyệt thiết kế → đưa vào mockup → duyệt kết quả
-          </strong>
-          .
-        </p>
-        <ol>
-          <li>
-            Vào <strong>Workflows → Tạo workflow</strong>, nhập tên dễ tìm và mô
-            tả mục đích.
-          </li>
-          <li>
-            Với mỗi bước, đặt tên, chọn tác vụ, viết hướng dẫn và số biến thể
-            nếu là bước thiết kế. Dùng nút đưa lên/xuống để đổi thứ tự.
-          </li>
-          <li>
-            Bước đầu dùng <strong>Đầu vào ban đầu</strong>. Ở bước sau, chọn đầu
-            vào ban đầu hoặc <strong>Kết quả đã duyệt của bước trước</strong>{" "}
-            theo mục đích.
-          </li>
-          <li>
-            Lưu workflow, chọn dùng workflow đó; bổ sung ảnh nguồn, tham chiếu
-            hoặc template khi giao việc. Kiểm tra mục{" "}
-            <strong>Custom workflow</strong> trước khi gửi.
-          </li>
-          <li>
-            Duyệt prompt và kết quả ở từng bước. Khi bước tiếp theo cần kết quả
-            trước, hãy duyệt ảnh phù hợp rồi tiếp tục theo tiến trình workflow.
-          </li>
-        </ol>
-        <p>
-          Mỗi workflow tối đa 8 bước và 20 kết quả mỗi bước. Công việc đã tạo
-          giữ phiên bản workflow tại thời điểm chạy; sửa workflow không tự thay
-          đổi công việc đang có.
-        </p>
-        <Illustration
-          name="workflow"
-          alt="Trình tạo workflow có bước thiết kế và bước mockup dùng kết quả đã duyệt"
-          caption="Workflow mẫu: tạo thiết kế rồi dùng kết quả đã duyệt làm nguồn cho mockup."
-        />
-      </Chapter>
+      {agentResourceCreationEnabled && (
+        <Chapter id="workflows" title={chapterTitles.workflows}>
+          <p>
+            Workflow phù hợp với công việc lặp lại, ví dụ{" "}
+            <strong>
+              tạo thiết kế → duyệt thiết kế → đưa vào mockup → duyệt kết quả
+            </strong>
+            .
+          </p>
+          <ol>
+            <li>
+              Vào <strong>Workflows → Tạo workflow</strong>, nhập tên dễ tìm và
+              mô tả mục đích.
+            </li>
+            <li>
+              Với mỗi bước, đặt tên, chọn tác vụ, viết hướng dẫn và số biến thể
+              nếu là bước thiết kế. Dùng nút đưa lên/xuống để đổi thứ tự.
+            </li>
+            <li>
+              Bước đầu dùng <strong>Đầu vào ban đầu</strong>. Ở bước sau, chọn
+              đầu vào ban đầu hoặc{" "}
+              <strong>Kết quả đã duyệt của bước trước</strong> theo mục đích.
+            </li>
+            <li>
+              Lưu workflow, chọn dùng workflow đó; bổ sung ảnh nguồn, tham chiếu
+              hoặc template khi giao việc. Kiểm tra mục{" "}
+              <strong>Custom workflow</strong> trước khi gửi.
+            </li>
+            <li>
+              Duyệt prompt và kết quả ở từng bước. Khi bước tiếp theo cần kết
+              quả trước, hãy duyệt ảnh phù hợp rồi tiếp tục theo tiến trình
+              workflow.
+            </li>
+          </ol>
+          <p>
+            Mỗi workflow tối đa 8 bước và 20 kết quả mỗi bước. Công việc đã tạo
+            giữ phiên bản workflow tại thời điểm chạy; sửa workflow không tự
+            thay đổi công việc đang có.
+          </p>
+          <Illustration
+            name="workflow"
+            alt="Trình tạo workflow có bước thiết kế và bước mockup dùng kết quả đã duyệt"
+            caption="Workflow mẫu: tạo thiết kế rồi dùng kết quả đã duyệt làm nguồn cho mockup."
+          />
+        </Chapter>
+      )}
 
-      <Chapter id="history" title={chapters[6][1]}>
+      <Chapter id="history" title={chapterTitles.history}>
         <ul>
           <li>
             <strong>Trò chuyện gần đây:</strong> bấm tên để mở hội thoại đã lưu;
@@ -438,18 +448,22 @@ export default function UserGuidePage({
           </li>
           <li>
             <strong>Templates:</strong> lưu ảnh mockup và vùng in để ghép thiết
-            kế theo bố cục cố định. Tạo template, chọn vùng in chính xác, lưu
-            rồi chọn template khi giao việc.
+            kế theo bố cục cố định.{" "}
+            {agentResourceCreationEnabled
+              ? "Tạo template, chọn vùng in chính xác, lưu rồi chọn template khi giao việc."
+              : "Chọn template đã có khi giao việc; kiểm tra vùng in và cặp ảnh trong kế hoạch trước khi chạy."}
           </li>
-          <li>
-            <strong>Công cụ:</strong> các màn hình xử lý riêng vẫn có trong công
-            cụ bổ trợ. Tác vụ từ công cụ được theo dõi trong Công việc; không
-            phải mọi tác vụ công cụ đều là một hội thoại Agent.
-          </li>
+          {agentToolsNavigationEnabled && (
+            <li>
+              <strong>Công cụ:</strong> các màn hình xử lý riêng vẫn có trong
+              công cụ bổ trợ. Tác vụ từ công cụ được theo dõi trong Công việc;
+              không phải mọi tác vụ công cụ đều là một hội thoại Agent.
+            </li>
+          )}
         </ul>
       </Chapter>
 
-      <Chapter id="troubleshooting" title={chapters[7][1]}>
+      <Chapter id="troubleshooting" title={chapterTitles.troubleshooting}>
         <details open>
           <summary>
             Không bấm được Gửi yêu cầu hoặc không đổi được model?
@@ -490,8 +504,10 @@ export default function UserGuidePage({
           <summary>Không thấy hội thoại hoặc kết quả vừa tạo?</summary>
           <p>
             Kiểm tra đang đăng nhập đúng tài khoản, bấm làm mới hội thoại và mở
-            Công việc. Nếu tác vụ đến từ công cụ bổ trợ, tìm ở Công việc. Nếu có
-            thông báo lỗi lịch sử, bấm làm mới để thử lại.
+            Công việc.{" "}
+            {agentToolsNavigationEnabled &&
+              "Nếu tác vụ đến từ công cụ bổ trợ, tìm ở Công việc. "}
+            Nếu có thông báo lỗi lịch sử, bấm làm mới để thử lại.
           </p>
         </details>
       </Chapter>

@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import type { AgentUser, Conversation } from "../services/agent.service";
 import { HistoryLoader } from "./agent/HistoryLoader";
+import { agentToolsNavigationEnabled } from "./agent/agent-features";
 
 const navigation = [
   { id: "agent", label: "Trợ lý AI", icon: MessageSquare },
@@ -116,40 +117,42 @@ export function Sidebar({
             )}
           </button>
         ))}
-        <details
-          className="tool-navigation"
-          open={
-            currentPage === "home" ||
-            tools.some((tool) => tool.id === currentPage) ||
-            undefined
-          }
-        >
-          <summary>
-            <Wand2 size={18} aria-hidden="true" />
-            <span>Công cụ</span>
-            <ChevronRight size={14} aria-hidden="true" />
-          </summary>
-          <button
-            type="button"
-            className="workspace-nav-item"
-            aria-current={currentPage === "home" ? "page" : undefined}
-            onClick={() => onPageChange("home")}
+        {agentToolsNavigationEnabled && (
+          <details
+            className="tool-navigation"
+            open={
+              currentPage === "home" ||
+              tools.some((tool) => tool.id === currentPage) ||
+              undefined
+            }
           >
-            <span>Tất cả công cụ</span>
-          </button>
-          {tools.map(({ id, label, icon: Icon }) => (
+            <summary>
+              <Wand2 size={18} aria-hidden="true" />
+              <span>Công cụ</span>
+              <ChevronRight size={14} aria-hidden="true" />
+            </summary>
             <button
-              key={id}
               type="button"
               className="workspace-nav-item"
-              onClick={() => onPageChange(id)}
-              aria-current={currentPage === id ? "page" : undefined}
+              aria-current={currentPage === "home" ? "page" : undefined}
+              onClick={() => onPageChange("home")}
             >
-              <Icon size={16} aria-hidden="true" />
-              <span>{label}</span>
+              <span>Tất cả công cụ</span>
             </button>
-          ))}
-        </details>
+            {tools.map(({ id, label, icon: Icon }) => (
+              <button
+                key={id}
+                type="button"
+                className="workspace-nav-item"
+                onClick={() => onPageChange(id)}
+                aria-current={currentPage === id ? "page" : undefined}
+              >
+                <Icon size={16} aria-hidden="true" />
+                <span>{label}</span>
+              </button>
+            ))}
+          </details>
+        )}
       </nav>
       <section className="recent-conversations" aria-label="Trò chuyện gần đây">
         <div className="recent-conversations-heading">
