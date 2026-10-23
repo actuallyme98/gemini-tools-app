@@ -9,7 +9,7 @@ const titles: Record<string, string> = {
   library: "Thư viện",
   templates: "Templates",
   workflows: "Custom workflows",
-  settings: "Cấu hình Agent",
+  guide: "Hướng dẫn sử dụng",
   admin: "Quản trị · Tổng quan",
   "admin-users": "Quản trị · Tài khoản",
   "admin-runs": "Quản trị · Công việc",
@@ -65,7 +65,7 @@ export function AgentShell({
         <SheetContent side="left" className="w-[280px] p-0">
           <SheetTitle className="sr-only">Điều hướng</SheetTitle>
           <SheetDescription className="sr-only">
-            Trò chuyện, công việc, thư viện và cấu hình Agent.
+            Trò chuyện, công việc, thư viện và workflows.
           </SheetDescription>
           <Sidebar {...sidebarProps} />
         </SheetContent>

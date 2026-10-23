@@ -237,6 +237,18 @@ a:focus-visible {
   color: #748092;
   line-height: 1.75;
 }
+.recent-conversations-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.recent-conversations-heading .nav-caption {
+  margin-bottom: 0;
+}
+.recent-conversations .history-refresh {
+  min-width: 44px;
+  min-height: 44px;
+}
 .recent-conversation {
   display: flex;
   align-items: center;

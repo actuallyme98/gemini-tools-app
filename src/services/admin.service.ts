@@ -57,6 +57,30 @@ export type DiagnosticPage = {
   scanned: number;
   malformed: number;
 };
+export type DiagnosticEvent = {
+  timestamp?: string;
+  event?: string;
+  provider?: string;
+  model?: string;
+  imageModel?: string;
+  transport?: string;
+  parts?: {
+    index?: number;
+    type?: string;
+    text?: string;
+    sha256?: string;
+    mimeType?: string;
+    bytes?: number;
+    archiveUnavailable?: boolean;
+  }[];
+  truncated?: boolean;
+} & Record<string, unknown>;
+export type RequestDiagnostics = Omit<DiagnosticPage, "items"> & {
+  requestId: string;
+  day: string;
+  source: "api" | "worker";
+  items: DiagnosticEvent[];
+};
 export type CompanySettings = {
   id: string;
   name: string;

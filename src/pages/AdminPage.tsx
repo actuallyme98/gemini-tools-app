@@ -33,6 +33,7 @@ import type {
   CompanySettings,
   Diagnostic,
   DiagnosticPage,
+  RequestDiagnostics,
   PageResult,
 } from "../services/admin.service";
 import { Button } from "../components/ui/button";
@@ -1182,6 +1183,198 @@ function Runs() {
   );
 }
 
+function RequestLogDetails({
+  selected,
+  day,
+  source,
+}: {
+  selected: Record<string, unknown>;
+  day: string;
+  source: string;
+}) {
+  const [cursor, setCursor] = useState(0);
+  const requestId = String(selected.requestId || "");
+  const resource = useAdminResource<RequestDiagnostics>(
+    requestId
+      ? `/admin/diagnostics/${encodeURIComponent(requestId)}?${new URLSearchParams({ day, source, cursor: String(cursor), limit: "50" })}`
+      : null,
+  );
+  const data = resource.data;
+  return (
+    <div className="admin-request-detail">
+      <dl className="admin-request-summary">
+        {[
+          ["Request ID", requestId || "Không có"],
+          [
+            "Nguồn / ngày UTC",
+            `${source === "worker" ? "Worker" : "API"} · ${day}`,
+          ],
+          [
+            "Đường dẫn",
+            [selected.method, selected.path].filter(Boolean).join(" ") || "—",
+          ],
+          ["Người gửi", selected.actorEmail || "Không được ghi nhận"],
+          [
+            "Kết quả",
+            selected.status || selected.code || selected.event || "—",
+          ],
+          [
+            "Thời gian xử lý",
+            selected.durationMs === undefined
+              ? "Chưa ghi nhận"
+              : `${selected.durationMs} ms`,
+          ],
+        ].map(([label, value]) => (
+          <div key={String(label)}>
+            <dt>{String(label)}</dt>
+            <dd>{String(value)}</dd>
+          </div>
+        ))}
+      </dl>
+      <p className="admin-detail-note">
+        Các sự kiện cùng request ID trong nguồn và ngày đã chọn. Tác vụ chạy qua
+        nửa đêm cần tra thêm ngày kế tiếp; bước Agent có thể có request ID riêng
+        trong Công việc.
+      </p>
+      {!requestId ? (
+        <p role="status">Sự kiện cũ không có request ID để đối chiếu.</p>
+      ) : (
+        <>
+          <div className="admin-inline-actions">
+            <Refresh {...resource} />
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={!data}
+              onClick={() =>
+                saveBlob(
+                  new Blob([JSON.stringify(data, null, 2)], {
+                    type: "application/json",
+                  }),
+                  `request-${requestId}-${day}-${cursor}.json`,
+                )
+              }
+            >
+              Xuất chi tiết JSON
+            </Button>
+          </div>
+          <ResourceState resource={resource}>
+            {data && (
+              <>
+                <ol
+                  className="admin-event-list"
+                  aria-label="Chuỗi sự kiện request"
+                >
+                  {data.items.map((event, index) => (
+                    <li key={`${cursor}:${index}`}>
+                      <h3>{event.event || "Sự kiện"}</h3>
+                      <p>
+                        {date(event.timestamp)} ·{" "}
+                        {[
+                          event.provider,
+                          event.model || event.imageModel,
+                          event.transport,
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </p>
+                      {event.truncated && (
+                        <p role="status">
+                          Nội dung dài đã được rút gọn trong bản xem này.
+                        </p>
+                      )}
+                      {event.parts?.map((part, partIndex) => (
+                        <section
+                          className="admin-log-part"
+                          key={partIndex}
+                          aria-label={`Phần đầu vào ${part.index ?? partIndex}`}
+                        >
+                          <h4>
+                            Phần {part.index ?? partIndex} ·{" "}
+                            {part.type === "text"
+                              ? "Prompt / văn bản"
+                              : part.type === "image"
+                                ? "Ảnh"
+                                : part.type || "Dữ liệu"}
+                          </h4>
+                          {part.type === "text" && (
+                            <pre className="admin-prompt" tabIndex={0}>
+                              {part.text || "(Trống)"}
+                            </pre>
+                          )}
+                          {part.type === "image" && (
+                            <p>
+                              {part.mimeType || "Ảnh"} · {bytes(part.bytes)}
+                              {part.archiveUnavailable
+                                ? " · Không có bản lưu ảnh"
+                                : ""}
+                            </p>
+                          )}
+                          {part.sha256 && (
+                            <p className="admin-mono">SHA-256: {part.sha256}</p>
+                          )}
+                        </section>
+                      ))}
+                      <details
+                        open={
+                          !!event.error || /fail|error/i.test(event.event || "")
+                        }
+                      >
+                        <summary>Thông số & phản hồi chi tiết</summary>
+                        <pre className="admin-json" tabIndex={0}>
+                          {JSON.stringify(
+                            Object.fromEntries(
+                              Object.entries(event).filter(
+                                ([key]) => key !== "parts",
+                              ),
+                            ),
+                            null,
+                            2,
+                          )}
+                        </pre>
+                      </details>
+                    </li>
+                  ))}
+                </ol>
+                {!data.items.length && (
+                  <p role="status">
+                    Chưa tìm thấy sự kiện trong phần log này. Có thể log đã hết
+                    hạn lưu; bấm Đọc tiếp nếu còn dữ liệu.
+                  </p>
+                )}
+                <div className="admin-pagination">
+                  <span>
+                    Đã quét {count(data.scanned)} dòng
+                    {data.malformed
+                      ? ` · ${data.malformed} dòng không đọc được`
+                      : ""}
+                  </span>
+                  <div>
+                    <Button
+                      variant="outline"
+                      disabled={!cursor}
+                      onClick={() => setCursor(0)}
+                    >
+                      Về đầu chuỗi
+                    </Button>
+                    <Button
+                      variant="outline"
+                      disabled={data.nextCursor === null}
+                      onClick={() => setCursor(data.nextCursor!)}
+                    >
+                      Đọc tiếp sự kiện
+                    </Button>
+                  </div>
+                </div>
+              </>
+            )}
+          </ResourceState>
+        </>
+      )}
+    </div>
+  );
+}
+
 function AuditLogs() {
   const [mode, setMode] = useState("actions");
   const [page, setPage] = useState(1);
@@ -1190,12 +1383,13 @@ function AuditLogs() {
     day: new Date().toISOString().slice(0, 10),
     search: "",
     errorsOnly: false,
+    source: "api",
   });
   const [selected, setSelected] = useState<Record<string, unknown>>();
   const url =
     mode === "actions"
       ? `/admin/audit?page=${page}&search=${encodeURIComponent(filters.search)}`
-      : `/admin/diagnostics?${new URLSearchParams({ day: filters.day, search: filters.search, errorsOnly: String(filters.errorsOnly), cursor: String(cursor) })}`;
+      : `/admin/diagnostics?${new URLSearchParams({ day: filters.day, source: filters.source, search: filters.search, errorsOnly: String(filters.errorsOnly), cursor: String(cursor) })}`;
   const resource = useAdminResource<PageResult<AdminAudit> | DiagnosticPage>(
     url,
   );
@@ -1220,8 +1414,8 @@ function AuditLogs() {
         <div>
           <h2>Mọi thay đổi đều có dấu vết</h2>
           <p>
-            Tra cứu thao tác quản trị và lỗi request. Nội dung prompt, ảnh và
-            khóa truy cập không được xuất tại đây.
+            Tra cứu thao tác quản trị và request. Mở chi tiết để xem prompt,
+            thông tin ảnh, phản hồi model và nguyên nhân lỗi.
           </p>
         </div>
         <div className="admin-inline-actions">
@@ -1266,6 +1460,7 @@ function AuditLogs() {
             day: String(f.get("day") || filters.day),
             search: String(f.get("search") || ""),
             errorsOnly: f.get("errorsOnly") === "on",
+            source: String(f.get("source") || filters.source),
           });
           setPage(1);
           setCursor(0);
@@ -1287,6 +1482,18 @@ function AuditLogs() {
         </label>
         {mode === "requests" && (
           <>
+            <label htmlFor="admin-log-source">
+              Nguồn log
+              <select
+                id="admin-log-source"
+                aria-label="Nguồn log"
+                name="source"
+                defaultValue={filters.source}
+              >
+                <option value="api">API</option>
+                <option value="worker">Worker xử lý tác vụ</option>
+              </select>
+            </label>
             <label>
               Ngày log (UTC)
               <input
@@ -1437,9 +1644,18 @@ function AuditLogs() {
               cần kiểm tra dữ liệu thực tế trước khi làm lại.
             </DialogDescription>
           </DialogHeader>
-          <pre className="admin-json" tabIndex={0}>
-            {JSON.stringify(selected, null, 2)}
-          </pre>
+          {mode === "requests" && selected ? (
+            <RequestLogDetails
+              key={`${filters.source}:${filters.day}:${selected.requestId}`}
+              selected={selected}
+              day={filters.day}
+              source={filters.source}
+            />
+          ) : (
+            <pre className="admin-json" tabIndex={0}>
+              {JSON.stringify(selected, null, 2)}
+            </pre>
+          )}
         </DialogContent>
       </Dialog>
     </>
@@ -1525,7 +1741,9 @@ function SettingsForm({
             />
             <small id="admin-google-domains-help">
               Mỗi dòng một domain, không thêm @ hoặc wildcard. Để trống sẽ tắt
-              đăng nhập Google. Danh sách này lưu trong MongoDB và có hiệu lực ngay cho lần đăng nhập tiếp theo, không cần sửa .env hay deploy lại.
+              đăng nhập Google. Danh sách này lưu trong MongoDB và có hiệu lực
+              ngay cho lần đăng nhập tiếp theo, không cần sửa .env hay deploy
+              lại.
             </small>
           </label>
           <label className="admin-checkbox">

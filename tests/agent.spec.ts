@@ -288,6 +288,10 @@ test("employee builds a reusable workflow and launches it with selected referenc
     .getByLabel("Hướng dẫn xử lý", { exact: true })
     .nth(1)
     .fill("Giữ cảnh tham chiếu và áp thiết kế đã duyệt.");
+  await page.screenshot({
+    path: test.info().outputPath("guide-workflow.png"),
+    fullPage: true,
+  });
   await page.getByRole("button", { name: "Lưu workflow", exact: true }).click();
   await expect(
     page.getByRole("heading", { name: "Bộ thiết kế camping", exact: true }),
@@ -310,7 +314,7 @@ test("employee builds a reusable workflow and launches it with selected referenc
   await page
     .getByLabel("Giao việc hoặc yêu cầu chỉnh tiếp")
     .fill("Tạo bộ thiết kế camping với cảnh này");
-  await page.getByRole("button", { name: "Lập kế hoạch", exact: true }).click();
+  await page.getByRole("button", { name: "Gửi yêu cầu", exact: true }).click();
   await expect.poll(() => launched).toBeTruthy();
   expect(launched?.targetIds).toHaveLength(1);
   expect(launched?.sourceIds).toEqual([]);
@@ -420,6 +424,15 @@ test("full conversation and sidebar history load on scroll and survive polling w
   await expect(
     sidebar.getByRole("button", { name: "Hội thoại 65", exact: true }),
   ).toHaveCount(1);
+  await page
+    .getByRole("button", { name: "Làm mới hội thoại", exact: true })
+    .click();
+  await expect(
+    sidebar.getByRole("button", { name: "Hội thoại 65", exact: true }),
+  ).toHaveCount(1);
+  await expect(
+    sidebar.getByRole("button", { name: "Tải thêm hội thoại", exact: true }),
+  ).toHaveCount(0);
   await page.getByText("Bộ nhớ & yêu cầu ghim", { exact: false }).click();
   await page
     .getByLabel("Yêu cầu luôn áp dụng (mỗi dòng một yêu cầu)")
@@ -430,6 +443,139 @@ test("full conversation and sidebar history load on scroll and survive polling w
   await expect.poll(() => savedPins).toEqual(["Giữ nguyên chữ trên sản phẩm"]);
   await page.waitForTimeout(2800);
   await expect(page.locator(".chat-message")).toHaveCount(120);
+  expect(fixture.errors).toEqual([]);
+});
+
+test("recent conversations refresh independently of library errors and open real saved messages", async ({
+  page,
+}) => {
+  const fixture = await setup(page);
+  const conversation = {
+    id: randomUUID(),
+    title: "Hội thoại được lưu từ tab khác",
+    messages: [
+      {
+        id: "saved-message",
+        role: "user",
+        text: "Nội dung hội thoại đã lưu",
+        createdAt: new Date().toISOString(),
+      },
+    ],
+    updatedAt: new Date().toISOString(),
+  };
+  let unavailable = false;
+  let items: (typeof conversation)[] = [];
+  await page.route("**/api/agent/history*", (route) =>
+    route.fulfill(
+      unavailable
+        ? { status: 503, json: { message: "Không kết nối được lịch sử." } }
+        : { json: { items, nextCursor: null, hasMore: false } },
+    ),
+  );
+  await page.route("**/api/agent/assets", (route) =>
+    route.fulfill({
+      status: 503,
+      json: { message: "Thư viện tạm thời không sẵn sàng." },
+    }),
+  );
+  await page.route(`**/api/agent/conversations/${conversation.id}`, (route) =>
+    route.fulfill({
+      json: {
+        conversation,
+        runs: [],
+        steps: [],
+        results: [],
+        messagePage: { hasMore: false, nextCursor: null },
+      },
+    }),
+  );
+  await page.reload();
+  const recent = page.getByRole("region", {
+    name: "Trò chuyện gần đây",
+    exact: true,
+  });
+  await expect(recent).toContainText("Chưa có hội thoại đã lưu");
+  items = [conversation];
+  await expect(
+    recent.getByRole("button", { name: conversation.title, exact: true }),
+  ).toBeVisible({ timeout: 15000 });
+  await recent
+    .getByRole("button", { name: conversation.title, exact: true })
+    .click();
+  await expect(
+    page.getByText("Nội dung hội thoại đã lưu", { exact: true }),
+  ).toBeVisible();
+  await expect(page).toHaveURL(/#agent$/);
+  conversation.title = "Tên hội thoại cập nhật";
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await expect(
+    recent.getByRole("button", { name: conversation.title, exact: true }),
+  ).toHaveCount(1);
+  await expect(
+    recent.getByRole("button", {
+      name: "Hội thoại được lưu từ tab khác",
+      exact: true,
+    }),
+  ).toHaveCount(0);
+  unavailable = true;
+  await recent
+    .getByRole("button", { name: "Làm mới hội thoại", exact: true })
+    .click();
+  await expect(recent.getByRole("alert")).toContainText(
+    "Không kết nối được lịch sử",
+  );
+  await expect(
+    recent.getByRole("button", { name: conversation.title, exact: true }),
+  ).toBeVisible();
+  unavailable = false;
+  await recent
+    .getByRole("button", { name: "Làm mới hội thoại", exact: true })
+    .click();
+  await expect(recent.getByRole("alert")).toHaveCount(0);
+  await page.reload();
+  await recent
+    .getByRole("button", { name: conversation.title, exact: true })
+    .click();
+  await expect(
+    page.getByText("Nội dung hội thoại đã lưu", { exact: true }),
+  ).toBeVisible();
+  expect(fixture.errors).toEqual([]);
+});
+
+test("new saved conversations remain in history if submitting the first task fails", async ({
+  page,
+}) => {
+  const fixture = await setup(page);
+  await page.route("**/api/agent/conversations/*/messages", (route) =>
+    route.fulfill({
+      status: 503,
+      json: { message: "Hàng đợi tạm thời không sẵn sàng." },
+    }),
+  );
+  await page
+    .getByLabel("Giao việc hoặc yêu cầu chỉnh tiếp")
+    .fill("Yêu cầu mới đã lưu hội thoại");
+  await page.getByRole("button", { name: "Gửi yêu cầu", exact: true }).click();
+  const recent = page.getByRole("region", {
+    name: "Trò chuyện gần đây",
+    exact: true,
+  });
+  await expect(
+    recent.getByRole("button", {
+      name: "Yêu cầu mới đã lưu hội thoại",
+      exact: true,
+    }),
+  ).toHaveCount(1);
+  await expect(page.getByRole("alert")).toContainText(
+    "Hàng đợi tạm thời không sẵn sàng",
+  );
+  await page.reload();
+  await expect(
+    recent.getByRole("button", {
+      name: "Yêu cầu mới đã lưu hội thoại",
+      exact: true,
+    }),
+  ).toHaveCount(1);
   expect(fixture.errors).toEqual([]);
 });
 
@@ -486,6 +632,7 @@ test("root authentication hides navigation and tools on every direct link until 
     "jobs",
     "library",
     "workflows",
+    "guide",
     "admin-users",
   ]) {
     await page.goto("/#" + hash);
@@ -570,28 +717,53 @@ test("session restoration blocks the entire workspace and handles expired or una
   );
 });
 
-test("tool job history survives reload, shows results and cancels only queued work", async ({ page }) => {
+test("tool job history survives reload, shows results and cancels only queued work", async ({
+  page,
+}) => {
   await setup(page);
-  const queued = { id: randomUUID(), requestId: "request-from-another-tab", state: "queued", createdAt: new Date().toISOString() };
-  const completed = { id: randomUUID(), requestId: "completed-request", state: "done", createdAt: new Date().toISOString(), result: { url: "https://cdn.example/result.png" } };
-  await page.route("**/api/image-jobs", route => route.fulfill({ json: [queued, completed] }));
+  const queued = {
+    id: randomUUID(),
+    requestId: "request-from-another-tab",
+    state: "queued",
+    createdAt: new Date().toISOString(),
+  };
+  const completed = {
+    id: randomUUID(),
+    requestId: "completed-request",
+    state: "done",
+    createdAt: new Date().toISOString(),
+    result: { url: "https://cdn.example/result.png" },
+  };
+  await page.route("**/api/image-jobs", (route) =>
+    route.fulfill({ json: [queued, completed] }),
+  );
   let cancellations = 0;
-  await page.route(`**/api/image-jobs/${queued.id}/cancel`, route => {
-    cancellations++; queued.state = "cancelled";
+  await page.route(`**/api/image-jobs/${queued.id}/cancel`, (route) => {
+    cancellations++;
+    queued.state = "cancelled";
     return route.fulfill({ json: { state: "failed", phase: "cancelled" } });
   });
   await page.goto("/#jobs");
-  const region = page.getByRole("region", { name: "Tác vụ công cụ", exact: true });
+  const region = page.getByRole("region", {
+    name: "Tác vụ công cụ",
+    exact: true,
+  });
   await expect(region).toContainText("request-from-another-tab");
-  await expect(region.getByRole("link", { name: "Mở kết quả 1" })).toHaveAttribute("href", "https://cdn.example/result.png");
+  await expect(
+    region.getByRole("link", { name: "Mở kết quả 1" }),
+  ).toHaveAttribute("href", "https://cdn.example/result.png");
   await page.reload();
   await expect(region).toContainText("request-from-another-tab");
   await region.getByRole("button", { name: "Hủy tác vụ", exact: true }).click();
   await expect(region).toContainText("Đã hủy");
   expect(cancellations).toBe(1);
-  await expect(region.getByRole("button", { name: "Hủy tác vụ", exact: true })).toHaveCount(0);
+  await expect(
+    region.getByRole("button", { name: "Hủy tác vụ", exact: true }),
+  ).toHaveCount(0);
   await page.setViewportSize({ width: 375, height: 812 });
-  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(375);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(
+    375,
+  );
 });
 
 test("mobile login has no workspace menu and no horizontal overflow", async ({
@@ -619,7 +791,7 @@ window.google = { accounts: { id: {
   }
 } } };
 `;
-async function googleSetup(page: Page) {
+async function googleSetup(page: Page, failFirstSdk = false) {
   const fixture = await setup(page, { skipLogin: true });
   let sequence = 0;
   const nonces: string[] = [];
@@ -641,8 +813,14 @@ async function googleSetup(page: Page) {
     nonces.push(nonce);
     return route.fulfill({ json: { nonce, expiresAt: Date.now() + 600000 } });
   });
+  let sdkAttempts = 0;
   await page.route("https://accounts.google.com/gsi/client", (route) =>
-    route.fulfill({ contentType: "application/javascript", body: googleSdk }),
+    failFirstSdk && ++sdkAttempts === 1
+      ? route.abort("failed")
+      : route.fulfill({
+          contentType: "application/javascript",
+          body: googleSdk,
+        }),
   );
   return { ...fixture, nonces };
 }
@@ -766,16 +944,7 @@ for (const status of [401, 403]) {
 test("Google SDK failure has a retry and keeps password login available", async ({
   page,
 }) => {
-  const fixture = await googleSetup(page);
-  let attempts = 0;
-  await page.route("https://accounts.google.com/gsi/client", (route) =>
-    ++attempts === 1
-      ? route.abort("failed")
-      : route.fulfill({
-          contentType: "application/javascript",
-          body: googleSdk,
-        }),
-  );
+  const fixture = await googleSetup(page, true);
   await page.reload();
   await expect(page.getByRole("alert")).toContainText(
     "Không tải được đăng nhập Google",
@@ -854,9 +1023,7 @@ test("agent workspace is the default and supports navigation, asset reuse and ex
   await expect(
     page.getByText("Công việc tiếp theo bắt đầu từ bạn"),
   ).toBeVisible();
-  await page
-    .getByRole("button", { name: "Cấu hình Agent", exact: true })
-    .click();
+  await page.getByRole("button", { name: "Trợ lý AI", exact: true }).click();
   await page
     .getByLabel("Model tạo / sửa ảnh", { exact: true })
     .selectOption("gpt-image-1.5-all");
@@ -887,7 +1054,35 @@ test("agent workspace is the default and supports navigation, asset reuse and ex
 test("agent preserves edited prompt, locks the image model while running, restores history and exports results", async ({
   page,
 }) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
   const fixture = await setup(page);
+  // Illustrative mock assets; no model request is made by this browser test.
+  let uploadedIds: string[] = [];
+  page.on("response", async (response) => {
+    if (
+      response.url().endsWith("/api/agent/assets") &&
+      response.request().method() === "POST"
+    ) {
+      const asset = (await response.json()) as { id: string };
+      uploadedIds = [...uploadedIds, asset.id];
+    }
+  });
+  await page.route(
+    /\/api\/agent\/assets\/[^/]+\/(content|preview)/,
+    (route) => {
+      const id = route.request().url().split("/").at(-2);
+      const kind =
+        id === uploadedIds[0]
+          ? "source"
+          : id === uploadedIds[1]
+            ? "reference"
+            : "result";
+      const ornament = (x: number, color: string, label: string) =>
+        `<path d="M${x},20v40" stroke="#d6ae62" stroke-width="3"/><circle cx="${x}" cy="70" r="8" fill="none" stroke="#d6ae62" stroke-width="4"/><circle cx="${x}" cy="130" r="55" fill="${color}" stroke="#e9cc8d" stroke-width="4"/><path d="M${x - 26},148l26,-52 26,52z" fill="#2b6850"/><text x="${x}" y="169" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#564731">${label}</text>`;
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="360" height="240" viewBox="0 0 360 240"><rect width="360" height="240" rx="18" fill="${kind === "source" ? "#f5eee1" : "#173c2e"}"/>${kind === "source" ? ornament(180, "#fff5dc", "CAMPING") : ornament(100, kind === "result" ? "#fff5dc" : "#c6856a", kind === "result" ? "CAMPING" : "OLD") + ornament(260, kind === "result" ? "#fff5dc" : "#99babb", kind === "result" ? "CAMPING" : "OLD")}</svg>`;
+      return route.fulfill({ contentType: "image/svg+xml", body: svg });
+    },
+  );
   await page
     .getByLabel("Ảnh sản phẩm/thiết kế nguồn", { exact: true })
     .setInputFiles(image("product.png"));
@@ -899,7 +1094,11 @@ test("agent preserves edited prompt, locks the image model while running, restor
   await page
     .getByLabel("Giao việc hoặc yêu cầu chỉnh tiếp")
     .fill("Thay ornament trong ảnh tham chiếu bằng sản phẩm nguồn.");
-  await page.getByRole("button", { name: "Lập kế hoạch", exact: true }).click();
+  await page.screenshot({
+    path: test.info().outputPath("guide-inputs.png"),
+    fullPage: true,
+  });
+  await page.getByRole("button", { name: "Gửi yêu cầu", exact: true }).click();
   const prompt = page.getByLabel("Final prompt 1", { exact: true });
   await expect(prompt).toBeVisible();
   expect(fixture.started).toBe(false);
@@ -917,16 +1116,15 @@ test("agent preserves edited prompt, locks the image model while running, restor
   expect(fixture.message?.operation).toBe("auto");
   expect(fixture.message?.sourceIds).toHaveLength(1);
   expect(fixture.message?.targetIds).toHaveLength(1);
+  await page.screenshot({
+    path: test.info().outputPath("guide-approval.png"),
+    fullPage: true,
+  });
   await page.getByRole("button", { name: "Bắt đầu xử lý 1 ảnh" }).click();
   await expect(
     page.getByLabel("Model tạo / sửa ảnh", { exact: true }),
   ).toBeDisabled();
-  await page
-    .getByRole("button", { name: "Cấu hình Agent", exact: true })
-    .click();
-  await expect(
-    page.getByLabel("Model tạo / sửa ảnh", { exact: true }),
-  ).toBeDisabled();
+  await page.getByRole("button", { name: /^Công việc/ }).click();
   await page.getByRole("button", { name: "Trợ lý AI", exact: true }).click();
   await expect(
     page.getByLabel("Model tạo / sửa ảnh", { exact: true }),
@@ -939,6 +1137,10 @@ test("agent preserves edited prompt, locks the image model while running, restor
   await page
     .getByLabel("Duyệt ảnh 1", { exact: true })
     .selectOption("approved");
+  await page.screenshot({
+    path: test.info().outputPath("guide-results.png"),
+    fullPage: true,
+  });
   const downloaded = page.waitForEvent("download");
   await page.getByRole("button", { name: "Xuất bộ ảnh ZIP" }).click();
   expect((await downloaded).suggestedFilename()).toMatch(/^POD_.*\.zip$/);
@@ -958,6 +1160,106 @@ test("agent preserves edited prompt, locks the image model while running, restor
     path: test.info().outputPath("agent-desktop.png"),
     fullPage: true,
   });
+});
+
+test("AI navigation preserves the conversation and draft; only New conversation clears the composer", async ({
+  page,
+}) => {
+  const fixture = await setup(page);
+  const composer = page.getByLabel("Giao việc hoặc yêu cầu chỉnh tiếp");
+  await composer.fill("Một công việc cần tiếp tục trong cùng hội thoại");
+  await page.getByRole("button", { name: "Gửi yêu cầu", exact: true }).click();
+  await expect(
+    page.getByLabel("Final prompt 1", { exact: true }),
+  ).toBeVisible();
+  await composer.fill("Giữ lại yêu cầu đang nhập dở");
+  await page.getByRole("button", { name: "Công việc", exact: true }).click();
+  await page.getByRole("button", { name: "Trợ lý AI", exact: true }).click();
+  await expect(
+    page.getByLabel("Final prompt 1", { exact: true }),
+  ).toBeVisible();
+  await expect(composer).toHaveValue("Giữ lại yêu cầu đang nhập dở");
+  await expect(
+    page.getByRole("button", { name: "Cấu hình Agent", exact: true }),
+  ).toHaveCount(0);
+  await page
+    .getByRole("button", { name: "Trò chuyện mới", exact: true })
+    .click();
+  await expect(composer).toHaveValue("");
+  await expect(page.getByLabel("Final prompt 1", { exact: true })).toHaveCount(
+    0,
+  );
+  await expect(
+    page
+      .getByRole("navigation", { name: "Lịch sử công việc" })
+      .getByRole("button"),
+  ).toHaveCount(1);
+  expect(fixture.started).toBe(false);
+  expect(fixture.errors).toEqual([]);
+});
+
+test("legacy settings link opens the single model panel on mobile", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const fixture = await setup(page);
+  await page.goto("/#settings");
+  await expect(page).toHaveURL(/#agent$/);
+  await expect(
+    page.getByLabel("Model tạo / sửa ảnh", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByLabel("Model tạo / sửa ảnh", { exact: true }),
+  ).toHaveCount(1);
+  expect(fixture.errors).toEqual([]);
+});
+
+test("usage guide covers the full flow with images, works on mobile and preserves the chat draft", async ({
+  page,
+}) => {
+  const fixture = await setup(page);
+  await page
+    .getByLabel("Giao việc hoặc yêu cầu chỉnh tiếp")
+    .fill("Bản nháp trước khi đọc hướng dẫn");
+  await page
+    .getByRole("button", { name: "Hướng dẫn sử dụng?", exact: true })
+    .click();
+  await expect(page).toHaveURL(/#guide$/);
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(
+    "Từ yêu cầu đầu tiên đến bộ ảnh hoàn chỉnh.",
+  );
+  const chapters = page
+    .getByRole("navigation", { name: "Mục lục hướng dẫn" })
+    .getByRole("button");
+  await expect(chapters).toHaveCount(8);
+  await chapters.nth(3).click();
+  await expect(page.locator("#guide-heading-approve")).toBeFocused();
+  for (const img of await page.locator(".guide-figure img").all()) {
+    await img.scrollIntoViewIfNeeded();
+    await expect
+      .poll(() => img.evaluate((el) => (el as HTMLImageElement).naturalWidth))
+      .toBeGreaterThan(0);
+  }
+  await expect(
+    page.getByRole("heading", { name: "Dành cho quản trị viên" }),
+  ).toHaveCount(0);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await chapters.nth(0).click();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(
+    390,
+  );
+  await page.screenshot({
+    path: test.info().outputPath("guide-mobile.png"),
+    fullPage: true,
+  });
+  await page
+    .getByRole("button", { name: "Đi tới Trợ lý AI", exact: true })
+    .click();
+  await expect(
+    page.getByLabel("Giao việc hoặc yêu cầu chỉnh tiếp"),
+  ).toHaveValue("Bản nháp trước khi đọc hướng dẫn");
+  expect(fixture.message).toBeUndefined();
+  expect(fixture.errors).toEqual([]);
 });
 
 test("agent template editor supports keyboard coordinates and has no horizontal overflow on mobile", async ({

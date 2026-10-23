@@ -114,7 +114,8 @@ async function setup(page: Page, role: "admin" | "designer" = "admin") {
       return json({ token: "a".repeat(64), user: profile });
     if (path === "/auth/me") return json(profile);
     if (url.pathname === "/api/image-jobs") return json([]);
-    if (path === "/history") return json({ items: [], nextCursor: null, hasMore: false });
+    if (path === "/history")
+      return json({ items: [], nextCursor: null, hasMore: false });
     if (path === "/workflows") return json([]);
     if (["/conversations", "/assets", "/templates", "/runs"].includes(path))
       return json([]);
@@ -218,6 +219,55 @@ async function setup(page: Page, role: "admin" | "designer" = "admin") {
         ],
         nextCursor: null,
         scanned: 120,
+        malformed: 0,
+      });
+    if (path.startsWith("/admin/diagnostics/"))
+      return json({
+        requestId: path.split("/").at(-1),
+        day: now.slice(0, 10),
+        source: url.searchParams.get("source") || "api",
+        items: [
+          {
+            timestamp: now,
+            event: "ai_request",
+            provider: "shopaikey",
+            model: "test-image-model",
+            transport: "google-genai",
+            parts: [
+              {
+                index: 0,
+                type: "image",
+                mimeType: "image/png",
+                bytes: 256,
+                sha256: "reference-hash",
+              },
+              {
+                index: 1,
+                type: "image",
+                mimeType: "image/png",
+                bytes: 512,
+                sha256: "source-hash",
+              },
+              {
+                index: 2,
+                type: "text",
+                text: "Giữ cảnh tham chiếu và thay sản phẩm bằng ảnh nguồn. Không thêm watermark.",
+              },
+            ],
+          },
+          {
+            timestamp: now,
+            event: "storage_failed",
+            error: {
+              code: "STORAGE_ERROR",
+              message: "Không lưu được ảnh sau khi model xử lý.",
+              upstreamStatus: 503,
+              suggestion: "Kiểm tra kết nối kho lưu trữ.",
+            },
+          },
+        ],
+        nextCursor: null,
+        scanned: 5,
         malformed: 0,
       });
     if (path.startsWith("/admin/") && method !== "GET") {
@@ -520,6 +570,84 @@ test("audit logs support details, JSON export and request error search", async (
   await expect(
     page.getByRole("region", { name: "Nhật ký vận hành" }),
   ).toContainText("request-storage-error");
+  await page.getByRole("button", { name: "Chi tiết", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(
+    dialog.getByRole("list", { name: "Chuỗi sự kiện request" }),
+  ).toBeVisible();
+  await expect(dialog).toContainText("test-image-model");
+  await expect(dialog).toContainText("Không thêm watermark.");
+  await expect(dialog).toContainText("reference-hash");
+  await expect(dialog).toContainText("source-hash");
+  await expect(dialog).toContainText("Không lưu được ảnh sau khi model xử lý.");
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await dialog.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(
+    true,
+  );
+  await page.keyboard.press("Escape");
+  await page.getByLabel("Nguồn log", { exact: true }).selectOption("worker");
+  await page.getByRole("button", { name: "Tìm nhật ký", exact: true }).click();
+  await page.getByRole("button", { name: "Chi tiết", exact: true }).click();
+  await expect(dialog).toContainText("Worker ·");
+  expect(fixture.errors).toEqual([]);
+  expect(fixture.unexpected).toEqual([]);
+});
+
+test("request detail errors can be retried without showing stale log content", async ({
+  page,
+}) => {
+  const fixture = await setup(page);
+  let failDetail = true;
+  await page.route("**/api/agent/admin/diagnostics/*?**", (route) =>
+    failDetail
+      ? route.fulfill({
+          status: 503,
+          json: {
+            code: "ADMIN_LOG_UNAVAILABLE",
+            message: "Không đọc được nhật ký chẩn đoán.",
+          },
+        })
+      : route.fallback(),
+  );
+  await page.goto("/#admin-audit");
+  await page
+    .getByRole("button", { name: "Request & lỗi hệ thống", exact: true })
+    .click();
+  await page.getByRole("button", { name: "Chi tiết", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByRole("alert")).toContainText(
+    "Không đọc được nhật ký chẩn đoán.",
+  );
+  await expect(
+    dialog.getByRole("list", { name: "Chuỗi sự kiện request" }),
+  ).toHaveCount(0);
+  failDetail = false;
+  await dialog.getByRole("button", { name: "Thử lại", exact: true }).click();
+  await expect(
+    dialog.getByRole("list", { name: "Chuỗi sự kiện request" }),
+  ).toBeVisible();
+  await expect(dialog.getByRole("alert")).toHaveCount(0);
+  expect(fixture.errors).toEqual([]);
+  expect(fixture.unexpected).toEqual([]);
+});
+
+test("admin usage guide links directly to the administration request logs", async ({
+  page,
+}) => {
+  const fixture = await setup(page);
+  await page
+    .getByRole("button", { name: "Hướng dẫn sử dụng?", exact: true })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "Dành cho quản trị viên", exact: true }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Mở Audit logs", exact: true })
+    .click();
+  await expect(page).toHaveURL(/#admin-audit$/);
+  await expect(
+    page.getByRole("button", { name: "Request & lỗi hệ thống", exact: true }),
+  ).toBeVisible();
   expect(fixture.errors).toEqual([]);
   expect(fixture.unexpected).toEqual([]);
 });

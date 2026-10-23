@@ -15,6 +15,7 @@ const pages = [
   "templates",
   "workflows",
   "settings",
+  "guide",
   "admin",
   "admin-users",
   "admin-runs",

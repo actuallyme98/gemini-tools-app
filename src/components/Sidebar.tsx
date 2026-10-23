@@ -3,6 +3,7 @@ import {
   Bot,
   Boxes,
   ChevronRight,
+  CircleHelp,
   FolderOpen,
   Image,
   Layers,
@@ -10,7 +11,7 @@ import {
   LogOut,
   MessageSquare,
   Plus,
-  Settings2,
+  RefreshCw,
   ShieldCheck,
   Wand2,
   Workflow,
@@ -45,6 +46,9 @@ export interface SidebarProps {
   busy?: boolean;
   historyHasMore?: boolean;
   historyLoading?: boolean;
+  historyRefreshing?: boolean;
+  historyError?: string;
+  onRefreshHistory?: () => void;
   onMoreHistory?: () => void;
 }
 
@@ -61,6 +65,9 @@ export function Sidebar({
   busy = false,
   historyHasMore,
   historyLoading = false,
+  historyRefreshing = false,
+  historyError,
+  onRefreshHistory,
   onMoreHistory,
 }: SidebarProps) {
   return (
@@ -84,10 +91,11 @@ export function Sidebar({
       <button
         type="button"
         className="new-conversation"
+        title="Bắt đầu hội thoại mới"
         onClick={onNew}
         disabled={busy}
       >
-        <Plus size={18} aria-hidden="true" /> Cuộc trò chuyện mới <span>+</span>
+        <Plus size={18} aria-hidden="true" /> Trò chuyện mới
       </button>
       <nav aria-label="Điều hướng chính" className="workspace-navigation">
         <p className="nav-caption">KHÔNG GIAN LÀM VIỆC</p>
@@ -96,6 +104,11 @@ export function Sidebar({
             key={id}
             type="button"
             onClick={() => onPageChange(id)}
+            title={
+              id === "agent" && selectedId
+                ? "Quay lại hội thoại đang mở"
+                : label
+            }
             aria-current={currentPage === id ? "page" : undefined}
             className="workspace-nav-item"
           >
@@ -138,8 +151,38 @@ export function Sidebar({
           ))}
         </details>
       </nav>
-      <div className="recent-conversations">
-        <p className="nav-caption">TRÒ CHUYỆN GẦN ĐÂY</p>
+      <section className="recent-conversations" aria-label="Trò chuyện gần đây">
+        <div className="recent-conversations-heading">
+          <h2 className="nav-caption">TRÒ CHUYỆN GẦN ĐÂY</h2>
+          {onRefreshHistory && (
+            <button
+              type="button"
+              className="icon-button history-refresh"
+              aria-label="Làm mới hội thoại"
+              title="Làm mới hội thoại"
+              onClick={onRefreshHistory}
+              disabled={historyRefreshing}
+            >
+              <RefreshCw
+                size={15}
+                aria-hidden="true"
+                className={
+                  historyRefreshing ? "studio-loading-spinner" : undefined
+                }
+              />
+            </button>
+          )}
+        </div>
+        {historyError && (
+          <p className="sidebar-empty" role="alert">
+            Không tải được lịch sử. {historyError} Bấm làm mới để thử lại.
+          </p>
+        )}
+        {!conversations.length && historyRefreshing && (
+          <p className="sidebar-empty" role="status">
+            Đang tải hội thoại…
+          </p>
+        )}
         {conversations.length ? (
           <nav aria-label="Lịch sử công việc" data-history-scroll>
             {conversations.map((conversation) => (
@@ -159,17 +202,32 @@ export function Sidebar({
                 <span>{conversation.title}</span>
               </button>
             ))}
-            {historyHasMore && onMoreHistory && <HistoryLoader loading={historyLoading} onLoad={onMoreHistory} label="Tải thêm hội thoại" />}
+            {historyHasMore && onMoreHistory && (
+              <HistoryLoader
+                loading={historyLoading}
+                onLoad={onMoreHistory}
+                label="Tải thêm hội thoại"
+              />
+            )}
           </nav>
-        ) : (
+        ) : !historyRefreshing && !historyError ? (
           <p className="sidebar-empty">
             {user
-              ? "Ý tưởng tiếp theo bắt đầu từ một cuộc trò chuyện."
+              ? "Chưa có hội thoại đã lưu. Gửi yêu cầu cho Trợ lý AI để bắt đầu; tác vụ từ các công cụ nằm trong Công việc."
               : "Đăng nhập để lưu ý tưởng và công việc của bạn."}
           </p>
-        )}
-      </div>
+        ) : null}
+      </section>
       <div className="sidebar-bottom">
+        <button
+          type="button"
+          className="workspace-nav-item"
+          aria-current={currentPage === "guide" ? "page" : undefined}
+          onClick={() => onPageChange("guide")}
+        >
+          <CircleHelp size={18} aria-hidden="true" />
+          <span>Hướng dẫn sử dụng?</span>
+        </button>
         {user?.role === "admin" && (
           <button
             type="button"
@@ -181,15 +239,6 @@ export function Sidebar({
             <span>Quản trị công ty</span>
           </button>
         )}
-        <button
-          type="button"
-          className="workspace-nav-item"
-          aria-current={currentPage === "settings" ? "page" : undefined}
-          onClick={() => onPageChange("settings")}
-        >
-          <Settings2 size={18} aria-hidden="true" />
-          <span>Cấu hình Agent</span>
-        </button>
         <div className="workspace-account">
           <span className="account-avatar">
             {user?.email.slice(0, 1).toUpperCase() || "L"}

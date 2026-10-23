@@ -57,7 +57,6 @@ import {
   AgentJobs,
   AgentLibrary,
   AgentTemplates,
-  WorkspaceHeading,
 } from "../components/agent/AgentWorkspaceViews";
 import { AIProviderSelect } from "../components/AIProviderSelect";
 import { AIImageModelPanel } from "../components/AIImageModelPanel";
@@ -68,6 +67,14 @@ import { WorkflowLibrary } from "../components/agent/WorkflowLibrary";
 import { ConversationContext } from "../components/agent/ConversationContext";
 import { HistoryLoader } from "../components/agent/HistoryLoader";
 const AdminPage = lazy(() => import("./AdminPage"));
+const UserGuidePage = lazy(() => import("./UserGuidePage"));
+
+function mergeConversations(latest: Conversation[], previous: Conversation[]) {
+  const conversations = new Map(latest.map((item) => [item.id, item]));
+  for (const item of previous)
+    if (!conversations.has(item.id)) conversations.set(item.id, item);
+  return [...conversations.values()];
+}
 
 const field = "agent-field";
 function mergeMessages(
@@ -126,8 +133,11 @@ export function AgentPage({
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [historyCursor, setHistoryCursor] = useState<string | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyRefreshing, setHistoryRefreshing] = useState(false);
+  const [historyError, setHistoryError] = useState("");
+  const [historyRevision, setHistoryRevision] = useState(0);
   const historyBusy = useRef(false);
-  const historyInitialized = useRef(false);
+  const historyPaginated = useRef(false);
   const sessionEpoch = useRef(0);
   const [workflows, setWorkflows] = useState<CustomWorkflow[]>([]);
   const [workflowId, setWorkflowId] = useState("");
@@ -192,8 +202,12 @@ export function AgentPage({
     setUser(undefined);
     setConversations([]);
     sessionEpoch.current += 1;
-    historyInitialized.current = false;
+    historyPaginated.current = false;
     setHistoryCursor(null);
+    historyBusy.current = false;
+    setHistoryLoading(false);
+    setHistoryRefreshing(false);
+    setHistoryError("");
     setWorkflows([]);
     setWorkflowId("");
     openedThread.current = "";
@@ -260,10 +274,56 @@ export function AgentPage({
   useEffect(() => {
     if (!user) return;
     const controller = new AbortController();
+    const epoch = sessionEpoch.current;
+    let timer: ReturnType<typeof setTimeout>;
+    let pending = false;
+    const refresh = async () => {
+      if (pending || controller.signal.aborted) return;
+      pending = true;
+      setHistoryRefreshing(true);
+      try {
+        const { data } = await agentClient.get<HistoryPage>("/history", {
+          signal: controller.signal,
+        });
+        if (controller.signal.aborted || epoch !== sessionEpoch.current) return;
+        setConversations((previous) =>
+          mergeConversations(data.items, previous),
+        );
+        if (!historyPaginated.current) {
+          setHistoryCursor(data.nextCursor);
+        }
+        setHistoryError("");
+      } catch (cause) {
+        if (!controller.signal.aborted && epoch === sessionEpoch.current)
+          setHistoryError(getErrorMessage(cause));
+      } finally {
+        pending = false;
+        if (!controller.signal.aborted && epoch === sessionEpoch.current) {
+          setHistoryRefreshing(false);
+          timer = setTimeout(() => void refresh(), 10000);
+        }
+      }
+    };
+    const focus = () => {
+      if (document.hidden) return;
+      clearTimeout(timer);
+      void refresh();
+    };
+    void refresh();
+    window.addEventListener("focus", focus);
+    document.addEventListener("visibilitychange", focus);
+    return () => {
+      controller.abort();
+      clearTimeout(timer);
+      window.removeEventListener("focus", focus);
+      document.removeEventListener("visibilitychange", focus);
+    };
+  }, [user, revision, historyRevision]);
+
+  useEffect(() => {
+    if (!user) return;
+    const controller = new AbortController();
     Promise.all([
-      agentClient.get<HistoryPage>("/history", {
-        signal: controller.signal,
-      }),
       agentClient.get<Asset[]>("/assets", { signal: controller.signal }),
       agentClient.get<MockupTemplate[]>("/templates", {
         signal: controller.signal,
@@ -272,20 +332,8 @@ export function AgentPage({
         signal: controller.signal,
       }),
     ])
-      .then(([c, a, t, w]) => {
+      .then(([a, t, w]) => {
         if (controller.signal.aborted) return;
-        setConversations((previous) => [
-          ...new Map(
-            [...c.data.items, ...previous].map((conversation) => [
-              conversation.id,
-              conversation,
-            ]),
-          ).values(),
-        ]);
-        if (!historyInitialized.current) {
-          setHistoryCursor(c.data.nextCursor);
-          historyInitialized.current = true;
-        }
         setAssets(a.data);
         setTemplates(t.data);
         setWorkflows(w.data);
@@ -396,24 +444,24 @@ export function AgentPage({
   const loadMoreHistory = useCallback(() => {
     if (historyBusy.current || !historyCursor || !user) return;
     historyBusy.current = true;
+    historyPaginated.current = true;
     setHistoryLoading(true);
     const epoch = sessionEpoch.current;
     void agentClient
       .get<HistoryPage>("/history", { params: { before: historyCursor } })
       .then(({ data }) => {
         if (epoch !== sessionEpoch.current) return;
-        setConversations((previous) => [
-          ...new Map(
-            [...previous, ...data.items].map((conversation) => [
-              conversation.id,
-              conversation,
-            ]),
-          ).values(),
-        ]);
+        setConversations((previous) =>
+          mergeConversations(previous, data.items),
+        );
         setHistoryCursor(data.nextCursor);
       })
-      .catch((cause) => setError(getErrorMessage(cause)))
+      .catch((cause) => {
+        if (epoch === sessionEpoch.current)
+          setHistoryError(getErrorMessage(cause));
+      })
       .finally(() => {
+        if (epoch !== sessionEpoch.current) return;
         historyBusy.current = false;
         setHistoryLoading(false);
       });
@@ -469,12 +517,22 @@ export function AgentPage({
 
   const activeCount = allRuns.filter(activeRun).length;
   const agentView =
-    ["agent", "jobs", "library", "templates", "workflows", "settings"].includes(
-      page,
-    ) || page.startsWith("admin");
+    [
+      "agent",
+      "jobs",
+      "library",
+      "templates",
+      "workflows",
+      "settings",
+      "guide",
+    ].includes(page) || page.startsWith("admin");
   const [contextOpen, setContextOpen] = useState(
-    () => window.matchMedia("(min-width: 1101px)").matches,
+    () =>
+      page === "settings" || window.matchMedia("(min-width: 1101px)").matches,
   );
+  useEffect(() => {
+    if (page === "settings") onNavigate("agent");
+  }, [page, onNavigate]);
   const newConversation = () => {
     if (busy) return;
     restoredConversation.current = "";
@@ -536,11 +594,15 @@ export function AgentPage({
         });
       let id = selectedId;
       if (!id) {
-        id = (
+        const conversation = (
           await agentClient.post<Conversation>("/conversations", {
             title: brief.slice(0, 120),
           })
-        ).data.id;
+        ).data;
+        id = conversation.id;
+        setConversations((previous) =>
+          mergeConversations([conversation], previous),
+        );
         setSelectedId(id);
       }
       messageId.current ??= crypto.randomUUID();
@@ -832,11 +894,22 @@ export function AgentPage({
       busy={busy}
       historyHasMore={!!historyCursor}
       historyLoading={historyLoading}
+      historyRefreshing={historyRefreshing}
+      historyError={historyError}
+      onRefreshHistory={() => setHistoryRevision((value) => value + 1)}
       onMoreHistory={loadMoreHistory}
     >
       <div hidden={!agentView}>
         <>
           {notice}
+          {page === "guide" && (
+            <Suspense fallback={<p role="status">Đang tải hướng dẫn…</p>}>
+              <UserGuidePage
+                onNavigate={onNavigate}
+                isAdmin={user.role === "admin"}
+              />
+            </Suspense>
+          )}
           {page === "workflows" && (
             <WorkflowLibrary
               workflows={workflows}
@@ -1139,14 +1212,20 @@ export function AgentPage({
                     ) : (
                       <ArrowUp size={18} aria-hidden="true" />
                     )}
-                    <span>Lập kế hoạch</span>
+                    <span>
+                      {busy
+                        ? "Đang gửi…"
+                        : selectedActive
+                          ? "Đang xử lý…"
+                          : "Gửi yêu cầu"}
+                    </span>
                   </Button>
                 </div>
               </form>
               <p className="composer-footnote">
                 <ShieldCheck size={13} aria-hidden="true" />
-                Bạn duyệt prompt trước khi Agent tạo ảnh. Bước lập kế hoạch có
-                thể gọi model phân tích.
+                Gửi yêu cầu để Agent phân tích và đề xuất kế hoạch. Bạn duyệt
+                prompt trước khi bắt đầu tạo ảnh.
               </p>
               {!selectedId && (
                 <>
@@ -1626,44 +1705,6 @@ export function AgentPage({
                 </section>
               )}
             </>
-          )}
-          {page === "settings" && (
-            <div className="workspace-page">
-              <WorkspaceHeading
-                eyebrow="AGENT CỦA BẠN"
-                title="Một cấu hình, mọi công việc."
-                description="Chọn model cho ảnh đầu ra và hiểu cách Agent xử lý yêu cầu."
-              />
-              <div className="settings-grid">
-                <section className="settings-card">
-                  <h2>Model & kết nối AI</h2>
-                  <p>
-                    Model được giữ nguyên trong mỗi công việc. Các lựa chọn sẽ
-                    khóa khi đang có yêu cầu xử lý.
-                  </p>
-                  {modelSettings}
-                </section>
-                <section className="settings-card">
-                  <ShieldCheck size={25} aria-hidden="true" />
-                  <h2>Bạn luôn kiểm soát bước tạo ảnh</h2>
-                  <p>
-                    Agent phân tích yêu cầu và đề xuất kế hoạch. Bạn xem đầy đủ
-                    final prompt, lưu chỉnh sửa và bấm bắt đầu.
-                  </p>
-                  <ul>
-                    <li>Không tự gửi lại tác vụ ảnh chưa rõ kết quả.</li>
-                    <li>Hủy sẽ dừng những yêu cầu chưa gửi đến model.</li>
-                    <li>Ảnh và lịch sử gắn với tài khoản đăng nhập.</li>
-                  </ul>
-                  <div className="account-settings">
-                    <strong>{user.email}</strong>
-                    <span>
-                      {user.role === "admin" ? "Quản trị viên" : "Designer"}
-                    </span>
-                  </div>
-                </section>
-              </div>
-            </div>
           )}
         </>
       </div>
