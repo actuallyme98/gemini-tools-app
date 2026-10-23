@@ -1,5 +1,23 @@
 import type { AgentUser } from "./agent.service";
 
+export type ProviderUsage = {
+  id: string;
+  label: string;
+  status: "available" | "unsupported" | "error";
+  balance?: number;
+  used?: number;
+  total?: number;
+  totalBasis?: "provider" | "balance_plus_used";
+  usedPercent?: number;
+  checkedAt?: string;
+  code?: string;
+  message?: string;
+};
+export type ProviderUsageSnapshot = {
+  items: ProviderUsage[];
+  generatedAt: string;
+};
+
 export type PageResult<T> = {
   items: T[];
   total: number;

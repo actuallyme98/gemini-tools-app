@@ -6,7 +6,8 @@ import {
   type MockupTemplate,
   type Point,
 } from "../../services/agent.service";
-import { getErrorMessage } from "../../services/api.service";
+import { notifyApiError } from "../../utils/api-error-toast";
+import { toast } from "sonner";
 import { Button } from "../ui/button";
 import { AgentImage } from "./AgentImage";
 
@@ -39,7 +40,6 @@ export function TemplateEditor({
   const [mask, setMask] = useState(initial?.maskAssetId ?? "");
   const [overlay, setOverlay] = useState(initial?.overlayAssetId ?? "");
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
   const base =
     uploaded?.id === assetId
       ? uploaded
@@ -50,7 +50,6 @@ export function TemplateEditor({
   ) => {
     if (!file) return;
     setBusy(true);
-    setError("");
     try {
       const asset = await agentUpload(file, "template", category);
       if (kind === "base") {
@@ -60,7 +59,7 @@ export function TemplateEditor({
       else setOverlay(asset.id);
       await onSaved();
     } catch (cause) {
-      setError(getErrorMessage(cause));
+      notifyApiError(cause);
     } finally {
       setBusy(false);
     }
@@ -71,7 +70,6 @@ export function TemplateEditor({
       onSubmit={(event) => {
         event.preventDefault();
         setBusy(true);
-        setError("");
         void agentClient
           .post("/templates", {
             name,
@@ -83,8 +81,11 @@ export function TemplateEditor({
             ...(mask ? { maskAssetId: mask } : {}),
             ...(overlay ? { overlayAssetId: overlay } : {}),
           })
-          .then(onSaved)
-          .catch((cause) => setError(getErrorMessage(cause)))
+          .then(async () => {
+            await onSaved();
+            toast.success("Đã lưu template.");
+          })
+          .catch((cause) => notifyApiError(cause))
           .finally(() => setBusy(false));
       }}
     >
@@ -95,11 +96,6 @@ export function TemplateEditor({
         Vùng in dùng để ghép file thiết kế, giữ tỉ lệ và nội dung gốc. Mỗi lần
         lưu tạo một cấu hình riêng; tác vụ đã chạy giữ cấu hình cũ.
       </p>
-      {error && (
-        <p role="alert" className="text-sm text-red-700 whitespace-pre-wrap">
-          {error}
-        </p>
-      )}
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="text-sm">
           Tên template

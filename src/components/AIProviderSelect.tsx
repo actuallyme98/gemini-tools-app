@@ -1,4 +1,5 @@
-import { useId } from "react";
+import { useEffect, useId } from "react";
+import { toast } from "sonner";
 import { ChevronDown } from "lucide-react";
 import { useAIProvider } from "../hooks/use-ai-provider";
 import {
@@ -19,6 +20,13 @@ export function AIProviderSelect() {
     savedProviderUnavailable,
     isProcessingRequest,
   } = useAIProvider();
+  useEffect(() => {
+    if (savedProviderUnavailable)
+      toast.warning("Provider đã lưu không khả dụng. Hãy chọn provider khác.", {
+        id: "saved-provider-unavailable",
+      });
+    else toast.dismiss("saved-provider-unavailable");
+  }, [savedProviderUnavailable]);
   const routing = catalog?.providers.find(
     (entry) => entry.id === provider,
   )?.routing;
@@ -83,15 +91,9 @@ export function AIProviderSelect() {
         ) : error ? (
           <>
             <p>Không tải được danh sách. Lựa chọn hiện tại được giữ nguyên.</p>
-            <p className="text-red-700 whitespace-pre-line break-words">
-              {error}
-            </p>
           </>
         ) : (
           <>
-            {savedProviderUnavailable && (
-              <p>Provider đã lưu không khả dụng. Hãy chọn provider khác.</p>
-            )}
             {routing && (
               <>
                 <p>

@@ -6,6 +6,8 @@ import {
   type ReactNode,
 } from "react";
 import { AIProviderContext } from "./ai-provider-context";
+import { notifyApiError } from "../utils/api-error-toast";
+import { toast } from "sonner";
 import {
   DEFAULT_AI_PROVIDER,
   normalizeSavedAIProvider,
@@ -78,11 +80,13 @@ export function AIProviderProvider({ children }: { children: ReactNode }) {
         setImageModels(data);
         setImageModelsLoading(false);
         setImageModelsError(null);
+        toast.dismiss("image-model-catalog");
       },
       (error: unknown) => {
         if (controller.signal.aborted) return;
         setImageModelsLoading(false);
         setImageModelsError(getErrorMessage(error));
+        notifyApiError(error, { id: "image-model-catalog" });
       },
     );
     return () => controller.abort();
@@ -104,11 +108,13 @@ export function AIProviderProvider({ children }: { children: ReactNode }) {
         setCatalog(data);
         setLoading(false);
         setError(null);
+        toast.dismiss("provider-catalog");
       },
       (error: unknown) => {
         if (controller.signal.aborted) return;
         setLoading(false);
         setError(getErrorMessage(error));
+        notifyApiError(error, { id: "provider-catalog" });
       },
     );
     return () => controller.abort();

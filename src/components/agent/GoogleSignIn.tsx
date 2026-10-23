@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import { agentClient } from "../../services/agent.service";
 import { getErrorMessage } from "../../services/api.service";
+import { notifyApiError } from "../../utils/api-error-toast";
 import { Button } from "../ui/button";
 
 type GoogleIdentity = {
@@ -79,6 +81,13 @@ export function GoogleSignIn({
   const [error, setError] = useState("");
   const [ready, setReady] = useState(false);
   const [retry, setRetry] = useState(0);
+  useEffect(() => {
+    if (error) notifyApiError(new Error(error), { id: "google-sign-in-error" });
+    else toast.dismiss("google-sign-in-error");
+    return () => {
+      toast.dismiss("google-sign-in-error");
+    };
+  }, [error]);
   useEffect(() => {
     handler.current = onCredential;
   }, [onCredential]);
@@ -169,9 +178,6 @@ export function GoogleSignIn({
       )}
       {error && (
         <div className="grid gap-2">
-          <p role="alert" className="text-sm text-red-700">
-            {error}
-          </p>
           <Button
             type="button"
             variant="outline"

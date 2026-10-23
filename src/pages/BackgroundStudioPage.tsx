@@ -1,4 +1,6 @@
-import { useId, useState } from "react";
+import { useEffect, useId, useState } from "react";
+import { toast } from "sonner";
+import { notifyApiError } from "../utils/api-error-toast";
 import {
   ArrowRight,
   Check,
@@ -38,6 +40,21 @@ export function BackgroundStudioPage() {
   const successes = studio.jobs.filter((job) => job.status === "done").length;
   const failures = studio.jobs.filter((job) => job.status === "error").length;
   const overLimit = studio.total > MAX_BACKGROUND_RESULTS;
+  useEffect(() => {
+    if (studio.uploadError)
+      notifyApiError(new Error(studio.uploadError), {
+        id: "studio-upload-error",
+      });
+    else toast.dismiss("studio-upload-error");
+  }, [studio.uploadError]);
+  useEffect(() => {
+    if (overLimit)
+      toast.warning(
+        `Tối đa ${MAX_BACKGROUND_RESULTS} ảnh mỗi bộ. Giảm số ảnh tham chiếu hoặc số kết quả cho mỗi ảnh.`,
+        { id: "studio-batch-limit" },
+      );
+    else toast.dismiss("studio-batch-limit");
+  }, [overLimit]);
   const ready =
     !!studio.product.file &&
     !!studio.selected.length &&
@@ -173,14 +190,6 @@ export function BackgroundStudioPage() {
               </span>
             </label>
           </div>
-          {studio.uploadError && (
-            <p
-              role="alert"
-              className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800 break-words"
-            >
-              {studio.uploadError}
-            </p>
-          )}
           {!!studio.backgrounds.length && (
             <>
               <div className="flex flex-wrap items-center justify-between gap-2">
@@ -361,12 +370,6 @@ export function BackgroundStudioPage() {
                 </p>
               )}
             </div>
-            {overLimit && (
-              <p role="alert" className="text-sm text-red-700">
-                Tối đa {MAX_BACKGROUND_RESULTS} ảnh mỗi bộ. Giảm số ảnh tham
-                chiếu hoặc số kết quả cho mỗi ảnh.
-              </p>
-            )}
           </div>
         </Card>
       </div>
@@ -463,14 +466,6 @@ export function BackgroundStudioPage() {
             Dừng sẽ giữ ảnh đã hoàn tất. Tác vụ đang chạy có thể vẫn được
             provider xử lý.
           </p>
-        )}
-        {studio.batchError && (
-          <div
-            role="alert"
-            className="rounded-lg border border-red-200 bg-white p-3 text-sm text-red-800 whitespace-pre-line break-words"
-          >
-            {studio.batchError}
-          </div>
         )}
       </Card>
       {studio.jobs.length ? (

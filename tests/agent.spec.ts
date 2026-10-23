@@ -25,6 +25,10 @@ async function setup(page: Page, options: { skipLogin?: boolean } = {}) {
   let savedPrompt = "",
     started = false,
     templatePayload: Record<string, unknown> | undefined;
+  let failMessage = false;
+  let execution: Record<string, unknown> | undefined;
+  let replanBody: Record<string, unknown> | undefined;
+  const messageIds: unknown[] = [];
   await page.route("**/api/**", async (route) => {
     const url = new URL(route.request().url()),
       path = url.pathname,
@@ -124,6 +128,14 @@ async function setup(page: Page, options: { skipLogin?: boolean } = {}) {
       return route.fulfill({ status: 201, json: conversation });
     }
     if (path.endsWith("/messages")) {
+      messageIds.push(body().id);
+      if (failMessage) {
+        failMessage = false;
+        return route.fulfill({
+          status: 503,
+          json: { message: "Không gửi được câu trả lời. Hãy thử lại." },
+        });
+      }
       message = body();
       savedPrompt =
         "QUY TẮC BẮT BUỘC:\nẢNH 1 là ảnh đích, ẢNH 2 là nguồn. Không tạo watermark.\nThay ornament theo yêu cầu.";
@@ -151,6 +163,35 @@ async function setup(page: Page, options: { skipLogin?: boolean } = {}) {
         { id: randomUUID(), role: "user", text: message.text },
       ];
       return route.fulfill({ status: 202, json: run });
+    }
+    if (path.endsWith("/replan")) {
+      replanBody = body();
+      run = {
+        ...run,
+        ...replanBody,
+        brief: `${run!.brief}\n${replanBody.answer}`,
+        state: "draft",
+        questions: [],
+        clarifications: [],
+        pendingInputs: undefined,
+        updatedAt: new Date().toISOString(),
+      };
+      execution!.runIds = [run.id];
+      return route.fulfill({ status: 201, json: { run, execution } });
+    }
+    if (path.endsWith("/inputs")) {
+      const input = body();
+      const pendingInputs = {
+        sourceIds: input.sourceIds,
+        targetIds: input.targetIds,
+        templateIds: input.templateIds,
+      };
+      run = {
+        ...run,
+        pendingInputs,
+        updatedAt: new Date(Date.now() + 1).toISOString(),
+      };
+      return route.fulfill({ json: run });
     }
     if (path.endsWith("/plan")) {
       const data = body();
@@ -185,7 +226,13 @@ async function setup(page: Page, options: { skipLogin?: boolean } = {}) {
       return route.fulfill({ json: run ? [run] : [] });
     if (/\/conversations\/[^/]+$/.test(path))
       return route.fulfill({
-        json: { conversation, runs: run ? [run] : [], steps, results },
+        json: {
+          conversation,
+          runs: run ? [run] : [],
+          steps,
+          results,
+          workflowExecutions: execution ? [execution] : [],
+        },
       });
     return route.fulfill({
       status: 400,
@@ -207,6 +254,92 @@ async function setup(page: Page, options: { skipLogin?: boolean } = {}) {
   }
   return {
     errors,
+    messageIds,
+    failNextMessage() {
+      failMessage = true;
+    },
+    get replan() {
+      return replanBody;
+    },
+    get run() {
+      return run;
+    },
+    designStage() {
+      run = {
+        ...run,
+        operation: "design",
+        summary: "Bước tạo thiết kế mới",
+        targetIds: [],
+        templateIds: [],
+        updatedAt: new Date(Date.now() + 1).toISOString(),
+      };
+    },
+    changeInOtherTab() {
+      run = {
+        ...run,
+        pendingInputs: {
+          sourceIds: run!.targetIds,
+          targetIds: run!.sourceIds,
+          templateIds: [],
+        },
+        updatedAt: new Date(Date.now() + 1).toISOString(),
+      };
+    },
+    ask({ workflow = false, legacy = false, missingReference = false } = {}) {
+      const clarifications = missingReference
+        ? [
+            {
+              question: "Hãy chọn ảnh tham chiếu cần chỉnh sửa.",
+              options: [],
+              input: "reference",
+            },
+          ]
+        : [
+            {
+              question: "Thao tác cần thực hiện?",
+              options: [
+                {
+                  label: "Thay toàn bộ sản phẩm",
+                  description: "Giữ bối cảnh ảnh tham chiếu.",
+                },
+                { label: "Chỉ chuyển hình in" },
+              ],
+            },
+            {
+              question: "Chi tiết cần giữ?",
+              options: [
+                { label: "Giữ toàn bộ thiết kế nguồn" },
+                { label: "Chỉ giữ hình minh họa" },
+              ],
+            },
+          ];
+      run = {
+        ...run,
+        state: "needs_input",
+        questions: clarifications.map((value) => value.question),
+        ...(legacy ? {} : { clarifications }),
+        updatedAt: new Date().toISOString(),
+      };
+      if (workflow) {
+        execution = {
+          id: randomUUID(),
+          stage: 0,
+          runIds: [run.id],
+          workflow: {
+            name: "Workflow kiểm thử",
+            revision: 1,
+            steps: [{ name: "Mockup", operation: "mockup_ai", count: 1 }],
+          },
+        };
+        run.workflow = {
+          executionId: execution.id,
+          name: "Workflow kiểm thử",
+          revision: 1,
+          stage: 0,
+          total: 1,
+        };
+      }
+    },
     get message() {
       return message;
     },
@@ -245,6 +378,579 @@ async function setup(page: Page, options: { skipLogin?: boolean } = {}) {
     },
   };
 }
+
+async function prepareMockup(page: Page) {
+  const fixture = await setup(page);
+  await page.getByLabel("Quy trình", { exact: true }).selectOption("mockup_ai");
+  await page
+    .getByLabel("Ảnh sản phẩm/thiết kế nguồn", { exact: true })
+    .setInputFiles(image("source.png"));
+  await expect(
+    page.locator(".agent-composer").getByText("source.png", { exact: true }),
+  ).toBeVisible();
+  await page
+    .getByLabel("Ảnh tham chiếu — cảnh cần giữ", { exact: true })
+    .setInputFiles(image("reference.png"));
+  await expect(
+    page.locator(".agent-composer").getByText("reference.png", { exact: true }),
+  ).toBeVisible();
+  await page
+    .getByLabel("Giao việc hoặc yêu cầu chỉnh tiếp")
+    .fill("Thay sản phẩm trong ảnh tham chiếu bằng sản phẩm nguồn.");
+  await page.getByRole("button", { name: "Gửi yêu cầu", exact: true }).click();
+  await expect(
+    page.getByText("Chờ kiểm tra final prompt", { exact: true }),
+  ).toBeVisible();
+  return fixture;
+}
+
+for (const workflow of [false, true])
+  test(`changed images invalidate the ${workflow ? "workflow" : "chat"} plan and reanalysis uses the new photos`, async ({
+    page,
+  }) => {
+    const fixture = await prepareMockup(page);
+    if (workflow) {
+      fixture.ask({ workflow: true });
+      await expect(
+        page.getByRole("form", { name: "Bổ sung thông tin cho Agent" }),
+      ).toBeVisible();
+      await page
+        .getByRole("button", {
+          name: "Chế độ duyệt: Manual approval",
+          exact: true,
+        })
+        .click();
+      await page.getByRole("menuitemradio", { name: /Auto approval/ }).click();
+      await expect(
+        page.getByText("Chờ kiểm tra final prompt", { exact: true }),
+      ).toBeVisible();
+    }
+    const oldSources = fixture.message?.sourceIds;
+    await page
+      .getByLabel("Đổi ảnh nguồn source.png", { exact: true })
+      .setInputFiles(image("new-product.png"));
+    const stale = page.getByRole("region", {
+      name: "Ảnh đầu vào đã thay đổi",
+      exact: true,
+    });
+    await expect(stale).toBeVisible();
+    await expect(
+      page
+        .locator(".agent-composer")
+        .getByText("new-product.png", { exact: true }),
+    ).toBeVisible();
+    if (!workflow)
+      await expect(
+        page.getByRole("button", { name: "Bắt đầu xử lý 1 ảnh", exact: true }),
+      ).toBeDisabled();
+    expect(fixture.run?.pendingInputs).toBeTruthy();
+    expect(fixture.run?.sourceIds).toEqual(oldSources);
+    await page
+      .getByLabel("Đổi ảnh tham chiếu reference.png", { exact: true })
+      .setInputFiles(image("new-scene.png"));
+    await page
+      .getByLabel("Giao việc hoặc yêu cầu chỉnh tiếp")
+      .fill("Yêu cầu đang nhập dở");
+    await stale
+      .getByRole("button", { name: "Phân tích lại ảnh mới", exact: true })
+      .click();
+    await expect(
+      page.getByText("Chờ kiểm tra final prompt", { exact: true }),
+    ).toBeVisible();
+    const payload = workflow ? fixture.replan : fixture.message;
+    expect(payload?.approvalMode).toBe(workflow ? "auto" : "manual");
+    expect(payload?.sourceIds).not.toEqual(oldSources);
+    expect(payload?.sourceIds).toEqual(fixture.run?.sourceIds);
+    expect(payload?.targetIds).toEqual(fixture.run?.targetIds);
+    expect(fixture.run?.pendingInputs).toBeUndefined();
+    expect(fixture.started).toBe(false);
+    await expect(
+      page.getByLabel("Giao việc hoặc yêu cầu chỉnh tiếp"),
+    ).toHaveValue("Yêu cầu đang nhập dở");
+    await expect(
+      page.getByRole("button", { name: "Bắt đầu xử lý 1 ảnh", exact: true }),
+    ).toBeEnabled();
+    await page
+      .getByRole("button", { name: "Bắt đầu xử lý 1 ảnh", exact: true })
+      .click();
+    await expect(
+      page.getByText("Đang xử lý", { exact: true }).first(),
+    ).toBeVisible();
+    await expect(
+      page.getByLabel("Đổi ảnh nguồn new-product.png", { exact: true }),
+    ).toBeDisabled();
+    expect(fixture.started).toBe(true);
+    expect(fixture.errors).toEqual([]);
+  });
+
+test("pending images survive reload and an update from another tab blocks start until its photos are loaded", async ({
+  page,
+}) => {
+  const fixture = await prepareMockup(page);
+  await page
+    .getByLabel("Đổi ảnh nguồn source.png", { exact: true })
+    .setInputFiles(image("new-product.png"));
+  await expect(
+    page.getByRole("region", { name: "Ảnh đầu vào đã thay đổi", exact: true }),
+  ).toBeVisible();
+  await page.reload();
+  await page
+    .getByRole("navigation", { name: "Lịch sử công việc" })
+    .getByRole("button")
+    .first()
+    .click();
+  await expect(
+    page
+      .locator(".agent-composer")
+      .getByText("new-product.png", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Bắt đầu xử lý 1 ảnh", exact: true }),
+  ).toBeDisabled();
+  fixture.changeInOtherTab();
+  const load = page.getByRole("button", {
+    name: "Nạp ảnh đã cập nhật",
+    exact: true,
+  });
+  await expect(load).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Phân tích lại ảnh mới", exact: true }),
+  ).toBeDisabled();
+  await load.click();
+  await expect(
+    page.getByRole("button", { name: "Phân tích lại ảnh mới", exact: true }),
+  ).toBeEnabled();
+  await expect(
+    page.getByRole("button", { name: "Bắt đầu xử lý 1 ảnh", exact: true }),
+  ).toBeDisabled();
+  expect(fixture.started).toBe(false);
+  expect(fixture.errors).toEqual([]);
+});
+
+test("future reference selections do not invalidate a design stage but replacing its source does", async ({
+  page,
+}) => {
+  const fixture = await prepareMockup(page);
+  fixture.designStage();
+  await expect(
+    page.getByText("Bước tạo thiết kế mới", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Bắt đầu xử lý 1 ảnh", exact: true }),
+  ).toBeEnabled();
+  await page
+    .getByLabel("Đổi ảnh nguồn source.png", { exact: true })
+    .setInputFiles(image("new-design.png"));
+  await expect(
+    page.getByRole("region", { name: "Ảnh đầu vào đã thay đổi", exact: true }),
+  ).toBeVisible();
+  expect(fixture.run?.pendingInputs).toEqual({
+    sourceIds: expect.any(Array),
+    targetIds: [],
+    templateIds: [],
+  });
+  await expect(
+    page.getByRole("button", { name: "Phân tích lại ảnh mới", exact: true }),
+  ).toBeEnabled();
+  expect(fixture.started).toBe(false);
+});
+
+test("image update errors keep the original selection and show a toast", async ({
+  page,
+}) => {
+  const fixture = await prepareMockup(page);
+  await page.route("**/api/agent/runs/*/inputs", (route) =>
+    route.fulfill({
+      status: 409,
+      json: { message: "Kế hoạch hoặc bộ ảnh vừa thay đổi. Hãy tải lại." },
+    }),
+  );
+  await page
+    .getByLabel("Đổi ảnh nguồn source.png", { exact: true })
+    .setInputFiles(image("new-product.png"));
+  await expect(
+    page.locator("[data-sonner-toast][data-type=error]"),
+  ).toContainText("Kế hoạch hoặc bộ ảnh vừa thay đổi");
+  await expect(
+    page.locator(".agent-composer").getByText("source.png", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page
+      .locator(".agent-composer")
+      .getByText("new-product.png", { exact: true }),
+  ).toHaveCount(0);
+  expect(fixture.started).toBe(false);
+  expect(fixture.errors).toEqual([]);
+});
+
+test("approval mode defaults to manual, is sent with requests, restores from history and resets for a new conversation", async ({
+  page,
+}) => {
+  const fixture = await setup(page);
+  await page
+    .getByRole("button", { name: "Chế độ duyệt: Manual approval", exact: true })
+    .click();
+  await expect(
+    page.getByRole("menuitemradio", { name: /Manual approval/ }),
+  ).toBeChecked();
+  await page.getByRole("menuitemradio", { name: /Auto approval/ }).click();
+  await expect(
+    page.getByRole("button", {
+      name: "Chế độ duyệt: Auto approval",
+      exact: true,
+    }),
+  ).toBeVisible();
+  await page
+    .getByLabel("Giao việc hoặc yêu cầu chỉnh tiếp")
+    .fill("Tạo bộ ý tưởng cho sản phẩm mùa đông");
+  await page.getByRole("button", { name: "Gửi yêu cầu", exact: true }).click();
+  await expect(
+    page.getByText("Chờ kiểm tra final prompt", { exact: true }),
+  ).toBeVisible();
+  expect(fixture.message?.approvalMode).toBe("auto");
+  expect(fixture.started).toBe(false);
+  await page.reload();
+  await page
+    .getByRole("navigation", { name: "Lịch sử công việc" })
+    .getByRole("button")
+    .first()
+    .click();
+  await expect(
+    page.getByRole("button", {
+      name: "Chế độ duyệt: Auto approval",
+      exact: true,
+    }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Trò chuyện mới", exact: true })
+    .click();
+  await expect(
+    page.getByRole("button", {
+      name: "Chế độ duyệt: Manual approval",
+      exact: true,
+    }),
+  ).toBeVisible();
+  expect(fixture.errors).toEqual([]);
+});
+
+for (const workflow of [false, true])
+  test(`switching to auto approval continues waiting ${workflow ? "workflow" : "chat"} with the first recommendations`, async ({
+    page,
+  }) => {
+    const fixture = await prepareMockup(page);
+    expect(fixture.message?.approvalMode).toBe("manual");
+    fixture.ask({ workflow });
+    await expect(
+      page.getByRole("form", { name: "Bổ sung thông tin cho Agent" }),
+    ).toBeVisible();
+    await page
+      .getByLabel("Giao việc hoặc yêu cầu chỉnh tiếp")
+      .fill("Bản nháp chưa gửi");
+    await page
+      .getByRole("button", {
+        name: "Chế độ duyệt: Manual approval",
+        exact: true,
+      })
+      .click();
+    await page.getByRole("menuitemradio", { name: /Auto approval/ }).click();
+    await expect(
+      page.getByText("Chờ kiểm tra final prompt", { exact: true }),
+    ).toBeVisible();
+    const payload = workflow ? fixture.replan : fixture.message;
+    expect(payload?.approvalMode).toBe("auto");
+    const answer = workflow ? payload?.answer : payload?.text;
+    expect(answer).toContain("Thay toàn bộ sản phẩm");
+    expect(answer).toContain("Giữ toàn bộ thiết kế nguồn");
+    expect(answer).not.toContain("Chỉ chuyển hình in");
+    expect(fixture.started).toBe(false);
+    await expect(
+      page.getByLabel("Giao việc hoặc yêu cầu chỉnh tiếp"),
+    ).toHaveValue("Bản nháp chưa gửi");
+    expect(fixture.errors).toEqual([]);
+  });
+
+test("auto approval keeps missing attachments manual and its menu fits small screens with keyboard support", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const fixture = await prepareMockup(page);
+  fixture.ask({ missingReference: true });
+  const form = page.getByRole("form", { name: "Bổ sung thông tin cho Agent" });
+  await expect(form).toBeVisible();
+  const trigger = page.getByRole("button", {
+    name: "Chế độ duyệt: Manual approval",
+    exact: true,
+  });
+  await trigger.focus();
+  await trigger.press("Enter");
+  const menu = page.getByRole("menu");
+  await expect(menu).toBeInViewport();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(
+    390,
+  );
+  await page.screenshot({
+    path: test.info().outputPath("approval-menu-mobile.png"),
+    fullPage: true,
+  });
+  await page.getByRole("menuitemradio", { name: /Auto approval/ }).click();
+  await expect(form).toBeVisible();
+  expect(fixture.messageIds).toHaveLength(1);
+  expect(fixture.started).toBe(false);
+  expect(fixture.errors).toEqual([]);
+});
+
+test("sidebar previews share image selection and replacement with the composer", async ({
+  page,
+}) => {
+  const fixture = await setup(page);
+  await page
+    .getByLabel("Ảnh sản phẩm/thiết kế nguồn", { exact: true })
+    .setInputFiles(image("source.png"));
+  const source = page.getByRole("list", {
+    name: "Ảnh nguồn đã chọn",
+    exact: true,
+  });
+  await expect(
+    source.getByRole("img", { name: "Xem trước nguồn: source.png" }),
+  ).toBeVisible();
+  await page
+    .getByLabel("Đổi ảnh nguồn source.png", { exact: true })
+    .setInputFiles(image("replacement.png"));
+  await expect(
+    source.getByRole("img", { name: "Xem trước nguồn: replacement.png" }),
+  ).toBeVisible();
+  await expect(
+    page.locator(".agent-composer").getByText("source.png", { exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    page
+      .locator(".agent-composer")
+      .getByText("replacement.png", { exact: true }),
+  ).toBeVisible();
+  await page
+    .getByLabel("Ảnh tham chiếu — cảnh cần giữ", { exact: true })
+    .setInputFiles(image("reference.png"));
+  await expect(
+    page.getByRole("list", { name: "Ảnh tham chiếu đã chọn" }).getByRole("img"),
+  ).toBeVisible();
+  await page
+    .getByRole("button", {
+      name: "Bỏ ảnh tham chiếu reference.png",
+      exact: true,
+    })
+    .click();
+  await expect(
+    page.locator(".agent-composer").getByText("reference.png", { exact: true }),
+  ).toHaveCount(0);
+  expect(fixture.errors).toEqual([]);
+});
+
+test("clarifications require explicit choices, retain answers on failure and retry without duplication", async ({
+  page,
+}) => {
+  const fixture = await prepareMockup(page);
+  fixture.ask();
+  const form = page.getByRole("form", { name: "Bổ sung thông tin cho Agent" });
+  await expect(form).toBeVisible();
+  await expect(
+    form.getByRole("radio", { name: /Thay toàn bộ sản phẩm/ }),
+  ).not.toBeChecked();
+  const send = form.getByRole("button", {
+    name: "Gửi câu trả lời",
+    exact: true,
+  });
+  await expect(send).toBeDisabled();
+  await form.getByRole("radio", { name: /Thay toàn bộ sản phẩm/ }).check();
+  await form
+    .getByRole("group", { name: "2. Chi tiết cần giữ?" })
+    .getByRole("radio", { name: "Ý khác", exact: true })
+    .check();
+  await form
+    .getByLabel("Câu trả lời khác cho câu 2")
+    .fill("Giữ chữ Oliver và màu sắc nguyên bản.");
+  await page
+    .getByLabel("Giao việc hoặc yêu cầu chỉnh tiếp")
+    .fill("Bản nháp chưa gửi của tôi");
+  fixture.failNextMessage();
+  await send.click();
+  await expect(
+    page.locator("[data-sonner-toast][data-type=error]"),
+  ).toContainText("Không gửi được câu trả lời");
+  await expect(
+    form.getByRole("radio", { name: /Thay toàn bộ sản phẩm/ }),
+  ).toBeChecked();
+  await send.click();
+  await expect(
+    page.getByText("Chờ kiểm tra final prompt", { exact: true }),
+  ).toBeVisible();
+  expect(fixture.messageIds.at(-1)).toBe(fixture.messageIds.at(-2));
+  expect(fixture.message?.text).toContain(
+    "Thay sản phẩm trong ảnh tham chiếu bằng sản phẩm nguồn.",
+  );
+  expect(fixture.message?.text).toContain("Thay toàn bộ sản phẩm");
+  expect(fixture.message?.text).toContain("Giữ chữ Oliver");
+  await expect(
+    page.getByLabel("Giao việc hoặc yêu cầu chỉnh tiếp"),
+  ).toHaveValue("Bản nháp chưa gửi của tôi");
+  await expect(
+    page.locator("[data-sonner-toast][data-type=success]").last(),
+  ).toBeVisible();
+  expect(fixture.started).toBe(false);
+  expect(fixture.errors).toEqual([]);
+  await page.screenshot({
+    path: test.info().outputPath("clarification-resumed.png"),
+    fullPage: true,
+  });
+});
+
+test("missing-image clarification requires reanalysis after a new attachment is added", async ({
+  page,
+}) => {
+  const fixture = await setup(page);
+  await page
+    .getByLabel("Ảnh sản phẩm/thiết kế nguồn", { exact: true })
+    .setInputFiles(image("source.png"));
+  await page
+    .getByLabel("Giao việc hoặc yêu cầu chỉnh tiếp")
+    .fill("Tạo mockup từ ảnh tham chiếu");
+  await page.getByRole("button", { name: "Gửi yêu cầu", exact: true }).click();
+  await expect(
+    page.getByText("Chờ kiểm tra final prompt", { exact: true }),
+  ).toBeVisible();
+  const oldTargets = fixture.message?.targetIds;
+  fixture.ask({ missingReference: true });
+  const form = page.getByRole("form", { name: "Bổ sung thông tin cho Agent" });
+  await expect(form).toBeVisible();
+  await expect(
+    form.getByRole("button", { name: "Gửi câu trả lời", exact: true }),
+  ).toBeDisabled();
+  await form
+    .getByRole("button", { name: "Chọn ảnh / template", exact: true })
+    .click();
+  await page
+    .getByLabel("Ảnh tham chiếu — cảnh cần giữ", { exact: true })
+    .setInputFiles(image("new-reference.png"));
+  await expect(
+    page.getByRole("region", { name: "Ảnh đầu vào đã thay đổi", exact: true }),
+  ).toBeVisible();
+  await expect(form).toHaveCount(0);
+  await page
+    .getByRole("button", { name: "Phân tích lại ảnh mới", exact: true })
+    .click();
+  await expect(
+    page.getByText("Chờ kiểm tra final prompt", { exact: true }),
+  ).toBeVisible();
+  expect(fixture.message?.targetIds).not.toEqual(oldTargets);
+  expect(fixture.started).toBe(false);
+});
+
+test("unavailable saved model is reported as a warning toast and clears after selection", async ({
+  page,
+}) => {
+  await page.addInitScript(() =>
+    localStorage.setItem(
+      "creative-studio.ai-image-model.shopaikey",
+      "retired-image-model",
+    ),
+  );
+  await setup(page);
+  await expect(
+    page.locator("[data-sonner-toast][data-type=warning]"),
+  ).toContainText("Model đã lưu không còn khả dụng");
+  await page
+    .getByRole("combobox", { name: "Model tạo / sửa ảnh", exact: true })
+    .selectOption("gemini-3.1-flash-image-preview");
+  await expect(
+    page.locator("[data-sonner-toast][data-type=warning]"),
+  ).toHaveCount(0);
+});
+
+test("free text answers keep the original task and resume its workflow stage", async ({
+  page,
+}) => {
+  const fixture = await prepareMockup(page);
+  fixture.ask({ workflow: true, legacy: true });
+  await expect(
+    page.getByRole("form", { name: "Bổ sung thông tin cho Agent" }),
+  ).toBeVisible();
+  await page
+    .getByLabel("Giao việc hoặc yêu cầu chỉnh tiếp")
+    .fill("1. Giữ toàn bộ thiết kế. 2. Dùng thiết lập hiện tại.");
+  await page.getByRole("button", { name: "Gửi yêu cầu", exact: true }).click();
+  await expect(
+    page.getByText("Chờ kiểm tra final prompt", { exact: true }),
+  ).toBeVisible();
+  expect(fixture.replan?.answer).toContain("Giữ toàn bộ thiết kế");
+  expect(fixture.replan?.sourceIds).toEqual(fixture.message?.sourceIds);
+  expect(fixture.replan?.targetIds).toEqual(fixture.message?.targetIds);
+  await expect(
+    page.getByLabel("Giao việc hoặc yêu cầu chỉnh tiếp"),
+  ).toHaveValue("");
+  expect(fixture.started).toBe(false);
+  expect(fixture.errors).toEqual([]);
+});
+
+for (const width of [1440, 390])
+  test(`chat width and one page scroll work at ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 850 });
+    const fixture = await prepareMockup(page);
+    fixture.ask();
+    await expect(
+      page.getByRole("form", { name: "Bổ sung thông tin cho Agent" }),
+    ).toBeVisible();
+    const layout = await page.evaluate(() => {
+      const main = document.getElementById("main-content")!;
+      const thread = document
+        .querySelector(".conversation-thread")!
+        .getBoundingClientRect();
+      const composer = document
+        .querySelector(".agent-composer")!
+        .getBoundingClientRect();
+      main.scrollTop = main.scrollHeight;
+      return {
+        threadWidth: thread.width,
+        composerWidth: composer.width,
+        left: thread.left - composer.left,
+        documentHeight: document.documentElement.scrollHeight,
+        viewport: innerHeight,
+        documentWidth: document.documentElement.scrollWidth,
+        width: innerWidth,
+        mainScrolled: main.scrollTop,
+        contextOverflow: getComputedStyle(
+          document.querySelector(".agent-context")!,
+        ).overflowY,
+        boxes: [
+          ...document.querySelectorAll(
+            "#root, body, .agent-application, .workspace-body, .workspace-header, .workspace-main",
+          ),
+        ].map((element) => ({
+          name: element.tagName + "." + element.className,
+          top: element.getBoundingClientRect().top,
+          height: element.getBoundingClientRect().height,
+          overflow: getComputedStyle(element).overflowY,
+        })),
+      };
+    });
+    expect(Math.abs(layout.threadWidth - layout.composerWidth)).toBeLessThan(2);
+    expect(Math.abs(layout.left)).toBeLessThan(2);
+    expect(layout.documentHeight, JSON.stringify(layout)).toBeLessThanOrEqual(
+      layout.viewport,
+    );
+    expect(layout.documentWidth).toBeLessThanOrEqual(layout.width);
+    expect(layout.mainScrolled).toBeGreaterThan(0);
+    expect(layout.contextOverflow).toBe("visible");
+    await expect(page.locator(".workspace-header")).toBeInViewport();
+    await expect(
+      page.getByRole("button", { name: "Gửi yêu cầu", exact: true }),
+    ).toBeInViewport();
+    await page.screenshot({
+      path: test.info().outputPath(`chat-layout-${width}.png`),
+      fullPage: true,
+    });
+    expect(fixture.errors).toEqual([]);
+  });
 
 test("employee builds a reusable workflow and launches it with selected references", async ({
   page,
@@ -412,14 +1118,22 @@ test("full conversation and sidebar history load on scroll and survive polling w
   ).toHaveCount(0);
   await expect.poll(() => page.locator(".chat-message").count()).toBe(120);
   const sidebar = page.getByRole("navigation", { name: "Lịch sử công việc" });
+  await expect(sidebar).toHaveCSS("overflow-y", "visible");
+  await expect(sidebar.locator("..")).toHaveCSS("overflow-y", "visible");
+  await expect(page.locator(".desktop-sidebar .workspace-sidebar")).toHaveCSS(
+    "overflow-y",
+    "auto",
+  );
   await sidebar.evaluate((element) => {
-    element.scrollTop = element.scrollHeight;
+    const scroll = element.closest("[data-history-scroll]")!;
+    scroll.scrollTop = scroll.scrollHeight;
   });
   await expect(
     sidebar.getByRole("button", { name: "Hội thoại 31", exact: true }),
   ).toHaveCount(1);
   await sidebar.evaluate((element) => {
-    element.scrollTop = element.scrollHeight;
+    const scroll = element.closest("[data-history-scroll]")!;
+    scroll.scrollTop = scroll.scrollHeight;
   });
   await expect(
     sidebar.getByRole("button", { name: "Hội thoại 65", exact: true }),
@@ -521,9 +1235,11 @@ test("recent conversations refresh independently of library errors and open real
   await recent
     .getByRole("button", { name: "Làm mới hội thoại", exact: true })
     .click();
-  await expect(recent.getByRole("alert")).toContainText(
-    "Không kết nối được lịch sử",
-  );
+  await expect(
+    page
+      .locator("[data-sonner-toast][data-type=error]")
+      .filter({ hasText: "Không kết nối được lịch sử" }),
+  ).toContainText("Không kết nối được lịch sử");
   await expect(
     recent.getByRole("button", { name: conversation.title, exact: true }),
   ).toBeVisible();
@@ -531,7 +1247,11 @@ test("recent conversations refresh independently of library errors and open real
   await recent
     .getByRole("button", { name: "Làm mới hội thoại", exact: true })
     .click();
-  await expect(recent.getByRole("alert")).toHaveCount(0);
+  await expect(
+    page
+      .locator("[data-sonner-toast][data-type=error]")
+      .filter({ hasText: "Không kết nối được lịch sử" }),
+  ).toHaveCount(0);
   await page.reload();
   await recent
     .getByRole("button", { name: conversation.title, exact: true })
@@ -566,9 +1286,9 @@ test("new saved conversations remain in history if submitting the first task fai
       exact: true,
     }),
   ).toHaveCount(1);
-  await expect(page.getByRole("alert")).toContainText(
-    "Hàng đợi tạm thời không sẵn sàng",
-  );
+  await expect(
+    page.locator("[data-sonner-toast][data-type=error]"),
+  ).toContainText("Hàng đợi tạm thời không sẵn sàng");
   await page.reload();
   await expect(
     recent.getByRole("button", {
@@ -709,9 +1429,9 @@ test("session restoration blocks the entire workspace and handles expired or una
     }),
   );
   await page.reload();
-  await expect(page.getByRole("alert")).toContainText(
-    "Không kết nối được máy chủ.",
-  );
+  await expect(
+    page.locator("[data-sonner-toast][data-type=error]"),
+  ).toContainText("Không kết nối được máy chủ.");
   await expect(page.locator(".desktop-sidebar, .agent-tool-page")).toHaveCount(
     0,
   );
@@ -915,9 +1635,9 @@ for (const status of [401, 403]) {
     await page
       .getByRole("button", { name: "Continue with Google (test)" })
       .click();
-    await expect(page.getByRole("alert")).toContainText(
-      "Email không thuộc domain được phép.",
-    );
+    await expect(
+      page.locator("[data-sonner-toast][data-type=error]"),
+    ).toContainText("Email không thuộc domain được phép.");
     await expect(
       page.getByText("Phiên đăng nhập đã hết hạn", { exact: false }),
     ).toHaveCount(0);
@@ -946,9 +1666,9 @@ test("Google SDK failure has a retry and keeps password login available", async 
 }) => {
   const fixture = await googleSetup(page, true);
   await page.reload();
-  await expect(page.getByRole("alert")).toContainText(
-    "Không tải được đăng nhập Google",
-  );
+  await expect(
+    page.locator("[data-sonner-toast][data-type=error]"),
+  ).toContainText("Không tải được đăng nhập Google");
   await expect(
     page.getByRole("button", { name: "Đăng nhập", exact: true }),
   ).toBeEnabled();
@@ -1086,11 +1806,15 @@ test("agent preserves edited prompt, locks the image model while running, restor
   await page
     .getByLabel("Ảnh sản phẩm/thiết kế nguồn", { exact: true })
     .setInputFiles(image("product.png"));
-  await expect(page.getByText("product.png", { exact: true })).toBeVisible();
+  await expect(
+    page.locator(".agent-composer").getByText("product.png", { exact: true }),
+  ).toBeVisible();
   await page
     .getByLabel("Ảnh tham chiếu — cảnh cần giữ", { exact: true })
     .setInputFiles(image("reference.png"));
-  await expect(page.getByText("reference.png", { exact: true })).toBeVisible();
+  await expect(
+    page.locator(".agent-composer").getByText("reference.png", { exact: true }),
+  ).toBeVisible();
   await page
     .getByLabel("Giao việc hoặc yêu cầu chỉnh tiếp")
     .fill("Thay ornament trong ảnh tham chiếu bằng sản phẩm nguồn.");

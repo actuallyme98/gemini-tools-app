@@ -120,6 +120,40 @@ async function setup(page: Page, role: "admin" | "designer" = "admin") {
     if (["/conversations", "/assets", "/templates", "/runs"].includes(path))
       return json([]);
     if (path.startsWith("/admin/") && method === "GET") adminReads.push(path);
+    if (path === "/admin/provider-usage")
+      return json({
+        generatedAt: now,
+        items: [
+          {
+            id: "shopaikey",
+            label: "Provider 1",
+            status: "available",
+            balance: 41.07,
+            used: 28.93,
+            total: 70,
+            totalBasis: "provider",
+            usedPercent: (28.93 / 70) * 100,
+            checkedAt: now,
+          },
+          {
+            id: "vyceai",
+            label: "Provider văn bản",
+            status: "available",
+            balance: 174.55,
+            used: 3.95,
+            total: 178.5,
+            totalBasis: "balance_plus_used",
+            usedPercent: (3.95 / 178.5) * 100,
+            checkedAt: now,
+          },
+          {
+            id: "gemini",
+            label: "Provider 2",
+            status: "unsupported",
+            message: "Kết nối này chưa hỗ trợ truy vấn số dư bằng API key.",
+          },
+        ],
+      });
     if (path === "/admin/overview") {
       if (overviewFailure)
         return json({ message: "Không truy cập được dữ liệu Agent." }, 503);
@@ -409,6 +443,118 @@ test("admin dashboard shows real metrics, accessible tabs and works at mobile wi
   expect(fixture.unexpected).toEqual([]);
 });
 
+test("provider balances show real usage proportions and remain readable on mobile", async ({
+  page,
+}) => {
+  const fixture = await setup(page);
+  await page.goto("/#admin");
+  const balances = page.getByRole("region", {
+    name: "Số dư provider",
+    exact: true,
+  });
+  await expect(
+    balances.getByRole("article", { name: "Số dư Provider 1", exact: true }),
+  ).toContainText("$41.07");
+  const progress = balances.getByRole("progressbar", {
+    name: "Mức sử dụng Provider 1",
+    exact: true,
+  });
+  await expect(progress).toHaveAttribute("max", "100");
+  await expect(progress).toHaveJSProperty("value", (28.93 / 70) * 100);
+  await expect(
+    balances.getByRole("article", {
+      name: "Số dư Provider văn bản",
+      exact: true,
+    }),
+  ).toContainText("không phải hạn mức tháng");
+  const unsupported = balances.getByRole("article", {
+    name: "Số dư Provider 2",
+    exact: true,
+  });
+  await expect(unsupported).toContainText("Chưa hỗ trợ số dư");
+  await expect(unsupported.getByRole("progressbar")).toHaveCount(0);
+  await page.screenshot({
+    path: test.info().outputPath("provider-balances-desktop.png"),
+    fullPage: true,
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(
+    390,
+  );
+  await balances.scrollIntoViewIfNeeded();
+  await page.screenshot({
+    path: test.info().outputPath("provider-balances-mobile.png"),
+  });
+  expect(fixture.errors).toEqual([]);
+  expect(fixture.unexpected).toEqual([]);
+});
+
+test("one provider balance failure does not hide other balances or display a fake zero", async ({
+  page,
+}) => {
+  const fixture = await setup(page);
+  let recovered = false;
+  await page.route("**/api/agent/admin/provider-usage", (route) =>
+    route.fulfill({
+      json: {
+        generatedAt: new Date().toISOString(),
+        items: [
+          recovered
+            ? {
+                id: "shopaikey",
+                label: "Provider 1",
+                status: "available",
+                balance: 0,
+                used: 50,
+                total: 50,
+                totalBasis: "provider",
+                usedPercent: 100,
+              }
+            : {
+                id: "shopaikey",
+                label: "Provider 1",
+                status: "error",
+                code: "PROVIDER_USAGE_HTTP_401",
+                message: "Kiểm tra quyền truy cập số dư.",
+              },
+          {
+            id: "vyceai",
+            label: "Provider văn bản",
+            status: "available",
+            balance: 12.5,
+          },
+        ],
+      },
+    }),
+  );
+  await page.goto("/#admin");
+  const balances = page.getByRole("region", {
+    name: "Số dư provider",
+    exact: true,
+  });
+  const shop = balances.getByRole("article", {
+    name: "Số dư Provider 1",
+    exact: true,
+  });
+  await expect(
+    page.locator("[data-sonner-toast][data-type=error]"),
+  ).toContainText("Kiểm tra quyền truy cập số dư.");
+  await expect(shop).not.toContainText("$0.00");
+  await expect(shop.getByRole("progressbar")).toHaveCount(0);
+  await expect(
+    balances.getByRole("article", {
+      name: "Số dư Provider văn bản",
+      exact: true,
+    }),
+  ).toContainText("$12.50");
+  recovered = true;
+  await balances.getByRole("button", { name: "Làm mới", exact: true }).click();
+  await expect(shop).toContainText("$0.00");
+  await expect(shop.getByRole("progressbar")).toHaveJSProperty("value", 100);
+  expect(fixture.errors).toEqual([]);
+  expect(fixture.unexpected).toEqual([]);
+});
+
 test("accounts support filters, pagination, creation and audited confirmation for locking", async ({
   page,
 }) => {
@@ -510,9 +656,9 @@ test("root controls are protected and server conflicts stay inside the confirmat
     .getByLabel("Lý do thao tác", { exact: true })
     .fill("Security request");
   await dialog.getByRole("button", { name: "Xác nhận", exact: true }).click();
-  await expect(dialog.getByRole("alert")).toContainText(
-    "Tài khoản đã thay đổi",
-  );
+  await expect(
+    page.locator("[data-sonner-toast][data-type=error]"),
+  ).toContainText("Tài khoản đã thay đổi");
   await expect(
     dialog.getByLabel("Lý do thao tác", { exact: true }),
   ).toHaveValue("Security request");
@@ -615,9 +761,9 @@ test("request detail errors can be retried without showing stale log content", a
     .click();
   await page.getByRole("button", { name: "Chi tiết", exact: true }).click();
   const dialog = page.getByRole("dialog");
-  await expect(dialog.getByRole("alert")).toContainText(
-    "Không đọc được nhật ký chẩn đoán.",
-  );
+  await expect(
+    page.locator("[data-sonner-toast][data-type=error]"),
+  ).toContainText("Không đọc được nhật ký chẩn đoán.");
   await expect(
     dialog.getByRole("list", { name: "Chuỗi sự kiện request" }),
   ).toHaveCount(0);
@@ -626,7 +772,9 @@ test("request detail errors can be retried without showing stale log content", a
   await expect(
     dialog.getByRole("list", { name: "Chuỗi sự kiện request" }),
   ).toBeVisible();
-  await expect(dialog.getByRole("alert")).toHaveCount(0);
+  await expect(
+    page.locator("[data-sonner-toast][data-type=error]"),
+  ).toHaveCount(0);
   expect(fixture.errors).toEqual([]);
   expect(fixture.unexpected).toEqual([]);
 });
@@ -715,9 +863,9 @@ test("dashboard failures offer retry without showing stale metrics", async ({
   const fixture = await setup(page);
   fixture.failOverview(true);
   await page.goto("/#admin");
-  await expect(page.getByRole("alert")).toContainText(
-    "Không truy cập được dữ liệu Agent.",
-  );
+  await expect(
+    page.locator("[data-sonner-toast][data-type=error]"),
+  ).toContainText("Không truy cập được dữ liệu Agent.");
   await expect(page.locator(".admin-stat")).toHaveCount(0);
   fixture.failOverview(false);
   await page.getByRole("button", { name: "Thử lại", exact: true }).click();

@@ -270,8 +270,23 @@ export default function UserGuidePage({
           chữ hoặc họa tiết.
         </p>
         <p>
-          Khi Agent hỏi thêm, trả lời ngay trong cùng hội thoại để tạo kế hoạch
-          phù hợp hơn. Không cần tạo hội thoại mới cho mỗi câu bổ sung.
+          Trong ô chat, “Manual approval” (mặc định) để bạn tự trả lời; “Auto
+          approval” tự chọn gợi ý đầu tiên của Agent. Chế độ được lưu theo công
+          việc và áp dụng cho các bước workflow. Auto vẫn chờ bạn nếu thiếu ảnh
+          hoặc Agent cần làm rõ sau hai lượt tự chọn. Final prompt vẫn cần bạn
+          duyệt trước khi tạo ảnh. Khi Agent hỏi thêm, chọn câu trả lời trong
+          thẻ “Agent cần bạn xác nhận”. Lựa chọn đầu tiên được đánh dấu “Đề
+          xuất”; bạn cũng có thể chọn “Ý khác” để tự nhập. Bấm “Gửi câu trả lời”
+          để cập nhật kế hoạch. Bạn vẫn cần duyệt final prompt trước khi tạo
+          ảnh. Có thể gõ câu trả lời trong ô chat của cùng hội thoại; hệ thống
+          sẽ nối câu trả lời với công việc đang chờ.
+        </p>
+        <p>
+          Nếu đổi, thêm hoặc bỏ ảnh nguồn, ảnh tham chiếu hay template khi đang
+          chờ duyệt, kế hoạch cũ sẽ bị khóa. Bấm “Phân tích lại ảnh mới”, kiểm
+          tra final prompt mới rồi bắt đầu tạo ảnh. Quy tắc này áp dụng cho cả
+          Auto và Manual approval. Bộ ảnh mới được lưu để tiếp tục sau khi tải
+          lại trang; nếu thay đổi từ tab khác, bấm “Nạp ảnh đã cập nhật” trước.
         </p>
       </Chapter>
 

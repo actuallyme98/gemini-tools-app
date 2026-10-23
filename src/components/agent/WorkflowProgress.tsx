@@ -2,8 +2,8 @@ import { useRef, useState } from "react";
 import { agentClient, type Run, type WorkflowExecution } from "../../services/agent.service";
 import { Button } from "../ui/button";
 
-export function WorkflowProgress({ execution, run, busy, act, onRun }: {
-  execution: WorkflowExecution; run?: Run; busy: boolean; act: (work: () => Promise<unknown>) => void; onRun: (id: string) => void;
+export function WorkflowProgress({ execution, run, busy, act, onRun, approvalMode }: {
+  execution: WorkflowExecution; run?: Run; busy: boolean; act: (work: () => Promise<unknown>) => void; onRun: (id: string) => void; approvalMode?: Run['approvalMode'];
 }) {
   const [answer, setAnswer] = useState("");
   const replanId = useRef<string | null>(null);
@@ -15,10 +15,10 @@ export function WorkflowProgress({ execution, run, busy, act, onRun }: {
       : last && run.state === "completed" ? <p>Workflow đã hoàn tất. Kết quả nằm trong thư viện và có thể xuất ZIP.</p>
       : <><p className="context-help">Duyệt kết quả bước hiện tại trước khi chuyển bước. Mỗi bước tiếp theo sẽ tạo kế hoạch để bạn duyệt prompt.</p>
         {!last && <Button size="sm" disabled={busy || run.state !== "completed"} onClick={() => act(async () => {
-          const { data } = await agentClient.post<{ run: Run }>(`/workflow-executions/${execution.id}/stages/${execution.stage + 1}`);
+          const { data } = await agentClient.post<{ run: Run }>(`/workflow-executions/${execution.id}/stages/${execution.stage + 1}`, { approvalMode: approvalMode ?? "manual" });
           onRun(data.run.id);
         })}>Lập kế hoạch bước {execution.stage + 2}</Button>}
-        {["needs_input", "failed"].includes(run.state) && <form onSubmit={event => { event.preventDefault(); act(async () => {
+        {run.state === "failed" && <form onSubmit={event => { event.preventDefault(); act(async () => {
           replanId.current ??= crypto.randomUUID();
           const { data } = await agentClient.post<{ run: Run }>(`/workflow-executions/${execution.id}/replan`, { id: replanId.current, answer });
           replanId.current = null; setAnswer(""); onRun(data.run.id);

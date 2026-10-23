@@ -42,7 +42,14 @@ export default function App() {
   };
   return (
     <AIProviderProvider>
-      <Toaster />
+      <Toaster
+        position="top-right"
+        offset={80}
+        mobileOffset={{ top: 76, right: 16, left: 16 }}
+        richColors
+        closeButton
+        duration={6000}
+      />
       <AgentPage page={page} onNavigate={navigate}>
         <section hidden={page !== "home"} aria-label="Công cụ">
           <HomePage onNavigate={navigate} />

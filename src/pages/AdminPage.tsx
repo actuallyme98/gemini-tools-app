@@ -35,6 +35,7 @@ import type {
   DiagnosticPage,
   RequestDiagnostics,
   PageResult,
+  ProviderUsageSnapshot,
 } from "../services/admin.service";
 import { Button } from "../components/ui/button";
 import {
@@ -46,6 +47,7 @@ import {
 } from "../components/ui/dialog";
 import { saveBlob } from "../utils/download.util";
 import { toast } from "sonner";
+import { notifyApiError } from "../utils/api-error-toast";
 import "../styles/admin.css";
 
 function DialogContent(props: ComponentProps<typeof BaseDialogContent>) {
@@ -149,11 +151,15 @@ function useAdminResource<T>(url: string | null) {
     void agentClient
       .get<T>(url, { signal: controller.signal, timeout: 15000 })
       .then(({ data }) => {
-        if (!controller.signal.aborted) setResult({ url, revision, data });
+        if (!controller.signal.aborted) {
+          setResult({ url, revision, data });
+          toast.dismiss(`admin-resource-${url}`);
+        }
       })
       .catch((cause) => {
         if (!controller.signal.aborted) {
           setResult({ url, revision, error: getErrorMessage(cause) });
+          notifyApiError(cause, { id: `admin-resource-${url}` });
         }
       });
     return () => controller.abort();
@@ -184,7 +190,7 @@ function ResourceState({
   if (resource.error)
     return (
       <div className="admin-placeholder">
-        <p role="alert">{resource.error}</p>
+        <p>Chưa tải được dữ liệu.</p>
         <Button variant="outline" onClick={resource.reload}>
           Thử lại
         </Button>
@@ -262,7 +268,6 @@ function ConfirmAction({
 }) {
   const [reason, setReason] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   return (
     <Dialog
@@ -290,7 +295,6 @@ function ConfirmAction({
             event.preventDefault();
             if (!action || busy) return;
             setBusy(true);
-            setError("");
             void action
               .work(reason, password)
               .then(() => {
@@ -298,7 +302,7 @@ function ConfirmAction({
                 onDone();
                 close();
               })
-              .catch((cause) => setError(getErrorMessage(cause)))
+              .catch((cause) => notifyApiError(cause))
               .finally(() => setBusy(false));
           }}
         >
@@ -334,11 +338,6 @@ function ConfirmAction({
               placeholder="Ghi rõ lý do để đối chiếu trong audit logs"
             />
           </label>
-          {error && (
-            <p role="alert" className="admin-error">
-              {error}
-            </p>
-          )}
           <div className="admin-dialog-actions">
             <Button
               type="button"
@@ -363,9 +362,144 @@ function ConfirmAction({
     </Dialog>
   );
 }
+function ProviderBalances() {
+  const resource = useAdminResource<ProviderUsageSnapshot>(
+    "/admin/provider-usage",
+  );
+  const money = (value: number) =>
+    new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+      maximumFractionDigits: 2,
+    }).format(value);
+  useEffect(() => {
+    for (const provider of resource.data?.items ?? [])
+      if (provider.status === "error")
+        notifyApiError(new Error(`${provider.label}: ${provider.message}`), {
+          id: `provider-balance-${provider.id}`,
+        });
+      else toast.dismiss(`provider-balance-${provider.id}`);
+  }, [resource.data]);
+  return (
+    <section className="admin-provider-balances" aria-label="Số dư provider">
+      <div className="admin-section-title">
+        <div>
+          <h2>Số dư & mức sử dụng AI</h2>
+          <p>Credit do provider trả về · đồng bộ tối đa mỗi 60 giây.</p>
+        </div>
+        <Refresh {...resource} />
+      </div>
+      <ResourceState resource={resource}>
+        <div className="admin-balance-grid">
+          {resource.data?.items.map((provider) => (
+            <article
+              key={provider.id}
+              className="admin-balance-card"
+              aria-label={`Số dư ${provider.label}`}
+            >
+              <h3>{provider.label}</h3>
+              {provider.status === "available" &&
+              provider.balance !== undefined ? (
+                <>
+                  <p className="admin-balance-label">Credit còn lại</p>
+                  <strong
+                    className={`admin-balance-amount${provider.balance <= 0 ? " is-empty" : ""}`}
+                  >
+                    {money(provider.balance)} <small>credit</small>
+                  </strong>
+                  {provider.usedPercent !== undefined &&
+                  provider.total !== undefined &&
+                  provider.used !== undefined ? (
+                    <>
+                      <div className="admin-balance-percent">
+                        <span>Đã dùng</span>
+                        <strong>
+                          {new Intl.NumberFormat("vi-VN", {
+                            maximumFractionDigits: 1,
+                          }).format(provider.usedPercent)}
+                          %
+                        </strong>
+                      </div>
+                      <progress
+                        className={provider.usedPercent >= 90 ? "is-low" : ""}
+                        value={provider.usedPercent}
+                        max={100}
+                        aria-label={`Mức sử dụng ${provider.label}`}
+                        aria-describedby={`usage-note-${provider.id}`}
+                      />
+                      <dl className="admin-balance-breakdown">
+                        <div>
+                          <dt>Đã sử dụng</dt>
+                          <dd>{money(provider.used)}</dd>
+                        </div>
+                        <div>
+                          <dt>
+                            {provider.totalBasis === "provider"
+                              ? "Tổng credit"
+                              : "Đã dùng + còn lại"}
+                          </dt>
+                          <dd>{money(provider.total)}</dd>
+                        </div>
+                      </dl>
+                      <p
+                        className="admin-balance-note"
+                        id={`usage-note-${provider.id}`}
+                      >
+                        {provider.totalBasis === "provider"
+                          ? "Tỷ lệ đã dùng trên tổng credit provider báo."
+                          : "Tỷ lệ = đã dùng / (đã dùng + còn lại); không phải hạn mức tháng hoặc tổng tiền nạp."}
+                      </p>
+                    </>
+                  ) : (
+                    <p className="admin-balance-note">
+                      Provider chưa trả đủ tổng credit và mức dùng để tính phần
+                      trăm.
+                    </p>
+                  )}
+                  <p className="admin-balance-note">
+                    Cập nhật: {date(provider.checkedAt)}
+                  </p>
+                </>
+              ) : (
+                <div className="admin-balance-unavailable">
+                  <strong>
+                    {provider.status === "error"
+                      ? "Chưa lấy được số dư"
+                      : "Chưa hỗ trợ số dư"}
+                  </strong>
+                  <p>{provider.message}</p>
+                  {provider.code && <small>{provider.code}</small>}
+                </div>
+              )}
+            </article>
+          ))}
+        </div>
+        {resource.data && !resource.data.items.length && (
+          <p className="admin-empty">
+            Chưa có provider được cấu hình để kiểm tra số dư.
+          </p>
+        )}
+      </ResourceState>
+      <p className="admin-balance-note">
+        Đơn vị credit USD của provider, không quy đổi thành tiền đã thanh toán.
+        Số dư áp dụng cho key/tài khoản đang kết nối và có thể bao gồm sử dụng
+        bên ngoài ứng dụng này.
+      </p>
+    </section>
+  );
+}
+
 function Overview({ onNavigate }: { onNavigate: (page: string) => void }) {
   const resource = useAdminResource<AdminOverview>("/admin/overview");
   const data = resource.data;
+  useEffect(() => {
+    if (data?.queuePaused)
+      toast.warning(
+        "Hàng đợi đang tạm dừng. Các request đã gửi vẫn có thể hoàn tất.",
+        { id: "company-queue-paused" },
+      );
+    else toast.dismiss("company-queue-paused");
+  }, [data?.queuePaused]);
   const total = (kind: string) =>
     data?.totals.find((row) => row._id === kind)?.count || 0;
   const state = (...states: string[]) =>
@@ -401,14 +535,11 @@ function Overview({ onNavigate }: { onNavigate: (page: string) => void }) {
         {data && (
           <>
             {data.queuePaused && (
-              <div className="admin-warning" role="status">
+              <div className="admin-warning">
                 <Pause size={18} aria-hidden="true" />
-                <span>
-                  Hàng đợi đang tạm dừng. Các request đã gửi vẫn có thể hoàn
-                  tất.
-                </span>
                 <button onClick={() => onNavigate("admin-settings")}>
-                  Quản lý hàng đợi <ArrowRight size={14} aria-hidden="true" />
+                  Quản lý hàng đợi đang tạm dừng{" "}
+                  <ArrowRight size={14} aria-hidden="true" />
                 </button>
               </div>
             )}
@@ -449,6 +580,7 @@ function Overview({ onNavigate }: { onNavigate: (page: string) => void }) {
                 </article>
               ))}
             </div>
+            <ProviderBalances />
             <div className="admin-overview-grid">
               <section className="admin-panel">
                 <div className="admin-panel-heading">
@@ -564,7 +696,6 @@ function CreateAccount({
   close: () => void;
   onDone: () => void;
 }) {
-  const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   return (
     <Dialog
@@ -588,7 +719,6 @@ function CreateAccount({
             if (busy) return;
             const form = new FormData(event.currentTarget);
             setBusy(true);
-            setError("");
             void agentClient
               .post("/admin/users", {
                 email: form.get("email"),
@@ -596,10 +726,11 @@ function CreateAccount({
                 role: form.get("role"),
               })
               .then(() => {
+                toast.success("Đã cấp tài khoản nhân viên.");
                 onDone();
                 close();
               })
-              .catch((cause) => setError(getErrorMessage(cause)))
+              .catch((cause) => notifyApiError(cause))
               .finally(() => setBusy(false));
           }}
         >
@@ -636,11 +767,6 @@ function CreateAccount({
               <option value="admin">Quản trị viên</option>
             </select>
           </label>
-          {error && (
-            <p role="alert" className="admin-error">
-              {error}
-            </p>
-          )}
           <div className="admin-dialog-actions">
             <Button
               type="button"

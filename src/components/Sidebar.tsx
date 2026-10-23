@@ -71,7 +71,7 @@ export function Sidebar({
   onMoreHistory,
 }: SidebarProps) {
   return (
-    <aside className="workspace-sidebar">
+    <aside className="workspace-sidebar" data-history-scroll>
       <button
         type="button"
         className="workspace-brand"
@@ -174,8 +174,8 @@ export function Sidebar({
           )}
         </div>
         {historyError && (
-          <p className="sidebar-empty" role="alert">
-            Không tải được lịch sử. {historyError} Bấm làm mới để thử lại.
+          <p className="sidebar-empty">
+            Lịch sử chưa tải được. Bấm làm mới để thử lại.
           </p>
         )}
         {!conversations.length && historyRefreshing && (
@@ -184,7 +184,7 @@ export function Sidebar({
           </p>
         )}
         {conversations.length ? (
-          <nav aria-label="Lịch sử công việc" data-history-scroll>
+          <nav aria-label="Lịch sử công việc">
             {conversations.map((conversation) => (
               <button
                 type="button"

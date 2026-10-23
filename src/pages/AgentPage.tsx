@@ -10,7 +10,6 @@ import {
   type ReactNode,
 } from "react";
 import {
-  AlertCircle,
   ArrowRight,
   ArrowUp,
   ArrowUpRight,
@@ -46,12 +45,18 @@ import {
   type Run,
   type CustomWorkflow,
   type HistoryPage,
+  type ApprovalMode,
+  type InputSelection,
 } from "../services/agent.service";
 import { getErrorMessage } from "../services/api.service";
+import { toast } from "sonner";
+import { notifyApiError } from "../utils/api-error-toast";
 import { Button } from "../components/ui/button";
 import { AgentRunCard } from "../components/agent/AgentRunCard";
+import { ApprovalModeSelect } from "../components/agent/ApprovalModeSelect";
 import { TemplateEditor } from "../components/agent/TemplateEditor";
 import { AgentImage } from "../components/agent/AgentImage";
+import { SelectedImages } from "../components/agent/SelectedImages";
 import { AgentShell } from "../components/agent/AgentShell";
 import {
   AgentJobs,
@@ -77,6 +82,17 @@ function mergeConversations(latest: Conversation[], previous: Conversation[]) {
 }
 
 const field = "agent-field";
+function inputsForRun(run: Run, inputs: InputSelection): InputSelection {
+  return {
+    sourceIds: inputs.sourceIds,
+    targetIds: ["auto", "mockup_ai"].includes(run.operation)
+      ? inputs.targetIds
+      : run.targetIds,
+    templateIds: ["auto", "mockup_template"].includes(run.operation)
+      ? inputs.templateIds
+      : run.templateIds,
+  };
+}
 function mergeMessages(
   previous: Detail | undefined,
   next: Detail,
@@ -135,6 +151,15 @@ export function AgentPage({
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyRefreshing, setHistoryRefreshing] = useState(false);
   const [historyError, setHistoryError] = useState("");
+  useEffect(() => {
+    if (error) notifyApiError(new Error(error), { id: "agent-error" });
+    else toast.dismiss("agent-error");
+  }, [error]);
+  useEffect(() => {
+    if (historyError)
+      notifyApiError(new Error(historyError), { id: "agent-history-error" });
+    else toast.dismiss("agent-history-error");
+  }, [historyError]);
   const [historyRevision, setHistoryRevision] = useState(0);
   const historyBusy = useRef(false);
   const historyPaginated = useRef(false);
@@ -158,6 +183,7 @@ export function AgentPage({
   const [expandedRuns, setExpandedRuns] = useState<string[]>([]);
   const [detail, setDetail] = useState<Detail>();
   const [operation, setOperation] = useState<Operation>("auto");
+  const [approvalMode, setApprovalMode] = useState<ApprovalMode>("manual");
   const [sourceIds, setSourceIds] = useState<string[]>([]);
   const [targetIds, setTargetIds] = useState<string[]>([]);
   const [templateIds, setTemplateIds] = useState<string[]>([]);
@@ -186,6 +212,7 @@ export function AgentPage({
     validateVisually,
     ai.provider,
     ai.imageModel,
+    approvalMode,
   ]);
   const restoredConversation = useRef("");
   const reload = useCallback(async () => {
@@ -197,6 +224,7 @@ export function AgentPage({
       detail.conversation.id === selectedId &&
       detail.runs.some(activeRun));
   const clearSession = useCallback(() => {
+    setApprovalMode("manual");
     authorizeAgent(null);
     setAgentToken(null);
     setUser(undefined);
@@ -380,25 +408,41 @@ export function AgentPage({
     };
   }, [user, selectedId, revision, focusedRun]);
 
-  const act = (work: () => Promise<unknown>) => {
-    if (busy) return;
+  const act = (
+    work: () => Promise<unknown>,
+    successMessage = "Đã cập nhật.",
+  ) => {
+    if (busy) return Promise.resolve(false);
     setBusy(true);
     setError("");
-    void work()
+    return work()
       .then(reload)
-      .catch((cause) => setError(getErrorMessage(cause)))
+      .then(() => {
+        toast.success(successMessage, { id: "agent-action-success" });
+        return true;
+      })
+      .catch((cause) => {
+        setError(getErrorMessage(cause));
+        return false;
+      })
       .finally(() => setBusy(false));
   };
-  const upload = (files: FileList | null, kind: "source" | "reference") => {
+  const upload = (
+    files: FileList | null,
+    kind: "source" | "reference",
+    replaceId?: string,
+  ) => {
     if (!files?.length) return;
-    const list = Array.from(files);
+    const list = Array.from(files).slice(0, replaceId ? 1 : files.length);
     act(async () => {
       if (
         list.length +
-          (kind === "source" ? sourceIds.length : targetIds.length) >
+          (kind === "source" ? sourceIds.length : targetIds.length) -
+          (replaceId ? 1 : 0) >
         20
       )
         throw new Error("Mỗi nhóm tối đa 20 ảnh.");
+      const selected = [...(kind === "source" ? sourceIds : targetIds)];
       for (const file of list) {
         const asset = await agentUpload(
           file,
@@ -408,17 +452,52 @@ export function AgentPage({
           category,
         );
         setAssets((current) => [asset, ...current]);
-        if (kind === "source")
-          setSourceIds((current) => [...current, asset.id]);
-        else setTargetIds((current) => [...current, asset.id]);
+        if (replaceId)
+          selected.splice(selected.indexOf(replaceId), 1, asset.id);
+        else selected.push(asset.id);
       }
+      await changeInputs({
+        sourceIds,
+        targetIds,
+        templateIds,
+        [kind === "source" ? "sourceIds" : "targetIds"]: selected,
+      });
     });
   };
-  const choose = (id: string, list: string[], set: (ids: string[]) => void) =>
-    set(
+  const current = detail?.conversation.id === selectedId ? detail : undefined;
+  const changeInputs = async (inputs: InputSelection) => {
+    const run = current?.runs.at(-1);
+    if (run && ["draft", "needs_input"].includes(run.state)) {
+      const { data } = await agentClient.patch<Run>(`/runs/${run.id}/inputs`, {
+        ...inputsForRun(run, inputs),
+        updatedAt: run.updatedAt,
+      });
+      setDetail((previous) =>
+        previous?.conversation.id === run.conversationId
+          ? {
+              ...previous,
+              runs: previous.runs.map((value) =>
+                value.id === run.id ? data : value,
+              ),
+            }
+          : previous,
+      );
+    }
+    setSourceIds(inputs.sourceIds);
+    setTargetIds(inputs.targetIds);
+    setTemplateIds(inputs.templateIds);
+  };
+  const selectInputs = (field: keyof InputSelection, ids: string[]) =>
+    act(() =>
+      changeInputs({ sourceIds, targetIds, templateIds, [field]: ids }),
+    );
+  const choose = (id: string, field: keyof InputSelection) => {
+    const list = { sourceIds, targetIds, templateIds }[field];
+    return selectInputs(
+      field,
       list.includes(id) ? list.filter((value) => value !== id) : [...list, id],
     );
-  const current = detail?.conversation.id === selectedId ? detail : undefined;
+  };
   useEffect(
     () => () => olderRequest.current?.abort(),
     [selectedId, page, user?.id],
@@ -508,10 +587,12 @@ export function AgentPage({
     restoredConversation.current = selectedId;
     const run = current.runs.at(-1);
     if (!run) return;
-    setSourceIds(run.sourceIds || []);
-    setTargetIds(run.targetIds || []);
-    setTemplateIds(run.templateIds || []);
+    const inputs = run.pendingInputs ?? run;
+    setSourceIds(inputs.sourceIds || []);
+    setTargetIds(inputs.targetIds || []);
+    setTemplateIds(inputs.templateIds || []);
     setOperation(run.operation || "auto");
+    setApprovalMode(run.approvalMode ?? "manual");
     setCategory(run.productType || "Sản phẩm POD");
   }, [current, selectedId]);
 
@@ -547,6 +628,7 @@ export function AgentPage({
     setResearch("");
     setSources("");
     setOperation("auto");
+    setApprovalMode("manual");
     setWorkflowId("");
     messageId.current = null;
     onNavigate("agent");
@@ -565,6 +647,7 @@ export function AgentPage({
       setExpandedRuns([]);
       setBrief("");
       setWorkflowId("");
+      setApprovalMode("manual");
       messageId.current = null;
     }
     setSelectedId(id);
@@ -575,9 +658,88 @@ export function AgentPage({
       await agentClient.post("/auth/logout");
       clearSession();
     });
+  const replanWithAnswer = async (
+    run: Run,
+    answer: string,
+    id: string,
+    mode = approvalMode,
+  ) => {
+    if (selectedActive)
+      throw new Error("Agent đang xử lý. Hãy đợi tác vụ hiện tại hoàn tất.");
+    const selectedInputs = inputsForRun(run, {
+      sourceIds,
+      targetIds,
+      templateIds,
+    });
+    if (
+      run.pendingInputs &&
+      JSON.stringify([
+        selectedInputs.sourceIds,
+        selectedInputs.targetIds,
+        selectedInputs.templateIds,
+      ]) !==
+        JSON.stringify([
+          run.pendingInputs.sourceIds,
+          run.pendingInputs.targetIds,
+          run.pendingInputs.templateIds,
+        ])
+    )
+      throw new Error(
+        "Bộ ảnh đã được cập nhật từ tab khác. Bấm Nạp ảnh đã cập nhật trước khi lập lại kế hoạch.",
+      );
+    const text = `${run.brief}\n\nThông tin bổ sung mới nhất (ưu tiên câu trả lời này, không hỏi lại các nội dung đã xác nhận):\n${answer}`;
+    if (text.length > 12000)
+      throw new Error(
+        "Yêu cầu và câu trả lời vượt 12.000 ký tự. Hãy rút gọn câu trả lời.",
+      );
+    const { data } = run.workflow
+      ? await agentClient.post<{ run: Run }>(
+          `/workflow-executions/${run.workflow.executionId}/replan`,
+          { id, answer, ...selectedInputs, approvalMode: mode },
+        )
+      : await agentClient.post<Run>(
+          `/conversations/${run.conversationId}/messages`,
+          {
+            id,
+            text,
+            operation: run.operation,
+            approvalMode: mode,
+            ...selectedInputs,
+            count: run.count,
+            provider: ai.provider,
+            ...(ai.imageModel ? { imageModel: ai.imageModel } : {}),
+            productType: category,
+            research,
+            researchSources: run.researchSources ?? [],
+            validateVisually,
+          },
+        );
+    const next = "run" in data ? data.run : data;
+    if (messageId.current === id) messageId.current = null;
+    setDetail((previous) =>
+      previous?.conversation.id === run.conversationId
+        ? {
+            ...previous,
+            runs: [
+              ...previous.runs.filter((value) => value.id !== next.id),
+              next,
+            ],
+          }
+        : previous,
+    );
+    setFocusedRun({ conversationId: run.conversationId, runId: next.id });
+  };
   const sendBrief = () => {
     if (busy || selectedActive || brief.trim().length < 3) return;
     act(async () => {
+      const waiting = current?.runs.at(-1);
+      if (waiting?.state === "needs_input") {
+        messageId.current ??= crypto.randomUUID();
+        await replanWithAnswer(waiting, brief, messageId.current);
+        messageId.current = null;
+        setBrief("");
+        return;
+      }
       const researchSources = sources
         .split("\n")
         .map((value) => value.trim())
@@ -611,6 +773,7 @@ export function AgentPage({
           id: messageId.current,
           conversationId: id,
           brief,
+          approvalMode,
           sourceIds,
           targetIds,
           templateIds,
@@ -626,6 +789,7 @@ export function AgentPage({
           id: messageId.current,
           text: brief,
           operation,
+          approvalMode,
           sourceIds,
           targetIds:
             operation === "mockup_ai" || operation === "auto" ? targetIds : [],
@@ -663,12 +827,20 @@ export function AgentPage({
     ...sourceIds.map((id) => ({
       id,
       role: "Nguồn",
-      remove: () => setSourceIds((ids) => ids.filter((value) => value !== id)),
+      remove: () =>
+        selectInputs(
+          "sourceIds",
+          sourceIds.filter((value) => value !== id),
+        ),
     })),
     ...targetIds.map((id) => ({
       id,
       role: "Tham chiếu",
-      remove: () => setTargetIds((ids) => ids.filter((value) => value !== id)),
+      remove: () =>
+        selectInputs(
+          "targetIds",
+          targetIds.filter((value) => value !== id),
+        ),
     })),
   ];
   const modelSettings = (
@@ -681,23 +853,6 @@ export function AgentPage({
         <summary>Kết nối AI</summary>
         <AIProviderSelect />
       </details>
-    </div>
-  );
-  const notice = error && (
-    <div role="alert" className="workspace-alert">
-      <AlertCircle size={18} aria-hidden="true" />
-      <p>{error}</p>
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={() => {
-          setError("");
-          if (user) void reload();
-          else setConnectionKey((value) => value + 1);
-        }}
-      >
-        Tải lại
-      </Button>
     </div>
   );
 
@@ -751,7 +906,6 @@ export function AgentPage({
               <p className="login-description">
                 Đăng nhập để tiếp tục những ý tưởng còn dang dở.
               </p>
-              {notice}
               {authChecking || !status ? (
                 <div role="status" className="connection-status">
                   <Loader2
@@ -901,7 +1055,6 @@ export function AgentPage({
     >
       <div hidden={!agentView}>
         <>
-          {notice}
           {page === "guide" && (
             <Suspense fallback={<p role="status">Đang tải hướng dẫn…</p>}>
               <UserGuidePage
@@ -1046,6 +1199,7 @@ export function AgentPage({
                     <WorkflowProgress
                       key={execution.id}
                       execution={execution}
+                      approvalMode={approvalMode}
                       run={current.runs.find(
                         (run) => run.id === execution.runIds[execution.stage],
                       )}
@@ -1078,7 +1232,11 @@ export function AgentPage({
                     activeRun(run) ||
                     expandedRuns.includes(run.id) ? (
                       <AgentRunCard
-                        key={`${run.id}:${run.updatedAt}`}
+                        key={
+                          run.state === "needs_input"
+                            ? `${run.id}:needs_input`
+                            : `${run.id}:${run.updatedAt}`
+                        }
                         run={run}
                         steps={current.steps.filter(
                           (step) => step.runId === run.id,
@@ -1086,13 +1244,68 @@ export function AgentPage({
                         results={current.results}
                         assets={assets}
                         busy={busy}
+                        inputSelection={inputsForRun(run, {
+                          sourceIds,
+                          targetIds,
+                          templateIds,
+                        })}
+                        onUsePendingInputs={() => {
+                          if (run.pendingInputs)
+                            void act(() => changeInputs(run.pendingInputs!));
+                        }}
+                        onReplan={() =>
+                          act(
+                            () =>
+                              replanWithAnswer(
+                                run,
+                                "Ảnh đầu vào đã thay đổi. Phân tích lại toàn bộ ảnh đang chọn, không dùng phân tích hoặc final prompt cũ; lập kế hoạch mới theo yêu cầu gốc.",
+                                (messageId.current ??= crypto.randomUUID()),
+                              ),
+                            "Đã gửi ảnh mới để phân tích và lập lại kế hoạch.",
+                          )
+                        }
                         act={act}
+                        clarification={{
+                          selectionKey: JSON.stringify([
+                            sourceIds,
+                            targetIds,
+                            templateIds,
+                            ai.provider,
+                            ai.imageModel,
+                          ]),
+                          disabled: busy || !!selectedActive,
+                          inputs: {
+                            source: sourceIds.length,
+                            reference: targetIds.length,
+                            template: templateIds.length,
+                          },
+                          onInputs: () => {
+                            setContextOpen(true);
+                            requestAnimationFrame(() =>
+                              document
+                                .querySelector<HTMLInputElement>(
+                                  ".context-upload input:not(:disabled)",
+                                )
+                                ?.focus(),
+                            );
+                          },
+                          onAnswer: (answer, id) =>
+                            act(
+                              () => replanWithAnswer(run, answer, id),
+                              "Đã gửi câu trả lời. Agent đang cập nhật kế hoạch.",
+                            ),
+                        }}
                         onSource={(id) => {
-                          setSourceIds([id]);
-                          setTargetIds([]);
-                          setOperation("design");
-                          setBrief("Tạo biến thể từ ảnh nguồn này: ");
-                          setContextOpen(true);
+                          void act(async () => {
+                            await changeInputs({
+                              sourceIds: [id],
+                              targetIds: [],
+                              templateIds: [],
+                            });
+                            setOperation("design");
+                            setBrief("Tạo biến thể từ ảnh nguồn này: ");
+                            setContextOpen(true);
+                          });
                         }}
                       />
                     ) : (
@@ -1165,6 +1378,44 @@ export function AgentPage({
                   </div>
                 )}
                 <div className="composer-actions">
+                  <ApprovalModeSelect
+                    value={approvalMode}
+                    disabled={busy || !!selectedActive}
+                    onChange={(mode) => {
+                      setApprovalMode(mode);
+                      const waiting = current?.runs.at(-1);
+                      const questions = waiting?.clarifications;
+                      if (
+                        mode === "auto" &&
+                        waiting?.state === "needs_input" &&
+                        !waiting.pendingInputs &&
+                        questions?.length &&
+                        questions.every(
+                          (question) =>
+                            !question.input && question.options.length,
+                        )
+                      ) {
+                        const answer =
+                          "Auto approval — tự chọn đề xuất theo chế độ người dùng đã bật:\n" +
+                          questions
+                            .map(
+                              (question, index) =>
+                                `${index + 1}. ${question.question}\nTrả lời: ${question.options[0].label}`,
+                            )
+                            .join("\n\n");
+                        void act(
+                          () =>
+                            replanWithAnswer(
+                              waiting,
+                              answer,
+                              crypto.randomUUID(),
+                              "auto",
+                            ),
+                          "Đã chọn đề xuất và tiếp tục lập kế hoạch.",
+                        );
+                      }
+                    }}
+                  />
                   <button
                     type="button"
                     className="composer-context-toggle"
@@ -1452,6 +1703,19 @@ export function AgentPage({
                     }}
                   />
                 </label>
+                <SelectedImages
+                  ids={sourceIds}
+                  assets={assets}
+                  role="nguồn"
+                  disabled={busy || !!selectedActive}
+                  onReplace={(files, id) => upload(files, "source", id)}
+                  onRemove={(id) =>
+                    selectInputs(
+                      "sourceIds",
+                      sourceIds.filter((value) => value !== id),
+                    )
+                  }
+                />
                 {(operation === "auto" || operation === "mockup_ai") && (
                   <label className="context-upload context-upload-reference">
                     <ScanLine size={20} aria-hidden="true" />
@@ -1473,6 +1737,21 @@ export function AgentPage({
                       }}
                     />
                   </label>
+                )}
+                {(operation === "auto" || operation === "mockup_ai") && (
+                  <SelectedImages
+                    ids={targetIds}
+                    assets={assets}
+                    role="tham chiếu"
+                    disabled={busy || !!selectedActive}
+                    onReplace={(files, id) => upload(files, "reference", id)}
+                    onRemove={(id) =>
+                      selectInputs(
+                        "targetIds",
+                        targetIds.filter((value) => value !== id),
+                      )
+                    }
+                  />
                 )}
                 {operation === "design" && (
                   <p className="context-help">
@@ -1502,9 +1781,7 @@ export function AgentPage({
                                   (!sourceIds.includes(asset.id) &&
                                     sourceIds.length >= 20)
                                 }
-                                onChange={() =>
-                                  choose(asset.id, sourceIds, setSourceIds)
-                                }
+                                onChange={() => choose(asset.id, "sourceIds")}
                               />
                               Nguồn
                             </label>
@@ -1521,9 +1798,7 @@ export function AgentPage({
                                     (!targetIds.includes(asset.id) &&
                                       targetIds.length >= 20)
                                   }
-                                  onChange={() =>
-                                    choose(asset.id, targetIds, setTargetIds)
-                                  }
+                                  onChange={() => choose(asset.id, "targetIds")}
                                 />
                                 Tham chiếu
                               </label>
@@ -1563,9 +1838,7 @@ export function AgentPage({
                           type="checkbox"
                           checked={templateIds.includes(template.id)}
                           disabled={busy || selectedActive}
-                          onChange={() =>
-                            choose(template.id, templateIds, setTemplateIds)
-                          }
+                          onChange={() => choose(template.id, "templateIds")}
                         />
                         <span>
                           {template.name}

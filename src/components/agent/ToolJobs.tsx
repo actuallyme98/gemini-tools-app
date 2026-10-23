@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Loader2, RefreshCw } from "lucide-react";
 import { agentClient } from "../../services/agent.service";
 import { getErrorMessage } from "../../services/api.service";
+import { notifyApiError } from "../../utils/api-error-toast";
 import { Button } from "../ui/button";
 
 type ToolJob = { id: string; requestId: string; state: string; createdAt: string; result?: unknown; error?: { message?: string } };
@@ -18,6 +19,7 @@ export function ToolJobs() {
   const [loading, setLoading] = useState(true);
   const [revision, setRevision] = useState(0);
   const [busy, setBusy] = useState("");
+  useEffect(() => { if (error) notifyApiError(new Error(error), { id: "tool-jobs-error" }); }, [error]);
   useEffect(() => {
     const controller = new AbortController(); let timer: ReturnType<typeof setTimeout>;
     const poll = async () => {
@@ -33,7 +35,6 @@ export function ToolJobs() {
     <div className="workflow-toolbar"><div><h2 className="text-xl font-semibold">Tác vụ công cụ</h2><p>100 công việc gần nhất của bạn, dùng chung giữa các tab. Đóng tab không xóa việc đã tiếp nhận.</p></div>
       <Button variant="outline" size="sm" onClick={() => setRevision(value => value + 1)}><RefreshCw size={15} aria-hidden="true" />Làm mới tác vụ</Button></div>
     {loading && <p role="status"><Loader2 className="studio-loading-spinner inline" size={16} aria-hidden="true" /> Đang tải…</p>}
-    {error && <p role="alert" className="workspace-alert">{error}</p>}
     {!loading && !error && !jobs.length && <p className="context-help">Chưa có tác vụ từ Mockup Studio, Mockup Generator hoặc Idea Generator.</p>}
     <div className="job-list">{jobs.map(job => <article className="job-list-item flex-wrap" key={job.id}>
       <div className="job-list-title"><strong>Tác vụ {job.id.slice(0, 8)}</strong><small>{new Date(job.createdAt).toLocaleString("vi-VN")} · Mã yêu cầu: {job.requestId}</small>

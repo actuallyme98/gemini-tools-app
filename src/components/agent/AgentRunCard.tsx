@@ -9,10 +9,12 @@ import {
   type Asset,
   type Run,
   type Step,
+  type InputSelection,
 } from "../../services/agent.service";
 import { saveBlob } from "../../utils/download.util";
 import { Button } from "../ui/button";
 import { AgentImage } from "./AgentImage";
+import { AgentClarifications } from "./AgentClarifications";
 
 const labels: Record<Run["state"], string> = {
   planning: "Đang phân tích và lập kế hoạch",
@@ -42,6 +44,10 @@ export function AgentRunCard({
   busy,
   act,
   onSource,
+  clarification,
+  inputSelection,
+  onReplan,
+  onUsePendingInputs,
 }: {
   run: Run;
   steps: Step[];
@@ -50,6 +56,10 @@ export function AgentRunCard({
   busy: boolean;
   act: (work: () => Promise<unknown>) => void;
   onSource: (id: string) => void;
+  clarification: Omit<Parameters<typeof AgentClarifications>[0], "run">;
+  inputSelection: InputSelection;
+  onReplan: () => void;
+  onUsePendingInputs: () => void;
 }) {
   const [drafts, setDrafts] = useState(
     run.items.map(({ title, prompt }) => ({ title, prompt })),
@@ -58,6 +68,25 @@ export function AgentRunCard({
   const dirty =
     JSON.stringify(drafts) !==
     JSON.stringify(run.items.map(({ title, prompt }) => ({ title, prompt })));
+  const inputsChanged =
+    !!run.pendingInputs ||
+    JSON.stringify([
+      inputSelection.sourceIds,
+      inputSelection.targetIds,
+      inputSelection.templateIds,
+    ]) !== JSON.stringify([run.sourceIds, run.targetIds, run.templateIds]);
+  const pendingMismatch =
+    !!run.pendingInputs &&
+    JSON.stringify([
+      inputSelection.sourceIds,
+      inputSelection.targetIds,
+      inputSelection.templateIds,
+    ]) !==
+      JSON.stringify([
+        run.pendingInputs.sourceIds,
+        run.pendingInputs.targetIds,
+        run.pendingInputs.templateIds,
+      ]);
   const imageSteps = steps.filter((step) => step.type === "image");
   const done = imageSteps.filter((step) => step.state === "done").length;
   const runResults = results.filter((result) => result.runId === run.id);
@@ -104,6 +133,41 @@ export function AgentRunCard({
           03 · Kết quả
         </span>
       </div>
+      {inputsChanged && ["draft", "needs_input"].includes(run.state) && (
+        <section
+          className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm"
+          aria-label="Ảnh đầu vào đã thay đổi"
+        >
+          <strong>Ảnh đầu vào đã thay đổi</strong>
+          <p className="my-2">
+            Kế hoạch và final prompt cũ không còn dùng được. Phân tích lại ảnh
+            mới trước khi tạo ảnh, kể cả khi bật Auto approval.
+          </p>
+          {pendingMismatch && (
+            <>
+              <p className="mb-2">
+                Bộ ảnh được cập nhật ở tab khác. Nạp ảnh đã lưu để tiếp tục.
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={busy}
+                onClick={onUsePendingInputs}
+              >
+                Nạp ảnh đã cập nhật
+              </Button>
+            </>
+          )}
+          <Button
+            type="button"
+            disabled={busy || pendingMismatch}
+            onClick={onReplan}
+          >
+            <RotateCcw aria-hidden="true" />
+            Phân tích lại ảnh mới
+          </Button>
+        </section>
+      )}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="flex items-center gap-2 font-semibold">
@@ -139,15 +203,33 @@ export function AgentRunCard({
           </Button>
         )}
       </div>
-      {!!run.questions.length && (
-        <div className="rounded-lg bg-amber-50 p-3 text-sm text-amber-950">
-          <p className="font-medium">Trả lời trong chat để lập kế hoạch mới:</p>
-          <ul className="mt-2 list-disc pl-5">
-            {run.questions.map((question, i) => (
-              <li key={i}>{question}</li>
+      {run.state === "needs_input" &&
+        !!run.questions.length &&
+        !inputsChanged && (
+          <>
+            {run.approvalMode === "auto" && (
+              <p className="text-sm text-slate-600">
+                Auto approval đang chờ bạn bổ sung thông tin. Chọn câu trả lời
+                bên dưới để tiếp tục.
+              </p>
+            )}
+            <AgentClarifications run={run} {...clarification} />
+          </>
+        )}
+      {!!run.autoAnswers?.length && (
+        <details className="rounded-lg border p-3 text-sm">
+          <summary className="cursor-pointer font-medium">
+            Auto approval · đã chọn {run.autoAnswers.length} đề xuất
+          </summary>
+          <ol className="mt-3 list-decimal space-y-2 pl-5">
+            {run.autoAnswers.map((answer, index) => (
+              <li key={index}>
+                <p>{answer.question}</p>
+                <strong>{answer.answer}</strong>
+              </li>
             ))}
-          </ul>
-        </div>
+          </ol>
+        </details>
       )}
       {!!run.researchSources?.length && (
         <details className="text-sm">
@@ -266,6 +348,7 @@ export function AgentRunCard({
               variant="outline"
               disabled={
                 busy ||
+                inputsChanged ||
                 !dirty ||
                 drafts.some((item) => !item.prompt.trim() || !item.title.trim())
               }
@@ -281,11 +364,12 @@ export function AgentRunCard({
               Lưu final prompt
             </Button>
             <Button
-              disabled={busy || dirty}
+              disabled={busy || dirty || inputsChanged}
               onClick={() =>
                 act(() =>
                   agentClient.post(`/runs/${run.id}/start`, {
                     updatedAt: run.updatedAt,
+                    inputs: inputSelection,
                   }),
                 )
               }

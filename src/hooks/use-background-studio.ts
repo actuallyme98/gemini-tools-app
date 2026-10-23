@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { notifyApiError } from "../utils/api-error-toast";
 import { getAIProviderLabel } from "../utils/ai-provider.util";
 import {
   getApiErrorCode,
@@ -57,7 +58,6 @@ export function useBackgroundStudio() {
   const [running, setRunning] = useState(false);
   const [runningProvider, setRunningProvider] = useState("");
   const [uploadError, setUploadError] = useState<string | null>(null);
-  const [batchError, setBatchError] = useState<string | null>(null);
   const urls = useRef(new Set<string>());
   const batchUrls = useRef(new Set<string>());
   useEffect(() => {
@@ -77,7 +77,7 @@ export function useBackgroundStudio() {
     batchUrls.current.forEach(release);
     batchUrls.current.clear();
     setJobs([]);
-    setBatchError(null);
+    toast.dismiss("studio-request-error");
   };
   const changeProduct = (file: File | null) => {
     if (running) return;
@@ -168,7 +168,7 @@ export function useBackgroundStudio() {
     setRunningProvider(
       `${getAIProviderLabel(provider)}${chosenModel ? ` · ${chosenModel}` : ""}`,
     );
-    setBatchError(null);
+    toast.dismiss("studio-request-error");
     const ids = new Set(queue.map((job) => job.id));
     setJobs((items) =>
       items.map((job) =>
@@ -210,6 +210,7 @@ export function useBackgroundStudio() {
         } catch (error) {
           if (!isCurrent(task)) return;
           const message = getErrorMessage(error);
+          notifyApiError(error, { id: "studio-request-error" });
           patchJob(job.id, {
             status: "error",
             error: message,
@@ -218,7 +219,6 @@ export function useBackgroundStudio() {
           if (!halted && blockingErrors.has(getApiErrorCode(error) || "")) {
             // Do not launch more work; retain results from requests already sent.
             halted = true;
-            setBatchError(message);
             const remaining = new Set(
               queue.slice(nextIndex).map((item) => item.id),
             );
@@ -324,7 +324,6 @@ export function useBackgroundStudio() {
     providerReady,
     providerName: getAIProviderLabel(provider),
     uploadError,
-    batchError,
     generate,
     stop,
     retry,

@@ -1,4 +1,5 @@
-import { useId } from "react";
+import { useEffect, useId } from "react";
+import { toast } from "sonner";
 import { RefreshCw } from "lucide-react";
 import { useAIProvider } from "../hooks/use-ai-provider";
 
@@ -16,6 +17,13 @@ export function AIImageModelSelect() {
   const missing =
     !!imageModel &&
     !imageModels?.models.some((model) => model.id === imageModel);
+  useEffect(() => {
+    if (!imageModelsLoading && imageModels && missing)
+      toast.warning("Model đã lưu không còn khả dụng. Hãy chọn model khác.", {
+        id: "saved-image-model-unavailable",
+      });
+    else toast.dismiss("saved-image-model-unavailable");
+  }, [imageModelsLoading, imageModels, missing]);
   const modelGroups = [
     {
       label: "Google · Gemini",
@@ -99,12 +107,8 @@ export function AIImageModelSelect() {
         {imageModelsLoading ? (
           <p>Đang lấy danh sách từ Provider 1…</p>
         ) : imageModelsError ? (
-          <p className="whitespace-pre-line text-red-700">{imageModelsError}</p>
-        ) : missing ? (
-          <p className="text-amber-800">
-            Model đã lưu không còn khả dụng. Hãy chọn model khác.
-          </p>
-        ) : !imageModels?.models.length ? (
+          <p>Chưa tải được danh sách model. Bấm tải lại để thử lại.</p>
+        ) : missing ? null : !imageModels?.models.length ? (
           <p>Chưa có model tạo/chỉnh ảnh tương thích.</p>
         ) : imageModel ? (
           <p className="break-all">Đang chọn: {imageModel}</p>

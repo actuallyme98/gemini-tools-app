@@ -1143,7 +1143,7 @@ for (const failure of [
         .click();
       await expect.poll(() => pending.length).toBe(3);
       pending[0]();
-      await expect(studio.getByRole("alert")).toContainText(
+      await expect(page.locator("[data-sonner-toast][data-type=error]")).toContainText(
         failure.message.replace("ShopAIKey", "Provider 1"),
       );
       await expect(studio.getByText("Chưa chạy", { exact: true })).toHaveCount(
@@ -1179,7 +1179,7 @@ for (const failure of [
       expect(bodies).toHaveLength(7);
       for (const body of bodies.slice(3))
         expect(body).toContain('name="provider"\r\n\r\nshopaikey');
-      await expect(studio.getByRole("alert")).toHaveCount(0);
+      await expect(page.locator("[data-sonner-toast][data-type=error]")).toHaveCount(0);
     },
   );
 }
@@ -1274,7 +1274,7 @@ test("background uploads enforce limits and selected output totals on mobile", a
     );
   await expect(studio.getByRole("checkbox")).toHaveCount(10);
   await expect(
-    studio.getByText("Tối đa 20 ảnh mỗi bộ.", { exact: false }),
+    page.locator("[data-sonner-toast][data-type=warning]"),
   ).toBeVisible();
   await expect(
     studio.getByRole("button", { name: "Tạo 30 ảnh", exact: true }),
@@ -1405,7 +1405,7 @@ test("tool requests with an expired session return the whole UI to login", async
   await page.getByRole("button", { name: "Phân Tích Ảnh", exact: true }).click();
   await expect(page.getByRole("button", { name: "Đăng nhập", exact: true })).toBeVisible();
   await expect(page.locator(".desktop-sidebar, .agent-tool-page")).toHaveCount(0);
-  await expect(page.getByRole("alert")).toContainText("Phiên đăng nhập đã hết hạn");
+  await expect(page.locator("[data-sonner-toast][data-type=error]")).toContainText("Phiên đăng nhập đã hết hạn");
 });
 
 test("selected provider is captured per request for analysis and idea generation", async ({

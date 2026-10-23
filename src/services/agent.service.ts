@@ -46,7 +46,17 @@ export type MockupTemplate = {
   revision: number;
 };
 export type Operation = "auto" | "mockup_ai" | "mockup_template" | "design";
+export type ApprovalMode = "manual" | "auto";
+export type InputSelection = { sourceIds: string[]; targetIds: string[]; templateIds: string[] };
+export type PlanQuestion = {
+  question: string;
+  options: { label: string; description?: string }[];
+  input?: "source" | "reference" | "template" | "single_source";
+};
 export type Run = {
+  pendingInputs?: InputSelection;
+  approvalMode?: ApprovalMode;
+  autoAnswers?: { question: string; answer: string }[];
   workflow?: { executionId: string; name: string; revision: number; stage: number; total: number };
   context?: { estimatedTokens: number; budget: number; recentMessages: number; summarizedMessages: number; compactedAt?: string };
   activeStepCount?: number;
@@ -67,6 +77,7 @@ export type Run = {
   brief: string;
   summary: string;
   questions: string[];
+  clarifications?: PlanQuestion[];
   count: number;
   provider: string;
   imageModel?: string;
