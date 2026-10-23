@@ -1,7 +1,7 @@
 .admin-page {
-  --admin-ink: #17263c;
-  --admin-muted: #52647a;
-  --admin-line: #dce3eb;
+  --admin-ink: var(--workspace-ink);
+  --admin-muted: var(--workspace-muted);
+  --admin-line: var(--workspace-line);
   --admin-accent: var(--brand-strong);
   --admin-surface: #fff;
   color: var(--admin-ink);
@@ -45,7 +45,7 @@
 }
 .admin-access {
   padding: 22px 26px;
-  background: #edf3fa;
+  background: var(--brand-pale);
   border: 1px solid var(--brand-soft);
   border-radius: 12px;
   min-width: 240px;
@@ -93,10 +93,10 @@
 .admin-tabs button[aria-current="page"] {
   color: var(--admin-accent);
   border-color: var(--admin-accent);
-  background: #edf3fa;
+  background: var(--brand-pale);
 }
 .admin-tabs button:hover {
-  background: #f0f4f9;
+  background: var(--surface-subtle);
 }
 .admin-content {
   display: grid;
@@ -209,7 +209,7 @@
   flex: 1;
   width: 100%;
   max-width: 45px;
-  background: #f1f5f9;
+  background: var(--surface-subtle);
   border-radius: 5px 5px 0 0;
   display: flex;
   align-items: flex-end;
@@ -237,7 +237,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  border-bottom: 1px solid #edf1f6;
+  border-bottom: 1px solid var(--workspace-line);
   padding-bottom: 10px;
 }
 .admin-state-list strong {
@@ -273,12 +273,12 @@
   display: flex;
   justify-content: space-between;
   gap: 20px;
-  border-bottom: 1px solid #e6ecf3;
+  border-bottom: 1px solid var(--workspace-line);
   padding: 13px 0;
   font-size: 12px;
 }
 .admin-definition dt {
-  color: var(--admin-muted, #52647a);
+  color: var(--admin-muted);
 }
 .admin-definition dd {
   text-align: right;
@@ -286,7 +286,7 @@
   max-width: 65%;
 }
 .admin-note {
-  color: var(--admin-muted, #52647a);
+  color: var(--admin-muted);
   font-size: 12px;
   line-height: 1.8;
 }
@@ -314,13 +314,13 @@
   padding: 18px;
   border: 1px solid var(--admin-line);
   border-radius: 9px;
-  background: #f7f9fc;
+  background: var(--workspace-paper);
 }
 .admin-filters label,
 .admin-form > label {
   display: grid;
   gap: 8px;
-  color: var(--admin-muted, #52647a);
+  color: var(--admin-muted);
   font-size: 12px;
 }
 .admin-filters label:first-child {
@@ -336,10 +336,10 @@
   min-width: 0;
   min-height: 42px;
   padding: 10px 12px;
-  border: 1px solid #d1dbe7;
+  border: 1px solid var(--workspace-line);
   border-radius: 7px;
   background: white;
-  color: #17263c;
+  color: var(--workspace-ink);
   font-size: 13px;
 }
 .admin-filters select {
@@ -354,12 +354,12 @@
   gap: 19px;
 }
 .admin-form small {
-  color: #52647a;
+  color: var(--workspace-muted);
   line-height: 1.7;
   font-size: 11px;
 }
 .admin-form hr {
-  border-color: #e2e8f0;
+  border-color: var(--workspace-line);
 }
 .admin-filters .admin-checkbox,
 .admin-form .admin-checkbox {
@@ -367,7 +367,7 @@
   align-items: start;
   gap: 10px;
   line-height: 1.7;
-  color: #17263c;
+  color: var(--workspace-ink);
   font-size: 13px;
 }
 .admin-checkbox input {
@@ -406,7 +406,7 @@
   font-size: 12px;
 }
 .admin-table th {
-  background: #f7f9fc;
+  background: var(--workspace-paper);
   color: var(--admin-muted);
   font-size: 11px;
   font-weight: 500;
@@ -415,7 +415,7 @@
 }
 .admin-table td {
   padding: 17px;
-  border-top: 1px solid #e4eaf2;
+  border-top: 1px solid var(--workspace-line);
   vertical-align: middle;
   max-width: 320px;
   overflow-wrap: anywhere;
@@ -433,7 +433,7 @@
   margin-top: 4px;
 }
 .admin-table tr:hover td {
-  background: #fafcff;
+  background: var(--brand-pale);
 }
 .admin-mono {
   font-family: ui-monospace, monospace;
@@ -459,7 +459,7 @@
   padding: 50px 20px;
   text-align: center;
   font-size: 14px;
-  color: #52647a;
+  color: var(--workspace-muted);
 }
 .admin-placeholder > svg {
   width: 26px;
@@ -500,7 +500,7 @@
 .admin-dialog {
   max-height: 90dvh;
   overflow-y: auto;
-  color: #17263c;
+  color: var(--workspace-ink);
 }
 .admin-dialog > button:last-child {
   min-width: 44px;
@@ -538,7 +538,7 @@
 }
 .admin-step-list article {
   padding: 15px;
-  border: 1px solid #dce3eb;
+  border: 1px solid var(--workspace-line);
   border-radius: 7px;
 }
 .admin-step-list article > div {
@@ -550,7 +550,7 @@
 .admin-step-list small {
   font-size: 11px;
   line-height: 1.9;
-  color: #52647a;
+  color: var(--workspace-muted);
   overflow-wrap: anywhere;
 }
 .admin-step-list strong {
@@ -561,7 +561,7 @@
   overflow: auto;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  background: #f2f5f9;
+  background: var(--surface-subtle);
   border-radius: 7px;
   padding: 17px;
   font-size: 12px;
@@ -585,7 +585,7 @@
 .admin-switcher button[aria-pressed="true"] {
   color: var(--brand-strong);
   border-color: var(--brand-border);
-  background: #edf3fa;
+  background: var(--brand-pale);
 }
 .admin-settings-span,
 .admin-settings-save {
@@ -764,7 +764,7 @@
   gap: 16px;
 }
 .admin-request-summary dt {
-  color: var(--muted-foreground, #64748b);
+  color: var(--workspace-muted);
   font-size: 13px;
 }
 .admin-request-summary dd {
@@ -775,7 +775,7 @@
 .admin-detail-note {
   font-size: 13px;
   line-height: 1.6;
-  color: #64748b;
+  color: var(--workspace-muted);
 }
 .admin-event-list {
   display: grid;
@@ -786,7 +786,7 @@
 }
 .admin-event-list > li {
   padding: 16px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--workspace-line);
   border-radius: 12px;
   min-width: 0;
   overflow-wrap: anywhere;
@@ -803,7 +803,7 @@
 .admin-log-part {
   margin: 14px 0;
   padding: 12px;
-  background: #f8fafc;
+  background: var(--workspace-paper);
   border-radius: 8px;
   min-width: 0;
 }
@@ -839,7 +839,7 @@
 .admin-balance-card {
   min-width: 0;
   padding: 22px;
-  border: 1px solid #dce3eb;
+  border: 1px solid var(--workspace-line);
   background: white;
   border-radius: 12px;
 }
@@ -851,7 +851,7 @@
 .admin-balance-label,
 .admin-balance-percent {
   font-size: 13px;
-  color: #52647a;
+  color: var(--workspace-muted);
 }
 .admin-balance-amount {
   display: block;
@@ -915,12 +915,12 @@
   flex-wrap: wrap;
 }
 .admin-balance-breakdown dt {
-  color: #52647a;
+  color: var(--workspace-muted);
 }
 .admin-balance-note {
   font-size: 12px;
   line-height: 1.75;
-  color: #52647a;
+  color: var(--workspace-muted);
   margin-top: 12px;
   overflow-wrap: anywhere;
 }
@@ -929,6 +929,6 @@
   gap: 12px;
   font-size: 14px;
   line-height: 1.7;
-  color: #52647a;
+  color: var(--workspace-muted);
   overflow-wrap: anywhere;
 }

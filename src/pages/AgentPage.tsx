@@ -1135,7 +1135,9 @@ export function AgentPage({
                       </span>{" "}
                       LCG Agent
                     </span>
-                    <h1>Bạn muốn tạo gì hôm nay?</h1>
+                    <h1>
+                      Bạn muốn <span>tạo gì</span> hôm nay?
+                    </h1>
                     <p>
                       Tạo mockup, phát triển ý tưởng hoặc bắt đầu từ thiết kế
                       của bạn.
@@ -1357,7 +1359,7 @@ export function AgentPage({
                 {!selectedId && (
                   <>
                     <div className="starter-heading">
-                      <span>BẠN CÓ THỂ BẮT ĐẦU VỚI</span>
+                      <span>Bắt đầu từ một ý tưởng</span>
                       <span aria-hidden="true">↘</span>
                     </div>
                     <div className="agent-starters">
@@ -1405,9 +1407,11 @@ export function AgentPage({
                               document.getElementById("agent-brief")?.focus();
                             }}
                           >
-                            <Icon size={21} aria-hidden="true" />
+                            <span className="starter-art" aria-hidden="true">
+                              <Icon size={25} />
+                            </span>
                             <strong>{title}</strong>
-                            <span>{text}</span>
+                            <span className="starter-description">{text}</span>
                             <ArrowUpRight size={15} aria-hidden="true" />
                           </button>
                         ),
