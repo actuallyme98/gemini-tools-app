@@ -142,7 +142,7 @@ export function BackgroundResults({
                   <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
                     {job.status === "processing" ? (
                       <Loader2
-                        className="h-9 w-9 text-blue-600 studio-loading-spinner"
+                        className="h-9 w-9 text-brand-600 studio-loading-spinner"
                         aria-hidden="true"
                       />
                     ) : job.status === "error" ? (

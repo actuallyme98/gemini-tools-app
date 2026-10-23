@@ -85,14 +85,30 @@ test.beforeEach(async ({ page }) => {
   await page.route("**/api/ai/providers", (route) =>
     route.fulfill({ json: providerCatalog }),
   );
-  await page.addInitScript(() => sessionStorage.setItem("lcgmedia.agent.session", "test-session"));
-  await page.route("**/api/agent/auth/status", route => route.fulfill({ json: { enabled: true, setupRequired: false } }));
-  await page.route("**/api/agent/auth/me", route => route.fulfill({ json: { id: "employee-test", email: "employee@example.com", role: "designer" } }));
+  await page.addInitScript(() =>
+    sessionStorage.setItem("lcgmedia.agent.session", "test-session"),
+  );
+  await page.route("**/api/agent/auth/status", (route) =>
+    route.fulfill({ json: { enabled: true, setupRequired: false } }),
+  );
+  await page.route("**/api/agent/auth/me", (route) =>
+    route.fulfill({
+      json: {
+        id: "employee-test",
+        email: "employee@example.com",
+        role: "designer",
+      },
+    }),
+  );
   for (const path of ["assets", "templates", "workflows", "runs"]) {
-    await page.route(`**/api/agent/${path}`, route => route.fulfill({ json: [] }));
+    await page.route(`**/api/agent/${path}`, (route) =>
+      route.fulfill({ json: [] }),
+    );
   }
-  await page.route("**/api/agent/history", route => route.fulfill({ json: { items: [], hasMore: false, nextCursor: null } }));
-  await page.route("**/api/image-jobs", route => route.fulfill({ json: [] }));
+  await page.route("**/api/agent/history", (route) =>
+    route.fulfill({ json: { items: [], hasMore: false, nextCursor: null } }),
+  );
+  await page.route("**/api/image-jobs", (route) => route.fulfill({ json: [] }));
   await page.route("**/api/ai/providers/shopaikey/image-models*", (route) =>
     route.fulfill({ json: imageModelCatalog }),
   );
@@ -751,7 +767,9 @@ test("background batch sends one product and one selected reference per result, 
       "product__garden__4-v2.png",
     ].sort(),
   );
-  await page.getByRole("button", { name: "Công cụ", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Tất cả công cụ", exact: true })
+    .click();
   await expect(
     page.getByText("Đã tạo 1 ảnh áp hình in", { exact: true }),
   ).toHaveCount(4);
@@ -1143,9 +1161,9 @@ for (const failure of [
         .click();
       await expect.poll(() => pending.length).toBe(3);
       pending[0]();
-      await expect(page.locator("[data-sonner-toast][data-type=error]")).toContainText(
-        failure.message.replace("ShopAIKey", "Provider 1"),
-      );
+      await expect(
+        page.locator("[data-sonner-toast][data-type=error]"),
+      ).toContainText(failure.message.replace("ShopAIKey", "Provider 1"));
       await expect(studio.getByText("Chưa chạy", { exact: true })).toHaveCount(
         3,
       );
@@ -1179,7 +1197,9 @@ for (const failure of [
       expect(bodies).toHaveLength(7);
       for (const body of bodies.slice(3))
         expect(body).toContain('name="provider"\r\n\r\nshopaikey');
-      await expect(page.locator("[data-sonner-toast][data-type=error]")).toHaveCount(0);
+      await expect(
+        page.locator("[data-sonner-toast][data-type=error]"),
+      ).toHaveCount(0);
     },
   );
 }
@@ -1373,39 +1393,90 @@ test("saved Gemini selection migrates to Provider 1 and stays hidden on desktop 
   await expect(select).toHaveValue("shopaikey");
 });
 
-test("queued analysis and idea arrays preserve authentication and submit each paid operation once", async ({ page }) => {
+test("queued analysis and idea arrays preserve authentication and submit each paid operation once", async ({
+  page,
+}) => {
   const submits: string[] = [];
   const analysisId = "11111111-1111-4111-8111-111111111111";
   const ideasId = "22222222-2222-4222-8222-222222222222";
-  for (const [path, id] of [["analyze-product", analysisId], ["generate-ideas", ideasId]]) {
-    await page.route(`**/api/ideas/${path}`, route => {
-      expect(route.request().headers().authorization).toBe("Bearer test-session");
-      expect(route.request().headers()["idempotency-key"]).toMatch(/^[a-f0-9-]{36}$/);
+  for (const [path, id] of [
+    ["analyze-product", analysisId],
+    ["generate-ideas", ideasId],
+  ]) {
+    await page.route(`**/api/ideas/${path}`, (route) => {
+      expect(route.request().headers().authorization).toBe(
+        "Bearer test-session",
+      );
+      expect(route.request().headers()["idempotency-key"]).toMatch(
+        /^[a-f0-9-]{36}$/,
+      );
       expect(route.request().postData()).toContain('name="async"\r\n\r\ntrue');
       submits.push(path);
-      return route.fulfill({ status: 202, json: { jobId: id, requestId: "queued-request", state: "pending" } });
+      return route.fulfill({
+        status: 202,
+        json: { jobId: id, requestId: "queued-request", state: "pending" },
+      });
     });
   }
   let reads = 0;
-  await page.route(`**/api/image-jobs/${analysisId}`, route => route.fulfill({ json: ++reads === 1 ? { state: "pending" } : { state: "done", result: analysis("QUEUED PRODUCT") } }));
-  await page.route(`**/api/image-jobs/${ideasId}`, route => route.fulfill({ json: { state: "done", result: [{ url: "https://cdn.example/good.png", prompt: "summer" }] } }));
+  await page.route(`**/api/image-jobs/${analysisId}`, (route) =>
+    route.fulfill({
+      json:
+        ++reads === 1
+          ? { state: "pending" }
+          : { state: "done", result: analysis("QUEUED PRODUCT") },
+    }),
+  );
+  await page.route(`**/api/image-jobs/${ideasId}`, (route) =>
+    route.fulfill({
+      json: {
+        state: "done",
+        result: [{ url: "https://cdn.example/good.png", prompt: "summer" }],
+      },
+    }),
+  );
   await page.goto("/#idea-generator");
-  await page.getByLabel("Tải Ảnh Sản Phẩm", { exact: true }).setInputFiles(image("product.png"));
-  await page.getByRole("button", { name: "Phân Tích Ảnh", exact: true }).click();
-  await expect(page.getByText("QUEUED PRODUCT", { exact: true })).toBeVisible({ timeout: 10000 });
+  await page
+    .getByLabel("Tải Ảnh Sản Phẩm", { exact: true })
+    .setInputFiles(image("product.png"));
+  await page
+    .getByRole("button", { name: "Phân Tích Ảnh", exact: true })
+    .click();
+  await expect(page.getByText("QUEUED PRODUCT", { exact: true })).toBeVisible({
+    timeout: 10000,
+  });
   await page.getByRole("button", { name: /Tạo .* Ý Tưởng/ }).click();
-  await expect(page.locator('img[src="https://cdn.example/good.png"]')).toBeVisible({ timeout: 10000 });
+  await expect(
+    page.locator('img[src="https://cdn.example/good.png"]'),
+  ).toBeVisible({ timeout: 10000 });
   expect(submits).toEqual(["analyze-product", "generate-ideas"]);
 });
 
-test("tool requests with an expired session return the whole UI to login", async ({ page }) => {
-  await page.route("**/api/ideas/analyze-product", route => route.fulfill({ status: 401, json: { message: "Phiên đăng nhập đã hết hạn." } }));
+test("tool requests with an expired session return the whole UI to login", async ({
+  page,
+}) => {
+  await page.route("**/api/ideas/analyze-product", (route) =>
+    route.fulfill({
+      status: 401,
+      json: { message: "Phiên đăng nhập đã hết hạn." },
+    }),
+  );
   await page.goto("/#idea-generator");
-  await page.getByLabel("Tải Ảnh Sản Phẩm", { exact: true }).setInputFiles(image("product.png"));
-  await page.getByRole("button", { name: "Phân Tích Ảnh", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Đăng nhập", exact: true })).toBeVisible();
-  await expect(page.locator(".desktop-sidebar, .agent-tool-page")).toHaveCount(0);
-  await expect(page.locator("[data-sonner-toast][data-type=error]")).toContainText("Phiên đăng nhập đã hết hạn");
+  await page
+    .getByLabel("Tải Ảnh Sản Phẩm", { exact: true })
+    .setInputFiles(image("product.png"));
+  await page
+    .getByRole("button", { name: "Phân Tích Ảnh", exact: true })
+    .click();
+  await expect(
+    page.getByRole("button", { name: "Đăng nhập", exact: true }),
+  ).toBeVisible();
+  await expect(page.locator(".desktop-sidebar, .agent-tool-page")).toHaveCount(
+    0,
+  );
+  await expect(
+    page.locator("[data-sonner-toast][data-type=error]"),
+  ).toContainText("Phiên đăng nhập đã hết hạn");
 });
 
 test("selected provider is captured per request for analysis and idea generation", async ({
@@ -2068,14 +2139,13 @@ test("ZIP reports failed downloads, retains page results and updates dashboard",
     .click();
   await expect(page.getByText("Mockup #1", { exact: true })).toBeVisible();
   await expect(page.getByText("Mockup #2", { exact: true })).toBeVisible();
-  await page.locator("nav").getByRole("button", { name: "Công cụ" }).click();
+  await page
+    .locator("nav")
+    .getByRole("button", { name: "Tất cả công cụ" })
+    .click();
   await expect(page.getByText("Đã tạo 1 mockup", { exact: true })).toHaveCount(
     2,
   );
-  await page
-    .locator("nav")
-    .getByText("Công cụ bổ trợ", { exact: true })
-    .click();
   await page
     .locator("nav")
     .getByRole("button", { name: "Mockup Generator" })

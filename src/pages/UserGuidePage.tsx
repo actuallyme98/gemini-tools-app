@@ -156,6 +156,13 @@ export default function UserGuidePage({
           Mở <strong>Ngữ cảnh & tệp</strong>. Cấu hình ở đây áp dụng cho yêu cầu
           bạn sắp gửi; không cần tìm một trang Cấu hình Agent riêng.
         </p>
+        <p>
+          Ô nhập luôn ở đáy màn hình; chỉ phần hội thoại phía trên cuộn. Bảng
+          ngữ cảnh ưu tiên ảnh nguồn, ảnh tham chiếu và model. Mở “Tùy chọn nâng
+          cao” để đổi nhóm sản phẩm, số biến thể hoặc bật kiểm tra kết quả. Trên
+          màn hình nhỏ, đóng bảng ngữ cảnh để xem lại hội thoại; nội dung đang
+          nhập và ảnh đã chọn vẫn được giữ.
+        </p>
         <div
           className="guide-table-scroll"
           role="region"

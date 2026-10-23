@@ -1,6 +1,13 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
+  --brand-orange: #f58216;
+  --brand-foreground: #321700;
+  --brand-strong: #a74407;
+  --brand-soft: #fff1e4;
+  --brand-pale: #fffbf7;
+  --brand-border: #f3c69e;
+  --brand-focus: #c45508;
   --font-size: 16px;
   --background: #fbfcfe;
   --foreground: #202838;
@@ -8,8 +15,8 @@
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
-  --primary: #4058d5;
-  --primary-foreground: oklch(1 0 0);
+  --primary: var(--brand-orange);
+  --primary-foreground: var(--brand-foreground);
   --secondary: oklch(0.95 0.0058 264.53);
   --secondary-foreground: #030213;
   --muted: #ececf0;
@@ -24,7 +31,7 @@
   --switch-background: #cbced4;
   --font-weight-medium: 500;
   --font-weight-normal: 400;
-  --ring: oklch(0.708 0 0);
+  --ring: var(--brand-focus);
   --chart-1: oklch(0.646 0.222 41.116);
   --chart-2: oklch(0.6 0.118 184.704);
   --chart-3: oklch(0.398 0.07 227.392);
@@ -33,8 +40,8 @@
   --radius: 0.625rem;
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: #030213;
-  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-primary: var(--brand-orange);
+  --sidebar-primary-foreground: var(--brand-foreground);
   --sidebar-accent: oklch(0.97 0 0);
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
@@ -48,8 +55,8 @@
   --card-foreground: oklch(0.985 0 0);
   --popover: oklch(0.145 0 0);
   --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.985 0 0);
-  --primary-foreground: oklch(0.205 0 0);
+  --primary: var(--brand-orange);
+  --primary-foreground: var(--brand-foreground);
   --secondary: oklch(0.269 0 0);
   --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.269 0 0);
@@ -79,6 +86,22 @@
 }
 
 @theme inline {
+  --color-brand-50: var(--brand-pale);
+  --color-brand-100: var(--brand-soft);
+  --color-brand-200: var(--brand-border);
+  --color-brand-300: #f2b07d;
+  --color-brand-400: #f7a04e;
+  --color-brand-500: var(--brand-orange);
+  --color-brand-600: #b94a05;
+  --color-brand-700: #9c3d08;
+  --color-brand-800: #7d300b;
+  --color-brand-900: #62270c;
+  --color-brand-950: #421a09;
+  --color-brand: var(--brand-orange);
+  --color-brand-strong: var(--brand-strong);
+  --color-brand-soft: var(--brand-soft);
+  --color-brand-pale: var(--brand-pale);
+  --color-brand-border: var(--brand-border);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);

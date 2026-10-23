@@ -24,9 +24,9 @@ export function ImageAnalysisDisplay({ analysis }: ImageAnalysisDisplayProps) {
 
       <div className="space-y-4">
         {/* Product Info */}
-        <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg p-4">
+        <div className="bg-gradient-to-r from-brand-50 to-brand-50 rounded-lg p-4">
           <div className="flex items-center gap-2 mb-3">
-            <Tag className="w-4 h-4 text-blue-600" />
+            <Tag className="w-4 h-4 text-brand-600" />
             <h4 className="text-sm font-semibold text-gray-900">
               Thông tin sản phẩm
             </h4>
@@ -59,9 +59,9 @@ export function ImageAnalysisDisplay({ analysis }: ImageAnalysisDisplayProps) {
 
         {/* Inspired By / Theme */}
         {analysis.inspiredBy && (
-          <div className="border-l-4 border-purple-400 bg-purple-50 rounded-lg p-4">
+          <div className="border-l-4 border-brand-400 bg-brand-50 rounded-lg p-4">
             <div className="flex items-center gap-2 mb-3">
-              <Sparkles className="w-4 h-4 text-purple-600" />
+              <Sparkles className="w-4 h-4 text-brand-600" />
               <h4 className="text-sm font-semibold text-gray-900">
                 Chủ đề & Nguồn cảm hứng
               </h4>
@@ -217,7 +217,7 @@ export function ImageAnalysisDisplay({ analysis }: ImageAnalysisDisplayProps) {
                 <Badge
                   key={index}
                   variant="outline"
-                  className="bg-blue-50 text-blue-700 border-blue-200"
+                  className="bg-brand-50 text-brand-700 border-brand-200"
                 >
                   {keyword}
                 </Badge>

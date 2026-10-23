@@ -72,7 +72,7 @@ export function BackgroundStudioPage() {
           <h2 className="text-3xl font-bold tracking-tight text-gray-900">
             Mockup Studio
           </h2>
-          <span className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-medium text-blue-800">
+          <span className="rounded-full border border-brand-200 bg-brand-50 px-3 py-1 text-xs font-medium text-brand-800">
             Tạo cả bộ trong một lần
           </span>
         </div>
@@ -88,7 +88,7 @@ export function BackgroundStudioPage() {
           {["Sản phẩm gốc", "Ảnh tham chiếu", "Tạo & tải bộ ảnh"].map(
             (step, index) => (
               <li key={step} className="flex items-center gap-2">
-                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-100 text-xs font-semibold text-blue-800">
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-brand-100 text-xs font-semibold text-brand-800">
                   {index + 1}
                 </span>
                 {step}
@@ -113,7 +113,7 @@ export function BackgroundStudioPage() {
               studio.changeProduct(event.dataTransfer.files[0]);
           }}
         >
-          <div className="flex items-center gap-2 text-sm font-semibold text-blue-800">
+          <div className="flex items-center gap-2 text-sm font-semibold text-brand-800">
             <Package aria-hidden="true" className="h-4 w-4" />
             Một thiết kế dùng cho cả bộ
           </div>
@@ -126,7 +126,7 @@ export function BackgroundStudioPage() {
             resetState={() => {}}
             disabled={studio.running}
           />
-          <div className="rounded-lg border border-blue-100 bg-blue-50 p-3 text-xs leading-relaxed text-blue-900">
+          <div className="rounded-lg border border-brand-100 bg-brand-50 p-3 text-xs leading-relaxed text-brand-900">
             <p className="font-medium">Chọn ảnh thấy rõ hình in và sản phẩm</p>
             <p className="mt-1">
               Ưu tiên ảnh thấy đầy đủ sản phẩm để xác định đúng kích thước và vị
@@ -178,9 +178,9 @@ export function BackgroundStudioPage() {
             />
             <label
               htmlFor={`${id}-backgrounds`}
-              className={`flex min-h-36 flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed px-4 py-5 text-center transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-blue-600 ${studio.running ? "cursor-not-allowed opacity-50" : "cursor-pointer hover:border-blue-400 hover:bg-blue-50/50"} ${dragging ? "border-blue-500 bg-blue-50" : "border-gray-300 bg-gray-50"}`}
+              className={`flex min-h-36 flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed px-4 py-5 text-center transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-brand-600 ${studio.running ? "cursor-not-allowed opacity-50" : "cursor-pointer hover:border-brand-400 hover:bg-brand-50/50"} ${dragging ? "border-brand-500 bg-brand-50" : "border-gray-300 bg-gray-50"}`}
             >
-              <ImagePlus className="h-7 w-7 text-blue-600" aria-hidden="true" />
+              <ImagePlus className="h-7 w-7 text-brand-600" aria-hidden="true" />
               <span className="font-medium text-gray-900">
                 Kéo ảnh vào đây hoặc chọn ảnh tham chiếu
               </span>
@@ -198,7 +198,7 @@ export function BackgroundStudioPage() {
                 </p>
                 <Button
                   variant="ghost"
-                  className="min-h-11 text-blue-700"
+                  className="min-h-11 text-brand-700"
                   disabled={studio.running}
                   onClick={() =>
                     studio.selectAll(
@@ -228,7 +228,7 @@ export function BackgroundStudioPage() {
                         onChange={() => studio.toggleBackground(source.id)}
                       />
                       <div
-                        className={`overflow-hidden rounded-xl border-2 transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-blue-600 peer-focus-visible:ring-offset-2 ${source.selected ? "border-blue-500 bg-blue-50" : "border-gray-200 bg-white"} ${studio.running ? "opacity-70" : ""}`}
+                        className={`overflow-hidden rounded-xl border-2 transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-brand-600 peer-focus-visible:ring-offset-2 ${source.selected ? "border-brand-500 bg-brand-50" : "border-gray-200 bg-white"} ${studio.running ? "opacity-70" : ""}`}
                       >
                         <div className="relative aspect-[4/3]">
                           <img
@@ -238,7 +238,7 @@ export function BackgroundStudioPage() {
                           />
                           <span
                             aria-hidden="true"
-                            className={`absolute left-2 top-2 flex h-6 w-6 items-center justify-center rounded-full border-2 shadow-sm ${source.selected ? "border-blue-600 bg-blue-600 text-white" : "border-white bg-white/90"}`}
+                            className={`absolute left-2 top-2 flex h-6 w-6 items-center justify-center rounded-full border-2 shadow-sm ${source.selected ? "border-brand-600 bg-brand-600 text-white" : "border-white bg-white/90"}`}
                           >
                             {source.selected && <Check className="h-4 w-4" />}
                           </span>
@@ -284,7 +284,7 @@ export function BackgroundStudioPage() {
                 onChange={(event) =>
                   studio.setVariations(Number(event.target.value))
                 }
-                className="min-h-11 rounded-lg border border-gray-300 bg-white px-3 text-base focus-visible:ring-2 focus-visible:ring-blue-600"
+                className="min-h-11 rounded-lg border border-gray-300 bg-white px-3 text-base focus-visible:ring-2 focus-visible:ring-brand-600"
               >
                 {[1, 2, 3].map((count) => (
                   <option
@@ -310,7 +310,7 @@ export function BackgroundStudioPage() {
                 <Button
                   type="button"
                   variant="ghost"
-                  className="min-h-11 text-blue-700"
+                  className="min-h-11 text-brand-700"
                   disabled={studio.running}
                   onClick={studio.resetInstructions}
                 >
@@ -336,7 +336,7 @@ export function BackgroundStudioPage() {
                 disabled={studio.running}
                 onChange={(event) => studio.setInstructions(event.target.value)}
                 rows={14}
-                className="mt-3 w-full resize-y rounded-lg border border-gray-300 bg-white p-3 text-base leading-relaxed focus-visible:ring-2 focus-visible:ring-blue-600 disabled:cursor-not-allowed disabled:bg-gray-100"
+                className="mt-3 w-full resize-y rounded-lg border border-gray-300 bg-white p-3 text-base leading-relaxed focus-visible:ring-2 focus-visible:ring-brand-600 disabled:cursor-not-allowed disabled:bg-gray-100"
                 placeholder="Nhập prompt đầy đủ để xử lý ảnh."
               />
               <p
@@ -403,7 +403,7 @@ export function BackgroundStudioPage() {
             ) : (
               <>
                 <Button
-                  className="min-h-11 bg-blue-600 text-white hover:bg-blue-700"
+                  className="min-h-11 bg-brand-600 text-white hover:bg-brand-700"
                   disabled={!ready}
                   onClick={() => void studio.generate()}
                 >
@@ -452,7 +452,7 @@ export function BackgroundStudioPage() {
               </span>
             </div>
             <Progress
-              className="bg-blue-100 [&_[data-slot=progress-indicator]]:bg-blue-600"
+              className="bg-brand-100 [&_[data-slot=progress-indicator]]:bg-brand-600"
               value={
                 studio.jobs.length ? (finished / studio.jobs.length) * 100 : 0
               }

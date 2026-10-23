@@ -1,5 +1,4 @@
 import {
-  ArrowUpRight,
   Bot,
   Boxes,
   ChevronRight,
@@ -85,7 +84,6 @@ export function Sidebar({
           <strong>
             LCG<span className="font-normal"> Agent</span>
           </strong>
-          <small>CREATIVE WORKSPACE</small>
         </span>
       </button>
       <button
@@ -98,7 +96,6 @@ export function Sidebar({
         <Plus size={18} aria-hidden="true" /> Trò chuyện mới
       </button>
       <nav aria-label="Điều hướng chính" className="workspace-navigation">
-        <p className="nav-caption">KHÔNG GIAN LÀM VIỆC</p>
         {navigation.map(({ id, label, icon: Icon }) => (
           <button
             key={id}
@@ -119,24 +116,27 @@ export function Sidebar({
             )}
           </button>
         ))}
-        <div className="nav-divider" />
-        <button
-          type="button"
-          className="workspace-nav-item"
-          aria-current={currentPage === "home" ? "page" : undefined}
-          onClick={() => onPageChange("home")}
-        >
-          <Wand2 size={18} aria-hidden="true" />
-          <span>Công cụ</span>
-          <ArrowUpRight size={14} aria-hidden="true" />
-        </button>
         <details
           className="tool-navigation"
-          open={tools.some((tool) => tool.id === currentPage) || undefined}
+          open={
+            currentPage === "home" ||
+            tools.some((tool) => tool.id === currentPage) ||
+            undefined
+          }
         >
           <summary>
-            Công cụ bổ trợ <ChevronRight size={14} aria-hidden="true" />
+            <Wand2 size={18} aria-hidden="true" />
+            <span>Công cụ</span>
+            <ChevronRight size={14} aria-hidden="true" />
           </summary>
+          <button
+            type="button"
+            className="workspace-nav-item"
+            aria-current={currentPage === "home" ? "page" : undefined}
+            onClick={() => onPageChange("home")}
+          >
+            <span>Tất cả công cụ</span>
+          </button>
           {tools.map(({ id, label, icon: Icon }) => (
             <button
               key={id}
@@ -153,7 +153,7 @@ export function Sidebar({
       </nav>
       <section className="recent-conversations" aria-label="Trò chuyện gần đây">
         <div className="recent-conversations-heading">
-          <h2 className="nav-caption">TRÒ CHUYỆN GẦN ĐÂY</h2>
+          <h2 className="nav-caption">Trò chuyện gần đây</h2>
           {onRefreshHistory && (
             <button
               type="button"
@@ -198,7 +198,6 @@ export function Sidebar({
                 onClick={() => onConversation?.(conversation.id)}
                 disabled={busy}
               >
-                <MessageSquare size={14} aria-hidden="true" />
                 <span>{conversation.title}</span>
               </button>
             ))}
@@ -213,7 +212,7 @@ export function Sidebar({
         ) : !historyRefreshing && !historyError ? (
           <p className="sidebar-empty">
             {user
-              ? "Chưa có hội thoại đã lưu. Gửi yêu cầu cho Trợ lý AI để bắt đầu; tác vụ từ các công cụ nằm trong Công việc."
+              ? "Hội thoại của bạn sẽ xuất hiện ở đây."
               : "Đăng nhập để lưu ý tưởng và công việc của bạn."}
           </p>
         ) : null}

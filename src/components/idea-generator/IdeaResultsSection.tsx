@@ -28,7 +28,7 @@ export function IdeaResultsSection({ ideas }: IdeaResultsSectionProps) {
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2">
-        <Sparkles className="w-5 h-5 text-purple-600" />
+        <Sparkles className="w-5 h-5 text-brand-600" />
         <h3 className="font-semibold text-gray-900">
           {ideas.length} Ý Tưởng Đã Tạo
         </h3>

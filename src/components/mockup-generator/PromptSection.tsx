@@ -132,7 +132,7 @@ export function PromptSection({
                   key={index}
                   className="p-3 bg-gray-50 rounded-lg text-sm text-gray-600"
                 >
-                  <span className="font-medium text-blue-600">
+                  <span className="font-medium text-brand-600">
                     #{index + 1}:
                   </span>{" "}
                   {prompt}

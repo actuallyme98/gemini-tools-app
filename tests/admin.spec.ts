@@ -360,7 +360,10 @@ async function setup(page: Page, role: "admin" | "designer" = "admin") {
     .fill("private-test-password-123");
   await page.getByRole("button", { name: "Đăng nhập", exact: true }).click();
   await expect(
-    page.getByRole("heading", { name: /Một ý tưởng.*Cả quy trình/ }),
+    page.getByRole("heading", {
+      name: "Bạn muốn tạo gì hôm nay?",
+      exact: true,
+    }),
   ).toBeVisible();
   return {
     rootId,

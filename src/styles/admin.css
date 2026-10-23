@@ -2,7 +2,7 @@
   --admin-ink: #17263c;
   --admin-muted: #52647a;
   --admin-line: #dce3eb;
-  --admin-accent: #285c9c;
+  --admin-accent: var(--brand-strong);
   --admin-surface: #fff;
   color: var(--admin-ink);
   max-width: 1500px;
@@ -46,7 +46,7 @@
 .admin-access {
   padding: 22px 26px;
   background: #edf3fa;
-  border: 1px solid #d8e4f2;
+  border: 1px solid var(--brand-soft);
   border-radius: 12px;
   min-width: 240px;
   display: grid;
@@ -217,7 +217,7 @@
 .admin-chart-column > div > span {
   display: block;
   width: 100%;
-  background: #4d7eaf;
+  background: var(--brand-strong);
   border-radius: 5px 5px 0 0;
 }
 .admin-chart-column strong {
@@ -375,7 +375,7 @@
   height: 18px;
   min-height: 18px;
   margin-top: 2px;
-  accent-color: #285c9c;
+  accent-color: var(--brand-strong);
   flex-shrink: 0;
 }
 .admin-filters .admin-checkbox {
@@ -583,8 +583,8 @@
   cursor: pointer;
 }
 .admin-switcher button[aria-pressed="true"] {
-  color: #285c9c;
-  border-color: #a6bdd8;
+  color: var(--brand-strong);
+  border-color: var(--brand-border);
   background: #edf3fa;
 }
 .admin-settings-span,
@@ -625,7 +625,7 @@
 .admin-table-scroll:focus-visible,
 .admin-dialog input:focus-visible,
 .admin-dialog textarea:focus-visible {
-  outline: 2px solid #285c9c;
+  outline: 2px solid var(--brand-strong);
   outline-offset: 3px;
 }
 @media (max-width: 1200px) {

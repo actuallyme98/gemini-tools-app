@@ -66,7 +66,7 @@ export function ImageUploadSection({
       {!preview ? (
         <label
           htmlFor={id}
-          className="block cursor-pointer peer-focus-visible:ring-2 peer-focus-visible:ring-blue-500 rounded-lg"
+          className="block cursor-pointer peer-focus-visible:ring-2 peer-focus-visible:ring-brand-500 rounded-lg"
         >
           <Card className="border-2 border-dashed border-gray-300 hover:border-gray-400">
             <div className="p-6 flex flex-col items-center justify-center gap-2">
@@ -106,7 +106,7 @@ export function ImageUploadSection({
             <p className="text-xs text-gray-500 truncate">{image?.name}</p>
             <label
               htmlFor={id}
-              className="text-sm text-blue-700 cursor-pointer underline shrink-0"
+              className="text-sm text-brand-700 cursor-pointer underline shrink-0"
             >
               Đổi ảnh
             </label>

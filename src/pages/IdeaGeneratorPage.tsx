@@ -170,7 +170,7 @@ export function IdeaGeneratorPage() {
                       isCompleted
                         ? "bg-green-500 text-white"
                         : isActive
-                          ? "bg-blue-500 text-white"
+                          ? "bg-brand-500 text-white"
                           : "bg-gray-200 text-gray-500"
                     }`}
                   >
@@ -178,7 +178,7 @@ export function IdeaGeneratorPage() {
                   </div>
                   <span
                     className={`text-sm mt-2 ${
-                      isActive ? "text-blue-900 font-semibold" : "text-gray-600"
+                      isActive ? "text-brand-900 font-semibold" : "text-gray-600"
                     }`}
                   >
                     {item.label}
@@ -281,21 +281,21 @@ export function IdeaGeneratorPage() {
             </h3>
             <ol className="space-y-2 text-sm text-gray-700">
               <li className="flex gap-2">
-                <span className="font-semibold text-blue-600">1.</span>
+                <span className="font-semibold text-brand-600">1.</span>
                 <span>Tải ảnh sản phẩm lên và bấm "Phân Tích Ảnh"</span>
               </li>
               <li className="flex gap-2">
-                <span className="font-semibold text-blue-600">2.</span>
+                <span className="font-semibold text-brand-600">2.</span>
                 <span>Xem kết quả phân tích chi tiết về sản phẩm</span>
               </li>
               <li className="flex gap-2">
-                <span className="font-semibold text-blue-600">3.</span>
+                <span className="font-semibold text-brand-600">3.</span>
                 <span>
                   Chọn số lượng ý tưởng và tùy chỉnh prompt (tùy chọn)
                 </span>
               </li>
               <li className="flex gap-2">
-                <span className="font-semibold text-blue-600">4.</span>
+                <span className="font-semibold text-brand-600">4.</span>
                 <span>Bấm "Tạo Ý Tưởng" và tải xuống kết quả</span>
               </li>
             </ol>
@@ -310,8 +310,8 @@ export function IdeaGeneratorPage() {
               <h3 className="font-semibold text-gray-900 mb-4">Tính Năng</h3>
               <div className="space-y-3">
                 <div className="flex items-start gap-3">
-                  <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
-                    <Sparkles className="w-4 h-4 text-blue-600" />
+                  <div className="w-8 h-8 rounded-full bg-brand-100 flex items-center justify-center shrink-0">
+                    <Sparkles className="w-4 h-4 text-brand-600" />
                   </div>
                   <div>
                     <h4 className="font-medium text-sm text-gray-900">
@@ -323,8 +323,8 @@ export function IdeaGeneratorPage() {
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
-                  <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center shrink-0">
-                    <Lightbulb className="w-4 h-4 text-purple-600" />
+                  <div className="w-8 h-8 rounded-full bg-brand-100 flex items-center justify-center shrink-0">
+                    <Lightbulb className="w-4 h-4 text-brand-600" />
                   </div>
                   <div>
                     <h4 className="font-medium text-sm text-gray-900">

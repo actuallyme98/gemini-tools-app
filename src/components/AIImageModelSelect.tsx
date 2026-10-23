@@ -54,7 +54,7 @@ export function AIImageModelSelect() {
           onClick={refreshImageModels}
           disabled={imageModelsLoading || isProcessingRequest}
           aria-label="Tải lại danh sách model ảnh"
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-blue-700 hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 disabled:opacity-50"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-brand-700 hover:bg-brand-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 disabled:opacity-50"
         >
           <RefreshCw
             aria-hidden="true"
@@ -72,7 +72,7 @@ export function AIImageModelSelect() {
           isProcessingRequest
         }
         aria-describedby={`${id}-help ${id}-status`}
-        className="min-h-11 w-full min-w-0 rounded-lg border border-blue-200 bg-white pl-2 pr-8 text-base md:text-sm text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 disabled:opacity-60"
+        className="min-h-11 w-full min-w-0 rounded-lg border border-brand-200 bg-white pl-2 pr-8 text-base md:text-sm text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 disabled:opacity-60"
       >
         <option value="" disabled>
           {imageModelsLoading ? "Đang tải model…" : "Chọn model ảnh"}

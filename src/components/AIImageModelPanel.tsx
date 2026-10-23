@@ -23,7 +23,7 @@ export function AIImageModelPanel() {
     >
       {provider === "shopaikey" ? (
         <>
-          <p className="mb-2 text-sm text-blue-700">
+          <p className="mb-2 text-sm text-brand-700">
             Provider ảnh: {providerName}
           </p>
           <AIImageModelSelect />
@@ -54,7 +54,7 @@ export function AIImageModelPanel() {
             onClick={() => selectProvider("shopaikey")}
             disabled={loading || isProcessingRequest || !shopAvailable}
             aria-describedby={`${id}-help`}
-            className="min-h-11 shrink-0 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+            className="min-h-11 shrink-0 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
           >
             Chọn model Provider 1
           </button>

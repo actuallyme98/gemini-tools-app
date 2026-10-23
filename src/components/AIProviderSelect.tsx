@@ -50,7 +50,7 @@ export function AIProviderSelect() {
           onChange={(event) => selectProvider(event.target.value)}
           disabled={loading || isProcessingRequest}
           aria-describedby={`${id}-status ${id}-help`}
-          className="h-11 w-full appearance-none rounded-lg border border-slate-200 bg-white pl-3 pr-9 text-base md:text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-60"
+          className="h-11 w-full appearance-none rounded-lg border border-slate-200 bg-white pl-3 pr-9 text-base md:text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:opacity-60"
         >
           {provider &&
             isVisibleAIProvider(provider) &&
@@ -72,7 +72,7 @@ export function AIProviderSelect() {
         </select>
         <ChevronDown
           aria-hidden="true"
-          className="pointer-events-none absolute right-3 top-3 h-5 w-5 text-blue-600"
+          className="pointer-events-none absolute right-3 top-3 h-5 w-5 text-brand-600"
         />
       </div>
       <div
@@ -82,7 +82,7 @@ export function AIProviderSelect() {
         className="text-xs text-gray-600 space-y-1"
       >
         {isProcessingRequest && (
-          <p className="text-blue-700">
+          <p className="text-brand-700">
             Đang xử lý yêu cầu. Provider và model tạm khóa.
           </p>
         )}
@@ -114,7 +114,7 @@ export function AIProviderSelect() {
           type="button"
           onClick={retry}
           disabled={isProcessingRequest}
-          className="min-h-11 text-sm text-blue-700 underline rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="min-h-11 text-sm text-brand-700 underline rounded focus:outline-none focus:ring-2 focus:ring-brand-500"
         >
           Tải lại provider
         </button>

@@ -161,7 +161,7 @@ export function PromptCustomization({
                       {section.label}
                     </span>
                     {hasValue && (
-                      <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">
+                      <span className="text-xs bg-brand-100 text-brand-700 px-2 py-0.5 rounded">
                         Đã thêm
                       </span>
                     )}

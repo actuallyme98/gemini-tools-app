@@ -890,67 +890,195 @@ test("free text answers keep the original task and resume its workflow stage", a
   expect(fixture.errors).toEqual([]);
 });
 
-for (const width of [1440, 390])
-  test(`chat width and one page scroll work at ${width}px`, async ({
-    page,
-  }) => {
-    await page.setViewportSize({ width, height: 850 });
-    const fixture = await prepareMockup(page);
-    fixture.ask();
-    await expect(
-      page.getByRole("form", { name: "Bổ sung thông tin cho Agent" }),
-    ).toBeVisible();
-    const layout = await page.evaluate(() => {
-      const main = document.getElementById("main-content")!;
-      const thread = document
-        .querySelector(".conversation-thread")!
-        .getBoundingClientRect();
-      const composer = document
-        .querySelector(".agent-composer")!
-        .getBoundingClientRect();
-      main.scrollTop = main.scrollHeight;
-      return {
-        threadWidth: thread.width,
-        composerWidth: composer.width,
-        left: thread.left - composer.left,
-        documentHeight: document.documentElement.scrollHeight,
-        viewport: innerHeight,
-        documentWidth: document.documentElement.scrollWidth,
-        width: innerWidth,
-        mainScrolled: main.scrollTop,
-        contextOverflow: getComputedStyle(
-          document.querySelector(".agent-context")!,
-        ).overflowY,
-        boxes: [
-          ...document.querySelectorAll(
-            "#root, body, .agent-application, .workspace-body, .workspace-header, .workspace-main",
-          ),
-        ].map((element) => ({
-          name: element.tagName + "." + element.className,
-          top: element.getBoundingClientRect().top,
-          height: element.getBoundingClientRect().height,
-          overflow: getComputedStyle(element).overflowY,
-        })),
-      };
-    });
-    expect(Math.abs(layout.threadWidth - layout.composerWidth)).toBeLessThan(2);
-    expect(Math.abs(layout.left)).toBeLessThan(2);
-    expect(layout.documentHeight, JSON.stringify(layout)).toBeLessThanOrEqual(
-      layout.viewport,
+for (const [width, height] of [
+  [1440, 850],
+  [900, 850],
+  [390, 844],
+  [390, 500],
+])
+  test(
+    "chat composer stays at the bottom while content scrolls at " +
+      width +
+      "x" +
+      height,
+    async ({ page }) => {
+      await page.setViewportSize({ width, height });
+      const fixture = await prepareMockup(page);
+      fixture.ask();
+      await expect(
+        page.getByRole("form", {
+          name: "B\u1ed5 sung th\u00f4ng tin cho Agent",
+        }),
+      ).toBeVisible();
+      const scroll = page.getByRole("region", {
+        name: "N\u1ed9i dung tr\u00f2 chuy\u1ec7n",
+        exact: true,
+      });
+      const composer = page.locator(".agent-composer");
+      const submit = page.getByRole("button", {
+        name: "G\u1eedi y\u00eau c\u1ea7u",
+        exact: true,
+      });
+      const initial = await composer.boundingBox();
+      expect(initial).not.toBeNull();
+      for (const fraction of [0, 0.5, 1]) {
+        await scroll.evaluate((element, value) => {
+          element.scrollTop =
+            (element.scrollHeight - element.clientHeight) * value;
+        }, fraction);
+        await expect(submit).toBeInViewport({ ratio: 1 });
+        const box = await composer.boundingBox();
+        expect(Math.abs(box!.y - initial!.y)).toBeLessThan(2);
+      }
+      await scroll.evaluate((element) => {
+        element.scrollTop = 0;
+      });
+      const region = await scroll.boundingBox();
+      await page.mouse.move(
+        region!.x + region!.width / 2,
+        region!.y + region!.height / 2,
+      );
+      await page.mouse.wheel(0, 500);
+      await expect
+        .poll(() => scroll.evaluate((element) => element.scrollTop))
+        .toBeGreaterThan(0);
+      const layout = await page.evaluate(() => {
+        const thread = document
+          .querySelector(".conversation-thread")!
+          .getBoundingClientRect();
+        const composer = document
+          .querySelector(".agent-composer")!
+          .getBoundingClientRect();
+        const scroll = document.getElementById("agent-chat-scroll")!;
+        return {
+          threadWidth: thread.width,
+          composerWidth: composer.width,
+          left: thread.left - composer.left,
+          documentHeight: document.documentElement.scrollHeight,
+          viewport: innerHeight,
+          documentWidth: document.documentElement.scrollWidth,
+          width: innerWidth,
+          mainScrolled: document.getElementById("main-content")!.scrollTop,
+          scrollBottom: scroll.getBoundingClientRect().bottom,
+          composerTop: composer.top,
+          contextOverflow: getComputedStyle(
+            document.querySelector(".agent-context")!,
+          ).overflowY,
+        };
+      });
+      expect(Math.abs(layout.threadWidth - layout.composerWidth)).toBeLessThan(
+        2,
+      );
+      expect(Math.abs(layout.left)).toBeLessThan(2);
+      expect(layout.documentHeight).toBeLessThanOrEqual(layout.viewport);
+      expect(layout.documentWidth).toBeLessThanOrEqual(layout.width);
+      expect(layout.mainScrolled).toBe(0);
+      expect(layout.scrollBottom).toBeLessThanOrEqual(layout.composerTop);
+      expect(layout.contextOverflow).toBe("auto");
+      await expect(page.locator(".workspace-header")).toBeInViewport();
+      await page
+        .getByRole("button", { name: /Ng\u1eef c\u1ea3nh & t\u1ec7p/ })
+        .click();
+      if (width > 1100)
+        await page
+          .getByRole("button", { name: /Ng\u1eef c\u1ea3nh & t\u1ec7p/ })
+          .click();
+      const context = page.getByRole("complementary", {
+        name: "Ng\u1eef c\u1ea3nh c\u00f4ng vi\u1ec7c",
+        exact: true,
+      });
+      await expect(context).toBeVisible();
+      await context.evaluate((element) => {
+        element.scrollTop = element.scrollHeight;
+      });
+      await expect(submit).toBeInViewport({ ratio: 1 });
+      await page
+        .getByRole("button", { name: /Ng\u1eef c\u1ea3nh & t\u1ec7p/ })
+        .click();
+      await expect(scroll).toBeVisible();
+      await page.screenshot({
+        path: test
+          .info()
+          .outputPath("chat-layout-" + width + "x" + height + ".png"),
+        fullPage: true,
+      });
+      expect(fixture.errors).toEqual([]);
+    },
+  );
+
+test("a large attachment set and long draft keep the send button visible on a short screen", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 500 });
+  const fixture = await setup(page);
+  await page
+    .getByLabel("\u1ea2nh s\u1ea3n ph\u1ea9m/thi\u1ebft k\u1ebf ngu\u1ed3n", {
+      exact: true,
+    })
+    .setInputFiles(
+      Array.from({ length: 20 }, (_, i) => image("source-" + i + ".png")),
     );
-    expect(layout.documentWidth).toBeLessThanOrEqual(layout.width);
-    expect(layout.mainScrolled).toBeGreaterThan(0);
-    expect(layout.contextOverflow).toBe("visible");
-    await expect(page.locator(".workspace-header")).toBeInViewport();
-    await expect(
-      page.getByRole("button", { name: "Gửi yêu cầu", exact: true }),
-    ).toBeInViewport();
-    await page.screenshot({
-      path: test.info().outputPath(`chat-layout-${width}.png`),
-      fullPage: true,
-    });
-    expect(fixture.errors).toEqual([]);
+  await expect(page.locator(".attachment-chip")).toHaveCount(20);
+  await page
+    .getByLabel("\u1ea2nh tham chi\u1ebfu \u2014 c\u1ea3nh c\u1ea7n gi\u1eef", {
+      exact: true,
+    })
+    .setInputFiles(
+      Array.from({ length: 20 }, (_, i) => image("reference-" + i + ".png")),
+    );
+  await expect(page.locator(".attachment-chip")).toHaveCount(40);
+  const input = page.getByLabel(
+    "Giao vi\u1ec7c ho\u1eb7c y\u00eau c\u1ea7u ch\u1ec9nh ti\u1ebfp",
+  );
+  const draft = Array.from({ length: 20 }, (_, i) => "Draft line " + i).join(
+    "\n",
+  );
+  await input.fill(draft);
+  const submit = page.getByRole("button", {
+    name: "G\u1eedi y\u00eau c\u1ea7u",
+    exact: true,
   });
+  await expect(submit).toBeInViewport({ ratio: 1 });
+  const attachments = page.locator(".composer-attachments");
+  expect(
+    await attachments.evaluate((el) => el.scrollWidth > el.clientWidth),
+  ).toBe(true);
+  expect((await attachments.boundingBox())!.height).toBeLessThan(85);
+  await page
+    .getByRole("button", { name: /Ng\u1eef c\u1ea3nh & t\u1ec7p/ })
+    .click();
+  await expect(input).toHaveValue(draft);
+  await expect(submit).toBeInViewport({ ratio: 1 });
+  expect(fixture.messageIds).toHaveLength(0);
+  expect(fixture.errors).toEqual([]);
+});
+
+test("chat keyboard preserves line breaks and composition, and Enter submits once", async ({
+  page,
+}) => {
+  const fixture = await setup(page);
+  const input = page.getByLabel(
+    "Giao vi\u1ec7c ho\u1eb7c y\u00eau c\u1ea7u ch\u1ec9nh ti\u1ebfp",
+  );
+  await input.fill("Create an ornament mockup");
+  const submit = page.getByRole("button", { name: "Gửi yêu cầu", exact: true });
+  await expect(submit).toBeEnabled();
+  await expect(submit).toHaveCSS("background-color", "rgb(245, 130, 22)");
+  await expect(submit).toHaveCSS("color", "rgb(50, 23, 0)");
+  await input.press("Shift+Enter");
+  await expect(input).toHaveValue("Create an ornament mockup\n");
+  await input.dispatchEvent("keydown", {
+    key: "Enter",
+    code: "Enter",
+    isComposing: true,
+  });
+  expect(fixture.messageIds).toHaveLength(0);
+  await input.press("Enter");
+  await expect.poll(() => fixture.messageIds.length).toBe(1);
+  await expect(input).toHaveValue("");
+  expect(fixture.started).toBe(false);
+  expect(fixture.errors).toEqual([]);
+});
 
 test("employee builds a reusable workflow and launches it with selected references", async ({
   page,
@@ -1100,7 +1228,7 @@ test("full conversation and sidebar history load on scroll and survive polling w
   await expect(
     page.getByText("Nội dung lịch sử 1", { exact: true }),
   ).toHaveCount(0);
-  const main = page.locator("#main-content");
+  const main = page.locator("#agent-chat-scroll");
   await main.evaluate((element) => {
     element.scrollTop = 0;
   });
@@ -1208,7 +1336,7 @@ test("recent conversations refresh independently of library errors and open real
     name: "Trò chuyện gần đây",
     exact: true,
   });
-  await expect(recent).toContainText("Chưa có hội thoại đã lưu");
+  await expect(recent).toContainText("Hội thoại của bạn sẽ xuất hiện ở đây.");
   items = [conversation];
   await expect(
     recent.getByRole("button", { name: conversation.title, exact: true }),
@@ -1602,7 +1730,10 @@ test("Google login sends the credential and challenge, locks pending login, and 
   ).toBe(true);
   release();
   await expect(
-    page.getByRole("heading", { name: /Một ý tưởng.*Cả quy trình/ }),
+    page.getByRole("heading", {
+      name: "Bạn muốn tạo gì hôm nay?",
+      exact: true,
+    }),
   ).toBeVisible();
   expect(
     await page.evaluate(() => sessionStorage.getItem("lcgmedia.agent.session")),
@@ -1612,7 +1743,10 @@ test("Google login sends the credential and challenge, locks pending login, and 
   ).not.toContain("google-id-token-test");
   await page.reload();
   await expect(
-    page.getByRole("heading", { name: /Một ý tưởng.*Cả quy trình/ }),
+    page.getByRole("heading", {
+      name: "Bạn muốn tạo gì hôm nay?",
+      exact: true,
+    }),
   ).toBeVisible();
   expect(fixture.errors).toEqual([]);
 });
@@ -1655,7 +1789,10 @@ for (const status of [401, 403]) {
       .fill("test-password-at-least-12");
     await page.getByRole("button", { name: "Đăng nhập", exact: true }).click();
     await expect(
-      page.getByRole("heading", { name: /Một ý tưởng.*Cả quy trình/ }),
+      page.getByRole("heading", {
+        name: "Bạn muốn tạo gì hôm nay?",
+        exact: true,
+      }),
     ).toBeVisible();
     expect(fixture.errors).toEqual([]);
   });
@@ -1704,7 +1841,10 @@ test("agent workspace is the default and supports navigation, asset reuse and ex
   const fixture = await setup(page);
   await expect(page).toHaveTitle(/LCG Agent/);
   await expect(
-    page.getByRole("heading", { name: /Một ý tưởng.*Cả quy trình/ }),
+    page.getByRole("heading", {
+      name: "Bạn muốn tạo gì hôm nay?",
+      exact: true,
+    }),
   ).toBeVisible();
   await page.screenshot({
     path: test.info().outputPath("agent-welcome-desktop.png"),

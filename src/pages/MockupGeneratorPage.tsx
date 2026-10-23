@@ -279,22 +279,22 @@ export function MockupGeneratorPage() {
             </h3>
             <ol className="space-y-2 text-sm text-gray-700">
               <li className="flex gap-2">
-                <span className="font-semibold text-blue-600">1.</span>
+                <span className="font-semibold text-brand-600">1.</span>
                 <span>Tải ảnh mẫu (sản phẩm/thiết kế) của bạn lên</span>
               </li>
               <li className="flex gap-2">
-                <span className="font-semibold text-blue-600">2.</span>
+                <span className="font-semibold text-brand-600">2.</span>
                 <span>
                   Chọn nhập prompts thủ công hoặc để AI tự động tạo nhiều
                   prompts
                 </span>
               </li>
               <li className="flex gap-2">
-                <span className="font-semibold text-blue-600">3.</span>
+                <span className="font-semibold text-brand-600">3.</span>
                 <span>Nhấn "Tạo Mockup" để xử lý</span>
               </li>
               <li className="flex gap-2">
-                <span className="font-semibold text-blue-600">4.</span>
+                <span className="font-semibold text-brand-600">4.</span>
                 <span>Tải xuống từng ảnh hoặc tất cả ảnh dưới dạng ZIP</span>
               </li>
             </ol>
@@ -404,8 +404,8 @@ export function MockupGeneratorPage() {
               </h3>
               <div className="space-y-3">
                 <div className="flex items-start gap-3">
-                  <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
-                    <Wand2 className="w-4 h-4 text-blue-600" />
+                  <div className="w-8 h-8 rounded-full bg-brand-100 flex items-center justify-center shrink-0">
+                    <Wand2 className="w-4 h-4 text-brand-600" />
                   </div>
                   <div>
                     <h4 className="font-medium text-sm text-gray-900">
@@ -417,8 +417,8 @@ export function MockupGeneratorPage() {
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
-                  <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center shrink-0">
-                    <Wand2 className="w-4 h-4 text-purple-600" />
+                  <div className="w-8 h-8 rounded-full bg-brand-100 flex items-center justify-center shrink-0">
+                    <Wand2 className="w-4 h-4 text-brand-600" />
                   </div>
                   <div>
                     <h4 className="font-medium text-sm text-gray-900">

@@ -243,7 +243,7 @@ export function AgentRunCard({
                   href={source.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="break-all text-blue-700 underline"
+                  className="break-all text-brand-700 underline"
                 >
                   {source.title}
                 </a>{" "}
@@ -288,7 +288,7 @@ export function AgentRunCard({
                 })}
               </div>
               {run.operation === "mockup_template" && (
-                <p className="text-sm text-blue-800">
+                <p className="text-sm text-brand-800">
                   Ghép theo vùng in đã cấu hình; prompt mô tả công việc và không
                   điều khiển phép ghép.
                 </p>

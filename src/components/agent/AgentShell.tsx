@@ -107,7 +107,7 @@ export function AgentShell({
           ref={main}
           id="main-content"
           tabIndex={-1}
-          className="workspace-main"
+          className={`workspace-main${props.currentPage === "agent" ? " workspace-main-chat" : ""}`}
         >
           {children}
         </main>

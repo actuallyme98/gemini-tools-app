@@ -44,11 +44,11 @@
   cursor: pointer;
 }
 .guide-toc button:hover {
-  background: #eef4f0;
+  background: var(--brand-soft);
 }
 .guide-toc button:focus-visible,
 .guide-figure a:focus-visible {
-  outline: 2px solid #326b56;
+  outline: 2px solid var(--brand-strong);
   outline-offset: 3px;
 }
 .guide-flow {
@@ -70,8 +70,8 @@
   width: 26px;
   height: 26px;
   border-radius: 50%;
-  background: #e8f0eb;
-  color: #285f48;
+  background: var(--brand-soft);
+  color: var(--brand-strong);
   font-weight: 600;
 }
 .guide-chapter {
@@ -117,8 +117,8 @@
   margin-top: 10px;
 }
 .guide-chapter blockquote {
-  background: #eef4f0;
-  border-left: 3px solid #49765d;
+  background: var(--brand-soft);
+  border-left: 3px solid var(--brand-strong);
   padding: 20px 24px;
   border-radius: 0 12px 12px 0;
   font-size: 16px;
@@ -169,7 +169,7 @@
   border-bottom: 1px solid #e8ece9;
 }
 .guide-table-scroll th {
-  background: #f0f4f1;
+  background: var(--brand-soft);
   font-weight: 600;
 }
 .guide-chapter details {
