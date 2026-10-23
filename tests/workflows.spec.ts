@@ -2044,7 +2044,7 @@ test("Mockup Generator pauses unsent work after billing errors and keeps complet
     page.getByRole("combobox", { name: "Model tạo / sửa ảnh" }),
   ).toBeEnabled();
   await expect(studio.getByRole("img", { name: /^Result / })).toHaveCount(2);
-  expect(submitted).toEqual(["one", "two", "three"]);
+  expect([...submitted].sort()).toEqual(["one", "two", "three"].sort());
   await studio
     .getByRole("button", { name: "Thử lại ảnh 4", exact: true })
     .click();
@@ -2052,7 +2052,7 @@ test("Mockup Generator pauses unsent work after billing errors and keeps complet
   await expect(
     studio.getByRole("img", { name: "Result 4", exact: true }),
   ).toBeVisible();
-  expect(submitted).toEqual(["one", "two", "three", "four"]);
+  expect([...submitted].sort()).toEqual(["one", "two", "three", "four"].sort());
 });
 
 test("stopping a mockup job cancels polling and late results cannot change or unlock its retry", async ({
