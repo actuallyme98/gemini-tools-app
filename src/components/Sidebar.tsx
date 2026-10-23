@@ -13,7 +13,6 @@ import {
   RefreshCw,
   ShieldCheck,
   Wand2,
-  Workflow,
 } from "lucide-react";
 import type { AgentUser, Conversation } from "../services/agent.service";
 import { HistoryLoader } from "./agent/HistoryLoader";
@@ -23,8 +22,6 @@ const navigation = [
   { id: "agent", label: "Trợ lý AI", icon: MessageSquare },
   { id: "jobs", label: "Công việc", icon: Boxes },
   { id: "library", label: "Thư viện", icon: FolderOpen },
-  { id: "templates", label: "Templates", icon: Layers },
-  { id: "workflows", label: "Workflows", icon: Workflow },
 ];
 const tools = [
   { id: "mockup-generator", label: "Mockup Generator", icon: Wand2 },

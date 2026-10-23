@@ -66,7 +66,7 @@ export function AgentShell({
         <SheetContent side="left" className="w-[280px] p-0">
           <SheetTitle className="sr-only">Điều hướng</SheetTitle>
           <SheetDescription className="sr-only">
-            Trò chuyện, công việc, thư viện và workflows.
+            Trò chuyện, công việc và thư viện.
           </SheetDescription>
           <Sidebar {...sidebarProps} />
         </SheetContent>

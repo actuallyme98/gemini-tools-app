@@ -1095,6 +1095,17 @@ test("resource creation stays hidden on empty pages and in chat on desktop and m
     { width: 390, height: 844 },
   ]) {
     await page.setViewportSize(viewport);
+    await page.goto("/#home");
+    if (viewport.width < 768)
+      await page.getByRole("button", { name: "Mở menu", exact: true }).click();
+    const navigation = page.locator(".workspace-navigation:visible");
+    await expect(
+      navigation.getByRole("button", { name: /^(Templates|Workflows)$/ }),
+    ).toHaveCount(0);
+    await expect(navigation.getByRole("button")).toHaveCount(3);
+    await navigation
+      .getByRole("button", { name: "Trợ lý AI", exact: true })
+      .click();
     await page.goto("/#workflows");
     await expect(
       page.getByRole("heading", { name: "Chưa có workflow", exact: true }),
