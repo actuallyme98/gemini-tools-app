@@ -48,21 +48,22 @@ function useBudget<T>(path: string, refreshKey?: string) {
   };
 }
 export function BudgetMeter({ data }: { data: BudgetSummary }) {
+  const money = (value: number) => usd(value, data.currency);
   return (
     <div className="budget-meter">
       <div>
-        <strong>{usd(data.availableUsd)} khả dụng</strong>
-        <span>/ {usd(data.limitUsd)} mỗi tuần</span>
+        <strong>{money(data.availableUsd)} khả dụng</strong>
+        <span>/ {money(data.limitUsd)} mỗi tuần</span>
       </div>
       <progress
         max={100}
         value={data.usedPercent}
         aria-label="Ngân sách AI đã dùng và giữ chỗ"
-        aria-valuetext={`${usd(data.spentUsd)} đã dùng, ${usd(data.reservedUsd)} đang giữ chỗ; hạn mức ${usd(data.limitUsd)}`}
+        aria-valuetext={`${money(data.spentUsd)} đã dùng, ${money(data.reservedUsd)} đang giữ chỗ; hạn mức ${money(data.limitUsd)}`}
         className={data.usedPercent >= 80 ? "budget-warning" : undefined}
       />
       <p>
-        Đã dùng {usd(data.spentUsd)} · Đang giữ chỗ {usd(data.reservedUsd)}
+        Đã dùng {money(data.spentUsd)} · Đang giữ chỗ {money(data.reservedUsd)}
       </p>
       <small>
         Tuần từ {budgetDate(data.periodStart)} · Cấp lại{" "}
@@ -94,7 +95,7 @@ export function WeeklyBudget({
         {resource.error
           ? "Chưa tải được ngân sách"
           : resource.data
-            ? `${usd(resource.data.availableUsd)} / ${usd(resource.data.limitUsd)} tuần này`
+            ? `${usd(resource.data.availableUsd, resource.data.currency)} / ${usd(resource.data.limitUsd, resource.data.currency)} tuần này`
             : "Đang tải ngân sách…"}
       </summary>
       <div>
@@ -135,6 +136,8 @@ export function EmployeeBudgetDialog({
     useState<BudgetDetails["entries"][number]>();
   const [actual, setActual] = useState("");
   const data = resource.data;
+  const unit = data?.currency === "CREDIT" ? "credit" : "USD";
+  const money = (value: number) => usd(value, data?.currency);
   const currentWeek = !period;
   const useDefault = inherit ?? data?.overrideUsd === null;
   const proposed = useDefault
@@ -244,10 +247,10 @@ export function EmployeeBudgetDialog({
                     disabled={busy || confirm}
                     onChange={(event) => setInherit(event.target.checked)}
                   />
-                  Dùng mặc định công ty ({usd(data.defaultWeeklyUsd)}/tuần)
+                  Dùng mặc định công ty ({money(data.defaultWeeklyUsd)}/tuần)
                 </label>
                 <label>
-                  Hạn mức mỗi tuần (USD)
+                  Hạn mức mỗi tuần ({unit})
                   <input
                     type="number"
                     min={0}
@@ -264,11 +267,11 @@ export function EmployeeBudgetDialog({
                   />
                 </label>
                 <p>
-                  Hạn mức {usd(data.limitUsd)} →{" "}
-                  {Number.isFinite(proposed) ? usd(proposed) : "—"}. Còn khả
+                  Hạn mức {money(data.limitUsd)} →{" "}
+                  {Number.isFinite(proposed) ? money(proposed) : "—"}. Còn khả
                   dụng sau thay đổi:{" "}
                   {Number.isFinite(proposed)
-                    ? usd(
+                    ? money(
                         Math.max(
                           0,
                           proposed - data.spentUsd - data.reservedUsd,
@@ -306,7 +309,7 @@ export function EmployeeBudgetDialog({
                   nhận không tính phí. Không gửi lại request AI.
                 </p>
                 <label>
-                  Chi phí đã xác minh (USD)
+                  Chi phí đã xác minh ({unit})
                   <input
                     type="number"
                     min={0}
@@ -356,8 +359,8 @@ export function EmployeeBudgetDialog({
               >
                 <p>
                   {reconcile
-                    ? `Chốt ${usd(Number(actual))} cho request này?`
-                    : `Áp dụng ${usd(proposed)}/tuần cho ${account.email}?`}{" "}
+                    ? `Chốt ${money(Number(actual))} cho request này?`
+                    : `Áp dụng ${money(proposed)}/tuần cho ${account.email}?`}{" "}
                   Chi phí đã dùng được giữ nguyên.
                 </p>
                 <Button disabled={busy} onClick={() => void save()}>
@@ -400,8 +403,8 @@ export function EmployeeBudgetDialog({
                       </td>
                       <td>
                         {entry.costUsd === undefined
-                          ? `${usd(entry.reservedUsd)} giữ chỗ`
-                          : usd(entry.costUsd)}
+                          ? `${money(entry.reservedUsd)} giữ chỗ`
+                          : money(entry.costUsd)}
                       </td>
                       <td>
                         {entry.status === "settled"
@@ -465,6 +468,8 @@ export function BudgetPolicyPanel() {
   const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
   const data = draft ?? resource.data;
+  const unit = data?.currency === "CREDIT" ? "credit" : "USD";
+  const money = (value: number) => usd(value, data?.currency);
   const change = (index: number, fields: Partial<PriceRule>) => {
     if (data)
       setDraft({
@@ -478,9 +483,9 @@ export function BudgetPolicyPanel() {
     <section className="budget-policy admin-panel">
       <h2>Ngân sách & bảng giá AI</h2>
       <p>
-        Mặc định 50 USD/tài khoản/tuần. Tuần bắt đầu thứ Hai 00:00 (UTC+7). Bảng
-        giá nội bộ dùng để dự toán và tính usage; không lấy chênh lệch số dư
-        chung để trừ tiền nhân viên.
+        Hạn mức tuần tính theo đơn vị của chính sách công ty. Tuần bắt đầu thứ
+        Hai 00:00 (UTC+7). Bảng giá nội bộ dùng để dự toán và tính usage; không
+        lấy chênh lệch số dư chung để trừ tiền nhân viên.
       </p>
       {resource.error ? (
         <div role="alert">
@@ -499,7 +504,7 @@ export function BudgetPolicyPanel() {
         >
           <fieldset disabled={busy || confirm}>
             <label>
-              Hạn mức mặc định mỗi tuần (USD)
+              Hạn mức mặc định mỗi tuần ({unit})
               <input
                 type="number"
                 min={0}
@@ -569,7 +574,7 @@ export function BudgetPolicyPanel() {
                       </select>
                     </label>
                     <label>
-                      Giữ chỗ tối đa / lượt (USD)
+                      Giữ chỗ tối đa / lượt ({unit})
                       <input
                         type="number"
                         min="0.000001"
@@ -586,11 +591,17 @@ export function BudgetPolicyPanel() {
                     </label>
                     {(
                       [
-                        ["requestUsd", "Phí cố định / lượt (USD)"],
-                        ["inputUsdPerMillion", "1 triệu token đầu vào (USD)"],
-                        ["outputUsdPerMillion", "1 triệu token đầu ra (USD)"],
+                        ["requestUsd", `Phí cố định / lượt (${unit})`],
+                        [
+                          "inputUsdPerMillion",
+                          `1 triệu token đầu vào (${unit})`,
+                        ],
+                        [
+                          "outputUsdPerMillion",
+                          `1 triệu token đầu ra (${unit})`,
+                        ],
                         ...(rule.operation === "image"
-                          ? [["imageUsd", "Mỗi ảnh đầu ra (USD)"]]
+                          ? [["imageUsd", `Mỗi ảnh đầu ra (${unit})`]]
                           : []),
                       ] as [keyof PriceRule, string][]
                     ).map(([key, label]) => (
@@ -690,7 +701,7 @@ export function BudgetPolicyPanel() {
               aria-label="Xác nhận chính sách ngân sách"
             >
               <p>
-                Áp dụng mặc định {usd(data.defaultWeeklyUsd)}/tuần và{" "}
+                Áp dụng mặc định {money(data.defaultWeeklyUsd)}/tuần và{" "}
                 {data.prices.length} quy tắc giá?
               </p>
               <Button
@@ -700,6 +711,7 @@ export function BudgetPolicyPanel() {
                   setBusy(true);
                   void agentClient
                     .patch("/admin/budget-policy", {
+                      currency: data.currency ?? "USD",
                       defaultWeeklyUsd: data.defaultWeeklyUsd,
                       prices: data.prices,
                       updatedAt: resource.data?.updatedAt,

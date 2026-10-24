@@ -556,6 +556,80 @@ test("admin configures weekly defaults and verified model prices with explicit c
   expect(fixture.errors).toEqual([]);
 });
 
+test("credit budgets keep employee meters, limits and model price forms in the provider credit unit", async ({
+  page,
+}) => {
+  const fixture = await setup(page);
+  let saved: Record<string, unknown> | undefined;
+  const credit = { ...sampleBudget(fixture.staffId), currency: "CREDIT" };
+  await page.route("**/api/agent/usage", (route) =>
+    route.fulfill({ json: credit }),
+  );
+  await page.route(
+    `**/api/agent/admin/users/${fixture.staffId}/usage?*`,
+    (route) => route.fulfill({ json: credit }),
+  );
+  await page.route("**/api/agent/admin/budget-policy", (route) => {
+    if (route.request().method() === "PATCH")
+      saved = route.request().postDataJSON() as Record<string, unknown>;
+    return route.fulfill({
+      json: {
+        currency: "CREDIT",
+        defaultWeeklyUsd: 50,
+        prices: [],
+        updatedAt: new Date().toISOString(),
+        ...saved,
+      },
+    });
+  });
+  await page.goto("/#admin-users");
+  await page.reload();
+  await expect(
+    page.getByText("35,00 credit / 50,00 credit tuần này", { exact: true }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", {
+      name: "Điều chỉnh ngân sách staff@lcgmedia.uk",
+      exact: true,
+    })
+    .click();
+  await expect(
+    page
+      .getByRole("dialog")
+      .getByLabel("Hạn mức mỗi tuần (credit)", { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByRole("dialog")).toContainText("50,00 credit mỗi tuần");
+  await page.keyboard.press("Escape");
+  await page.goto("/#admin-settings");
+  await expect(
+    page.getByLabel("Hạn mức mặc định mỗi tuần (credit)", { exact: true }),
+  ).toHaveValue("50");
+  await page
+    .getByRole("button", { name: "Thêm quy tắc giá", exact: true })
+    .click();
+  await page.getByLabel("Model", { exact: true }).fill("verified-image");
+  await page
+    .getByLabel("Giữ chỗ tối đa / lượt (credit)", { exact: true })
+    .fill("0.321");
+  await page
+    .getByLabel("Phí cố định / lượt (credit)", { exact: true })
+    .fill("0.321");
+  await page
+    .getByLabel("Nguồn giá / căn cứ xác minh", { exact: true })
+    .fill("Verified ShopAIKey credit rate");
+  await page
+    .getByLabel("Lý do thay đổi chính sách", { exact: true })
+    .fill("Giữ nguyên đơn vị credit");
+  await page
+    .getByRole("button", { name: "Xem lại chính sách ngân sách", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Xác nhận lưu chính sách", exact: true })
+    .click();
+  await expect.poll(() => saved?.currency).toBe("CREDIT");
+  expect(fixture.errors).toEqual([]);
+});
+
 test("admin dashboard shows real metrics, accessible tabs and works at mobile width", async ({
   page,
 }) => {

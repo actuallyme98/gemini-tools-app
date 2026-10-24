@@ -1,4 +1,5 @@
 export type BudgetSummary = {
+  currency?: "USD" | "CREDIT";
   owner: string;
   periodStart: string;
   periodEnd: string;
@@ -43,16 +44,19 @@ export type PriceRule = {
   source: string;
 };
 export type BudgetPolicy = {
+  currency?: "USD" | "CREDIT";
   defaultWeeklyUsd: number;
   prices: PriceRule[];
   updatedAt: string;
 };
-export const usd = (value: number) =>
-  new Intl.NumberFormat("vi-VN", {
-    style: "currency",
-    currency: "USD",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 6,
-  }).format(value);
+export const usd = (value: number, currency: "USD" | "CREDIT" = "USD") =>
+  currency === "CREDIT"
+    ? `${new Intl.NumberFormat("vi-VN", { minimumFractionDigits: 2, maximumFractionDigits: 6 }).format(value)} credit`
+    : new Intl.NumberFormat("vi-VN", {
+        style: "currency",
+        currency: "USD",
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 6,
+      }).format(value);
 export const budgetDate = (value: string) =>
   new Date(value).toLocaleDateString("vi-VN", { timeZone: "Asia/Bangkok" });
