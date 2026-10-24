@@ -116,6 +116,7 @@ async function setup(page: Page, role: "admin" | "designer" = "admin") {
       return json({ token: "a".repeat(64), user: profile });
     if (path === "/auth/me") return json(profile);
     if (path === "/usage") return json(sampleBudget(profile.id));
+    if (path === "/workspace/projects") return json([]);
     if (path === "/admin/budget-policy" && method === "GET")
       return json({ defaultWeeklyUsd: 50, prices: [], updatedAt: now });
     if (/^\/admin\/users\/[^/]+\/usage$/.test(path) && method === "GET")

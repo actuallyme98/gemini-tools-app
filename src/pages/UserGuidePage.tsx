@@ -15,6 +15,7 @@ const chapters = [
   ["results", "Xử lý, duyệt ảnh & xuất file"],
   ["workflows", "Tạo workflow dùng lại"],
   ["history", "Hội thoại, bộ nhớ & thư viện"],
+  ["company", "Dự án, kiến thức & sản xuất"],
   ["troubleshooting", "Xử lý tình huống thường gặp"],
 ]
   .filter(([id]) => id !== "workflows" || agentResourceCreationEnabled)
@@ -420,6 +421,18 @@ export default function UserGuidePage({
       )}
 
       <Chapter id="history" title={chapterTitles.history}>
+        <p>
+          <strong>Chia sẻ hội thoại:</strong> mở hội thoại đã lưu, bấm Chia sẻ ở
+          đầu trang. Kiểm tra nội dung và chọn có kèm ảnh xem trước hay không,
+          sau đó bấm Tạo link chia sẻ và Sao chép. Bất kỳ ai có link đều xem
+          được bản chỉ đọc, không cần tài khoản.
+        </p>
+        <p>
+          Link chỉ chứa bản lưu lúc chia sẻ, không tự đưa tin nhắn mới lên. Bấm
+          Cập nhật nội dung để làm mới cùng link; bấm Thu hồi link để chặn truy
+          cập tiếp theo. Người nhận không được sửa hoặc chạy AI bằng tài khoản
+          của bạn. Việc thu hồi không xóa bản người nhận đã tải/lưu.
+        </p>
         <ul>
           <li>
             <strong>Trò chuyện gần đây:</strong> bấm tên để mở hội thoại đã lưu;
@@ -446,13 +459,15 @@ export default function UserGuidePage({
             <strong>Thư viện:</strong> quản lý ảnh nguồn, ảnh tham chiếu và kết
             quả; chọn tệp để dùng trong công việc tiếp theo hoặc tải bộ ảnh.
           </li>
-          <li>
-            <strong>Templates:</strong> lưu ảnh mockup và vùng in để ghép thiết
-            kế theo bố cục cố định.{" "}
-            {agentResourceCreationEnabled
-              ? "Tạo template, chọn vùng in chính xác, lưu rồi chọn template khi giao việc."
-              : "Chọn template đã có khi giao việc; kiểm tra vùng in và cặp ảnh trong kế hoạch trước khi chạy."}
-          </li>
+          {agentResourceCreationEnabled && (
+            <li>
+              <strong>Templates:</strong> lưu ảnh mockup và vùng in để ghép
+              thiết kế theo bố cục cố định.{" "}
+              {agentResourceCreationEnabled
+                ? "Tạo template, chọn vùng in chính xác, lưu rồi chọn template khi giao việc."
+                : "Chọn template đã có khi giao việc; kiểm tra vùng in và cặp ảnh trong kế hoạch trước khi chạy."}
+            </li>
+          )}
           {agentToolsNavigationEnabled && (
             <li>
               <strong>Công cụ:</strong> các màn hình xử lý riêng vẫn có trong
@@ -463,6 +478,71 @@ export default function UserGuidePage({
         </ul>
       </Chapter>
 
+      <Chapter id="company" title={chapterTitles.company}>
+        <p>
+          Mở <strong>Không gian nhóm</strong> từ thanh điều hướng để chuẩn bị
+          công việc chung, tra cứu quy chuẩn và sản xuất hàng loạt.
+        </p>
+        <ol>
+          <li>
+            <strong>Dự án:</strong> tạo dự án, nhập email nhân viên đã được cấp
+            tài khoản và quyền viewer/editor/reviewer/manager. Trong chat, chọn
+            dự án ở Tùy chọn nâng cao hoặc phân công một công việc đã có từ
+            trang Công việc. Chia sẻ công việc cho phép thành viên xem ảnh đầu
+            vào, prompt, kết quả và chi phí; không chia sẻ toàn bộ lịch sử chat.
+          </li>
+          <li>
+            <strong>Kiến thức:</strong> lưu quy chuẩn brand/POD, gắn từ khóa và
+            chọn riêng tư/dự án/toàn công ty. Chỉ admin công bố toàn công ty.
+            Khi lập kế hoạch, Agent tìm phần liên quan có quyền truy cập, lưu
+            phiên bản và đoạn trích đã dùng; sửa tài liệu không âm thầm đổi
+            prompt đã duyệt.
+          </li>
+          <li>
+            <strong>Nghiên cứu:</strong> nhập keyword hoặc tối đa 5 link HTTPS
+            công khai, bấm Thu thập nghiên cứu. Kiểm tra nguồn, ngày truy cập và
+            trạng thái Đã đọc/Chỉ có trích đoạn. Bấm Dùng nghiên cứu trong chat
+            để đưa dữ liệu vào yêu cầu kế tiếp. Các nội dung này không phải
+            thống kê doanh số hay lượng tìm kiếm.
+          </li>
+          <li>
+            <strong>Batch CSV:</strong> chuẩn bị cột SKU, ID ảnh nguồn, ID ảnh
+            tham chiếu và prompt. Ánh xạ cột, xem trước và lưu batch, sau đó gửi
+            từng lô chưa chạy. Mỗi lô có tối đa 20 kết quả và cần duyệt prompt
+            trong hội thoại. Tiếp tục batch không tạo lại ảnh đã chạy;
+            lỗi/timeout cần được kiểm tra trước khi chủ động tạo lại có phí.
+          </li>
+          <li>
+            <strong>Ghép chính xác:</strong> dùng thiết kế đã tách nền, chọn ảnh
+            đích, nhập bốn góc vùng in theo thứ tự trên trái → trên phải → dưới
+            phải → dưới trái. Tọa độ từ 0 đến 1 theo chiều rộng/cao ảnh. Dùng
+            mask trắng ở vùng được in, đen ở vùng giữ nguyên; overlay che lớp
+            phía trước. Luồng này biến đổi ảnh gốc, không gọi AI vẽ lại.
+          </li>
+          <li>
+            <strong>Xuất file:</strong> chọn ảnh, SKU và preset kích
+            thước/DPI/vùng đệm. Mặc định yêu cầu ảnh đã duyệt. Nếu bật nền trong
+            suốt, ảnh phải đã được tách nền; hệ thống từ chối ảnh còn nền kín.
+            ZIP có ảnh theo thư mục SKU và manifest ghi kích thước, preset,
+            trạng thái duyệt, cảnh báo upscale.
+          </li>
+          <li>
+            <strong>Đánh giá:</strong> lưu bộ ảnh chuẩn, số sản phẩm cần có và
+            tiêu chí mong đợi. Sau khi chạy công việc với đúng bộ ảnh, ghi điểm
+            và bằng chứng; so sánh model, mã prompt, chi phí và tổng thời gian
+            các bước. Trang này không tự phát sinh request AI.
+          </li>
+          <li>
+            <strong>Thông báo & giám sát:</strong> thông báo theo thay đổi trạng
+            thái công việc. Admin xem thêm cảnh báo hàng đợi, provider, ngân
+            sách và dung lượng ứng dụng. Backup có quy trình bảo trì và phục hồi
+            riêng; không bấm tạo lại AI để giải quyết cảnh báo chưa rõ chi phí.
+          </li>
+        </ol>
+        <Button variant="outline" onClick={() => onNavigate("workspace")}>
+          Mở Không gian nhóm <ArrowRight size={16} aria-hidden="true" />
+        </Button>
+      </Chapter>
       <Chapter id="troubleshooting" title={chapterTitles.troubleshooting}>
         <details open>
           <summary>

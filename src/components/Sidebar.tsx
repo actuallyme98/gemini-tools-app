@@ -22,6 +22,7 @@ const navigation = [
   { id: "agent", label: "Trợ lý AI", icon: MessageSquare },
   { id: "jobs", label: "Công việc", icon: Boxes },
   { id: "library", label: "Thư viện", icon: FolderOpen },
+  { id: "workspace", label: "Không gian nhóm", icon: Layers },
 ];
 const tools = [
   { id: "mockup-generator", label: "Mockup Generator", icon: Wand2 },

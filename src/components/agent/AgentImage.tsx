@@ -1,14 +1,16 @@
 import { useEffect, useState } from "react";
-import { assetBlob } from "../../services/agent.service";
+import { assetBlob, agentClient } from "../../services/agent.service";
 
 export function AgentImage({
   id,
   name,
   className = "",
+  runId,
 }: {
   id: string;
   name: string;
   className?: string;
+  runId?: string;
 }) {
   const [image, setImage] = useState<{
     id: string;
@@ -18,7 +20,15 @@ export function AgentImage({
   useEffect(() => {
     const controller = new AbortController();
     let url: string | undefined;
-    assetBlob(id, controller.signal, true)
+    (runId
+      ? agentClient
+          .get<Blob>(`/workspace/jobs/${runId}/assets/${id}?preview=1`, {
+            responseType: "blob",
+            signal: controller.signal,
+          })
+          .then((r) => r.data)
+      : assetBlob(id, controller.signal, true)
+    )
       .then((blob) => {
         if (controller.signal.aborted) return;
         url = URL.createObjectURL(blob);
@@ -31,7 +41,7 @@ export function AgentImage({
       controller.abort();
       if (url) URL.revokeObjectURL(url);
     };
-  }, [id]);
+  }, [id, runId]);
   return (
     <div
       className={`aspect-square overflow-hidden rounded-lg bg-gray-100 flex items-center justify-center ${className}`}

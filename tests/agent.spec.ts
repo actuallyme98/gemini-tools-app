@@ -41,6 +41,18 @@ async function setup(
       route.request().postDataJSON() as Record<string, unknown>;
     if (path === "/api/agent/usage")
       return route.fulfill({ json: sampleBudget(user.id) });
+    if (path === "/api/agent/workspace/projects")
+      return route.fulfill({ json: [] });
+    if (path === "/api/agent/workspace/jobs")
+      return route.fulfill({
+        json: {
+          items: run
+            ? [{ ...run, owner: user.id, completed: 0, progress: 0 }]
+            : [],
+          total: run ? 1 : 0,
+          hasMore: false,
+        },
+      });
     if (path === "/api/ai/providers")
       return route.fulfill({
         json: {
@@ -409,6 +421,71 @@ async function prepareMockup(page: Page) {
   ).toBeVisible();
   return fixture;
 }
+
+test("sharing a conversation supports explicit image choice, copy, refresh and revocation", async ({ page }) => {
+  await prepareMockup(page);
+  await page.setViewportSize({ width: 375, height: 720 });
+  await page.getByRole("button", { name: "Đóng ngữ cảnh", exact: true }).click();
+  let share: Record<string, unknown> | null = null;
+  const published: boolean[] = [];
+  await page.route("**/api/agent/conversations/*/share", route => {
+    const method = route.request().method();
+    const id = new URL(route.request().url()).pathname.split("/").at(-2)!;
+    if (method === "GET") return route.fulfill({ json: { share } });
+    if (method === "DELETE") { share = null; return route.fulfill({ status: 204 }); }
+    const body = route.request().postDataJSON() as { includeImages: boolean };
+    published.push(body.includeImages);
+    share = { token: `${id}.${"a".repeat(64)}`, title: "Mockup", includeImages: body.includeImages, sharedAt: "2026-10-24T00:00:00.000Z", messageCount: 42 };
+    return route.fulfill({ status: 201, json: share });
+  });
+  await page.evaluate(() => Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: (value: string) => { document.documentElement.dataset.copiedLink = value; return Promise.resolve(); } } }));
+  await page.getByRole("button", { name: "Chia sẻ", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Chia sẻ cuộc trò chuyện" });
+  expect((await dialog.boundingBox())!.width).toBeLessThanOrEqual(375);
+  await expect(dialog.getByText("Bất kỳ ai có link đều có thể xem", { exact: true })).toBeVisible();
+  await dialog.getByRole("checkbox").uncheck();
+  await dialog.getByRole("button", { name: "Tạo link chia sẻ", exact: true }).click();
+  await expect(dialog.getByLabel("Link chia sẻ")).toHaveValue(/#share\?token=/);
+  await expect(dialog.getByText(/Đã chia sẻ 42 tin nhắn/)).toBeVisible();
+  await dialog.getByRole("button", { name: "Sao chép", exact: true }).click();
+  expect(await page.locator("html").getAttribute("data-copied-link")).toBe(await dialog.getByLabel("Link chia sẻ").inputValue());
+  await dialog.getByRole("checkbox").check();
+  const oldUrl = await dialog.getByLabel("Link chia sẻ").inputValue();
+  await dialog.getByRole("button", { name: "Cập nhật nội dung", exact: true }).click();
+  await expect(dialog.getByText("Có kèm ảnh xem trước.", { exact: false })).toBeVisible();
+  expect(published).toEqual([false, true]);
+  await expect(dialog.getByLabel("Link chia sẻ")).toHaveValue(oldUrl);
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
+  await expect(page.getByRole("button", { name: "Chia sẻ", exact: true })).toBeFocused();
+  await page.getByRole("button", { name: "Chia sẻ", exact: true }).click();
+  await expect(dialog.getByLabel("Link chia sẻ")).toHaveValue(oldUrl);
+  await dialog.getByRole("button", { name: "Thu hồi link", exact: true }).click();
+  await expect(dialog.getByLabel("Link chia sẻ")).toHaveCount(0);
+  await expect(dialog.getByRole("button", { name: "Tạo link chia sẻ", exact: true })).toBeVisible();
+  await expect(page.getByText("Đã thu hồi link chia sẻ.", { exact: true })).toBeVisible();
+});
+
+test("failed share state fetch cannot accidentally create a link and create errors remain retryable", async ({ page }) => {
+  await prepareMockup(page);
+  let failRead = true, posts = 0;
+  await page.route("**/api/agent/conversations/*/share", route => {
+    if (route.request().method() === "GET") return route.fulfill(failRead ? { status: 503, json: { message: "Chưa đọc được trạng thái chia sẻ." } } : { json: { share: null } });
+    posts++;
+    return route.fulfill({ status: 503, json: { message: "Chưa tạo được link. Vui lòng thử lại." } });
+  });
+  await page.getByRole("button", { name: "Chia sẻ", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByRole("button", { name: "Tải lại trạng thái link" })).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "Tạo link chia sẻ", exact: true })).toHaveCount(0);
+  expect(posts).toBe(0);
+  failRead = false;
+  await dialog.getByRole("button", { name: "Tải lại trạng thái link" }).click();
+  await dialog.getByRole("button", { name: "Tạo link chia sẻ", exact: true }).click();
+  await expect(page.getByText("Chưa tạo được link. Vui lòng thử lại.", { exact: true })).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "Tạo link chia sẻ", exact: true })).toBeEnabled();
+  expect(posts).toBe(1);
+});
 
 for (const workflow of [false, true])
   test(`changed images invalidate the ${workflow ? "workflow" : "chat"} plan and reanalysis uses the new photos`, async ({
@@ -1102,7 +1179,10 @@ test("resource creation stays hidden on empty pages and in chat on desktop and m
     await expect(
       navigation.getByRole("button", { name: /^(Templates|Workflows)$/ }),
     ).toHaveCount(0);
-    await expect(navigation.getByRole("button")).toHaveCount(3);
+    await expect(navigation.getByRole("button")).toHaveCount(4);
+    await expect(
+      navigation.getByRole("button", { name: "Không gian nhóm", exact: true }),
+    ).toBeVisible();
     await navigation
       .getByRole("button", { name: "Trợ lý AI", exact: true })
       .click();
@@ -2208,7 +2288,7 @@ test("usage guide covers the full flow with images, works on mobile and preserve
   const chapters = page
     .getByRole("navigation", { name: "Mục lục hướng dẫn" })
     .getByRole("button");
-  await expect(chapters).toHaveCount(7);
+  await expect(chapters).toHaveCount(8);
   await expect(page.locator("#guide-workflows")).toHaveCount(0);
   await expect(
     page.locator('.user-guide img[src$="/workflow.webp"]'),
@@ -2216,7 +2296,8 @@ test("usage guide covers the full flow with images, works on mobile and preserve
   await expect(page.locator(".user-guide")).not.toContainText("Công cụ:");
   await expect(page.locator(".user-guide")).not.toContainText("Tạo template,");
   await expect(chapters.nth(5)).toContainText("6. Hội thoại");
-  await expect(chapters.nth(6)).toContainText("7. Xử lý tình huống");
+  await expect(chapters.nth(6)).toContainText("7. Dự án, kiến thức");
+  await expect(chapters.nth(7)).toContainText("8. Xử lý tình huống");
   await chapters.nth(3).click();
   await expect(page.locator("#guide-heading-approve")).toBeFocused();
   for (const img of await page.locator(".guide-figure img").all()) {

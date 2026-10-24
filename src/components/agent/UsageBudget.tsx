@@ -20,6 +20,7 @@ import type {
 } from "../../services/budget.service";
 import { usd, budgetDate } from "../../services/budget.service";
 import "../../styles/budget.css";
+import { PricingCatalog } from "./PricingCatalog";
 
 function useBudget<T>(path: string, refreshKey?: string) {
   const [revision, setRevision] = useState(0);
@@ -482,6 +483,7 @@ export function BudgetPolicyPanel() {
   return (
     <section className="budget-policy admin-panel">
       <h2>Ngân sách & bảng giá AI</h2>
+      <PricingCatalog />
       <p>
         Hạn mức tuần tính theo đơn vị của chính sách công ty. Tuần bắt đầu thứ
         Hai 00:00 (UTC+7). Bảng giá nội bộ dùng để dự toán và tính usage; không
@@ -656,7 +658,8 @@ export function BudgetPolicyPanel() {
             <p>
               Để trống phí/token/ảnh khi chưa xác minh được giá: request vẫn giữ
               chỗ và chờ admin đối soát, không tự tính bằng 0. Chi phí tính từ
-              bảng giá được ghi nhãn riêng với chi phí provider báo.
+              bảng giá được ghi nhãn riêng với chi phí provider báo. Khi tính
+              theo token, cần nhập đủ cả giá đầu vào và đầu ra.
             </p>
             <Button
               type="button"

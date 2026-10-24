@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from "react";
+import { lazy, Suspense, useSyncExternalStore } from "react";
 import { HomePage } from "./pages/HomePage";
 import { MockupGeneratorPage } from "./pages/MockupGeneratorPage";
 import { IdeaGeneratorPage } from "./pages/IdeaGeneratorPage";
@@ -7,11 +7,16 @@ import { BackgroundStudioPage } from "./pages/BackgroundStudioPage";
 import { AgentPage } from "./pages/AgentPage";
 import { AIProviderProvider } from "./context/AIProviderProvider";
 import { Toaster } from "./components/ui/sonner";
+const SharedConversationPage = lazy(
+  () => import("./pages/SharedConversationPage"),
+);
 
 const pages = [
   "agent",
+  "share",
   "jobs",
   "library",
+  "workspace",
   "templates",
   "workflows",
   "settings",
@@ -28,7 +33,7 @@ const pages = [
   "image-editor",
 ];
 function currentPage() {
-  const page = location.hash.slice(1);
+  const page = location.hash.slice(1).split("?")[0];
   return pages.includes(page) ? page : "agent";
 }
 function subscribe(callback: () => void) {
@@ -40,6 +45,12 @@ export default function App() {
   const navigate = (next: string) => {
     if (pages.includes(next)) location.hash = next;
   };
+  if (page === "share")
+    return (
+      <Suspense fallback={<main role="status">Đang tải cuộc trò chuyện…</main>}>
+        <SharedConversationPage />
+      </Suspense>
+    );
   return (
     <AIProviderProvider>
       <Toaster

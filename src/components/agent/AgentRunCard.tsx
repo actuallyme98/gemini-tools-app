@@ -253,6 +253,20 @@ export function AgentRunCard({
           </ul>
         </details>
       )}
+      {!!run.knowledgeSources?.length && (
+        <details className="text-sm">
+          <summary>Kiến thức đã dùng khi lập kế hoạch</summary>
+          {run.knowledgeSources.map((source) => (
+            <article key={source.id} className="mt-2 rounded-md border p-3">
+              <strong>
+                {source.title} · v{source.revision}
+              </strong>
+              <p className="break-all text-xs">{source.id}</p>
+              <p className="mt-1 whitespace-pre-wrap">{source.excerpt}</p>
+            </article>
+          ))}
+        </details>
+      )}
       {run.state !== "planning" &&
         run.state !== "needs_input" &&
         run.items.map((item, index) => (
@@ -464,6 +478,20 @@ export function AgentRunCard({
                         <li key={i}>{note}</li>
                       ))}
                     </ul>
+                  )}
+                  {!!asset.checks?.criteria?.length && (
+                    <details>
+                      <summary className="text-xs">
+                        Chi tiết kiểm tra chất lượng
+                      </summary>
+                      {asset.checks.criteria.map((check) => (
+                        <p key={check.criterion} className="text-xs">
+                          {check.criterion}: {check.status} ·{" "}
+                          {Math.round(check.confidence * 100)}% ·{" "}
+                          {check.evidence}
+                        </p>
+                      ))}
+                    </details>
                   )}
                   <label className="block text-sm">
                     Duyệt ảnh {step.index + 1}

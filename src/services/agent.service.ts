@@ -28,6 +28,12 @@ export type Asset = {
     technical: boolean;
     visual: "pass" | "review" | "not_checked";
     notes: string[];
+    criteria?: {
+      criterion: string;
+      status: "pass" | "review" | "fail";
+      confidence: number;
+      evidence: string;
+    }[];
   };
   createdAt: string;
   runId?: string;
@@ -47,18 +53,42 @@ export type MockupTemplate = {
 };
 export type Operation = "auto" | "mockup_ai" | "mockup_template" | "design";
 export type ApprovalMode = "manual" | "auto";
-export type InputSelection = { sourceIds: string[]; targetIds: string[]; templateIds: string[] };
+export type InputSelection = {
+  sourceIds: string[];
+  targetIds: string[];
+  templateIds: string[];
+};
 export type PlanQuestion = {
   question: string;
   options: { label: string; description?: string }[];
   input?: "source" | "reference" | "template" | "single_source";
 };
 export type Run = {
+  research?: string;
+  projectId?: string;
+  knowledgeSources?: {
+    id: string;
+    title: string;
+    revision: number;
+    excerpt: string;
+  }[];
   pendingInputs?: InputSelection;
   approvalMode?: ApprovalMode;
   autoAnswers?: { question: string; answer: string }[];
-  workflow?: { executionId: string; name: string; revision: number; stage: number; total: number };
-  context?: { estimatedTokens: number; budget: number; recentMessages: number; summarizedMessages: number; compactedAt?: string };
+  workflow?: {
+    executionId: string;
+    name: string;
+    revision: number;
+    stage: number;
+    total: number;
+  };
+  context?: {
+    estimatedTokens: number;
+    budget: number;
+    recentMessages: number;
+    summarizedMessages: number;
+    compactedAt?: string;
+  };
   activeStepCount?: number;
   id: string;
   conversationId: string;
@@ -118,7 +148,11 @@ export type Conversation = {
     role: "user" | "assistant";
     text: string;
     createdAt?: string;
-    attachments?: { sourceIds: string[]; targetIds: string[]; templateIds: string[] };
+    attachments?: {
+      sourceIds: string[];
+      targetIds: string[];
+      templateIds: string[];
+    };
     runId?: string;
   }[];
 };
@@ -131,10 +165,33 @@ export type Detail = {
   memory?: { summary: string; messageCount: number; updatedAt: string };
   workflowExecutions?: WorkflowExecution[];
 };
-export type WorkflowStep = { name: string; operation: Exclude<Operation, "auto">; instructions: string; source: "initial" | "previous"; count: number };
-export type CustomWorkflow = { id: string; name: string; description: string; revision: number; steps: WorkflowStep[]; archived: boolean; updatedAt: string };
-export type WorkflowExecution = { id: string; workflow: CustomWorkflow; runIds: string[]; stage: number };
-export type HistoryPage = { items: Conversation[]; hasMore: boolean; nextCursor: string | null };
+export type WorkflowStep = {
+  name: string;
+  operation: Exclude<Operation, "auto">;
+  instructions: string;
+  source: "initial" | "previous";
+  count: number;
+};
+export type CustomWorkflow = {
+  id: string;
+  name: string;
+  description: string;
+  revision: number;
+  steps: WorkflowStep[];
+  archived: boolean;
+  updatedAt: string;
+};
+export type WorkflowExecution = {
+  id: string;
+  workflow: CustomWorkflow;
+  runIds: string[];
+  stage: number;
+};
+export type HistoryPage = {
+  items: Conversation[];
+  hasMore: boolean;
+  nextCursor: string | null;
+};
 export const activeRun = (run: Pick<Run, "state" | "activeStepCount">) =>
   ["planning", "queued", "running"].includes(run.state) ||
   (run.activeStepCount ?? 0) > 0;

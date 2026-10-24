@@ -1,43 +1,25 @@
 import { useState } from "react";
 import {
-  ArrowRight,
   Check,
   Download,
   FolderOpen,
   ImagePlus,
   Layers,
-  MessageSquare,
   Plus,
   Search,
 } from "lucide-react";
 import {
-  activeRun,
   agentClient,
   assetBlob,
   assetFilename,
   exportAssets,
   type Asset,
-  type Conversation,
   type MockupTemplate,
-  type Run,
 } from "../../services/agent.service";
 import { saveBlob } from "../../utils/download.util";
 import { AgentImage } from "./AgentImage";
 import { Button } from "../ui/button";
 import { agentResourceCreationEnabled } from "./agent-features";
-
-const stateLabels: Record<string, string> = {
-  planning: "Đang lập kế hoạch",
-  needs_input: "Cần thông tin",
-  draft: "Chờ duyệt kế hoạch",
-  queued: "Đang chờ",
-  running: "Đang xử lý",
-  review: "Chờ duyệt ảnh",
-  completed: "Hoàn tất",
-  partial_failed: "Hoàn tất một phần",
-  failed: "Cần kiểm tra lỗi",
-  cancelled: "Đã dừng",
-};
 
 export function WorkspaceHeading({
   eyebrow,
@@ -58,126 +40,6 @@ export function WorkspaceHeading({
         <p>{description}</p>
       </div>
       {children}
-    </div>
-  );
-}
-
-export function AgentJobs({
-  conversations,
-  runs,
-  onOpen,
-  onNew,
-}: {
-  conversations: Conversation[];
-  runs: Run[];
-  onOpen: (id: string) => void;
-  onNew: () => void;
-}) {
-  const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState("all");
-  const filtered = conversations.filter(
-    (conversation) =>
-      conversation.title
-        .toLocaleLowerCase()
-        .includes(query.toLocaleLowerCase()) &&
-      (filter === "all" ||
-        runs.some(
-          (run) =>
-            run.conversationId === conversation.id &&
-            (filter === "active"
-              ? activeRun(run)
-              : ["draft", "review", "needs_input"].includes(run.state)),
-        )),
-  );
-  return (
-    <div className="workspace-page">
-      <WorkspaceHeading
-        eyebrow="TỪ YÊU CẦU ĐẾN KẾT QUẢ"
-        title="Mọi công việc, cùng một nơi."
-        description="Theo dõi kế hoạch, tiến trình và những kết quả đang chờ bạn duyệt."
-      >
-        <Button onClick={onNew}>
-          <Plus aria-hidden="true" />
-          Giao việc mới
-        </Button>
-      </WorkspaceHeading>
-      <div className="collection-toolbar">
-        <div className="filter-pills" aria-label="Lọc công việc">
-          {[
-            ["all", "Tất cả"],
-            ["active", "Đang xử lý"],
-            ["review", "Cần bạn duyệt"],
-          ].map(([value, label]) => (
-            <button
-              type="button"
-              key={value}
-              aria-pressed={filter === value}
-              onClick={() => setFilter(value)}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-        <label className="collection-search">
-          <Search size={17} aria-hidden="true" />
-          <input
-            aria-label="Tìm công việc"
-            placeholder="Tìm cuộc trò chuyện…"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-          />
-        </label>
-      </div>
-      <div className="job-list">
-        {filtered.map((conversation) => {
-          const work = runs.filter(
-            (run) => run.conversationId === conversation.id,
-          );
-          const state = work[0]?.state;
-          return (
-            <button
-              type="button"
-              className="job-list-item"
-              key={conversation.id}
-              onClick={() => onOpen(conversation.id)}
-            >
-              <span className="job-symbol">
-                <MessageSquare size={20} aria-hidden="true" />
-              </span>
-              <span className="job-list-title">
-                <strong>{conversation.title}</strong>
-                <small>
-                  {new Date(conversation.updatedAt).toLocaleString("vi-VN")} ·{" "}
-                  {work.length} lần chạy
-                </small>
-              </span>
-              <span
-                className={`status-pill ${state && ["failed", "partial_failed"].includes(state) ? "status-warning" : ""}`}
-              >
-                {stateLabels[state] || "Cuộc trò chuyện"}
-              </span>
-              <ArrowRight size={18} aria-hidden="true" />
-            </button>
-          );
-        })}
-      </div>
-      {!filtered.length && (
-        <div className="workspace-empty">
-          <MessageSquare size={32} aria-hidden="true" />
-          <h2>
-            {query || filter !== "all"
-              ? "Chưa có công việc phù hợp"
-              : "Công việc tiếp theo bắt đầu từ bạn"}
-          </h2>
-          <p>
-            Gửi một ý tưởng hoặc ảnh sản phẩm. Agent sẽ đề xuất kế hoạch để bạn
-            duyệt.
-          </p>
-          <Button variant="outline" onClick={onNew}>
-            Bắt đầu cuộc trò chuyện
-          </Button>
-        </div>
-      )}
     </div>
   );
 }
@@ -313,6 +175,20 @@ export function AgentLibrary({
             </div>
             <div className="asset-gallery-content">
               <h2 title={asset.name}>{asset.name}</h2>
+              <details className="text-xs">
+                <summary>ID ảnh dùng trong CSV</summary>
+                <code className="break-all select-all">{asset.id}</code>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={busy}
+                  onClick={() =>
+                    act(() => navigator.clipboard.writeText(asset.id))
+                  }
+                >
+                  Sao chép ID {asset.name}
+                </Button>
+              </details>
               <p>
                 {asset.width} × {asset.height} · Phiên bản {asset.revision}
               </p>

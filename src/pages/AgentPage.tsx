@@ -59,10 +59,16 @@ import { AgentImage } from "../components/agent/AgentImage";
 import { SelectedImages } from "../components/agent/SelectedImages";
 import { AgentShell } from "../components/agent/AgentShell";
 import {
-  AgentJobs,
   AgentLibrary,
   AgentTemplates,
 } from "../components/agent/AgentWorkspaceViews";
+import { JobBoard } from "../components/agent/JobBoard";
+const CompanyWorkspacePage = lazy(() =>
+  import("./CompanyWorkspacePage").then((module) => ({
+    default: module.CompanyWorkspacePage,
+  })),
+);
+import { ProjectPicker } from "../components/agent/ProjectPicker";
 import { AIProviderSelect } from "../components/AIProviderSelect";
 import { AIImageModelPanel } from "../components/AIImageModelPanel";
 import { GoogleSignIn } from "../components/agent/GoogleSignIn";
@@ -71,6 +77,7 @@ import { ToolJobs } from "../components/agent/ToolJobs";
 import { WorkflowLibrary } from "../components/agent/WorkflowLibrary";
 import { ConversationContext } from "../components/agent/ConversationContext";
 import { HistoryLoader } from "../components/agent/HistoryLoader";
+import { ConversationShare } from "../components/agent/ConversationShare";
 import { agentResourceCreationEnabled } from "../components/agent/agent-features";
 const AdminPage = lazy(() => import("./AdminPage"));
 const UserGuidePage = lazy(() => import("./UserGuidePage"));
@@ -193,7 +200,9 @@ export function AgentPage({
   const [category, setCategory] = useState("Sản phẩm POD");
   const [count, setCount] = useState(3);
   const [research, setResearch] = useState("");
+  const [projectId, setProjectId] = useState("");
   const [sources, setSources] = useState("");
+  const sourceProvenance = useRef<Run["researchSources"]>([]);
   const [validateVisually, setValidateVisually] = useState(true);
   useLayoutEffect(() => {
     const input = composerInput.current;
@@ -230,6 +239,7 @@ export function AgentPage({
     count,
     operation,
     research,
+    projectId,
     sources,
     validateVisually,
     ai.provider,
@@ -246,6 +256,8 @@ export function AgentPage({
       detail.conversation.id === selectedId &&
       detail.runs.some(activeRun));
   const clearSession = useCallback(() => {
+    sourceProvenance.current = [];
+    setProjectId("");
     setApprovalMode("manual");
     authorizeAgent(null);
     setAgentToken(null);
@@ -613,8 +625,14 @@ export function AgentPage({
     setTargetIds(inputs.targetIds || []);
     setTemplateIds(inputs.templateIds || []);
     setOperation(run.operation || "auto");
+    setProjectId(run.projectId ?? "");
     setApprovalMode(run.approvalMode ?? "manual");
     setCategory(run.productType || "Sản phẩm POD");
+    sourceProvenance.current = run.researchSources ?? [];
+    setResearch(run.research ?? "");
+    setSources(
+      (run.researchSources ?? []).map((source) => source.url).join("\n"),
+    );
   }, [current, selectedId]);
 
   const activeCount = allRuns.filter(activeRun).length;
@@ -623,6 +641,7 @@ export function AgentPage({
       "agent",
       "jobs",
       "library",
+      "workspace",
       "templates",
       "workflows",
       "settings",
@@ -637,6 +656,8 @@ export function AgentPage({
   }, [page, onNavigate]);
   const newConversation = () => {
     if (busy) return;
+    sourceProvenance.current = [];
+    setProjectId("");
     chatScroll.current?.scrollTo({ top: 0 });
     restoredConversation.current = "";
     setSelectedId("");
@@ -724,6 +745,8 @@ export function AgentPage({
           {
             id,
             text,
+            parentRunId: run.id,
+            ...(run.projectId ? { projectId: run.projectId } : {}),
             operation: run.operation,
             approvalMode: mode,
             ...selectedInputs,
@@ -771,9 +794,15 @@ export function AgentPage({
           if (!["http:", "https:"].includes(parsed.protocol))
             throw new Error("Nguồn tham khảo phải là URL HTTP/HTTPS.");
           return {
-            title: parsed.hostname,
+            title:
+              sourceProvenance.current.find(
+                (source) => source.url === parsed.href,
+              )?.title ?? parsed.hostname,
             url: parsed.href,
-            retrievedAt: new Date().toISOString(),
+            retrievedAt:
+              sourceProvenance.current.find(
+                (source) => source.url === parsed.href,
+              )?.retrievedAt ?? new Date().toISOString(),
           };
         });
       let id = selectedId;
@@ -810,6 +839,7 @@ export function AgentPage({
         await agentClient.post(`/conversations/${id}/messages`, {
           id: messageId.current,
           text: brief,
+          ...(projectId ? { projectId } : {}),
           operation,
           approvalMode,
           sourceIds,
@@ -1153,14 +1183,12 @@ export function AgentPage({
                         {current?.conversation.title || "Đang mở công việc…"}
                       </h1>
                     </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={newConversation}
-                    >
-                      <Plus aria-hidden="true" />
-                      Mới
-                    </Button>
+                    <div className="conversation-heading-actions">
+                      {current && <ConversationShare key={selectedId} conversationId={selectedId} />}
+                      <Button variant="outline" size="sm" onClick={newConversation}>
+                        <Plus aria-hidden="true" />Mới
+                      </Button>
+                    </div>
                   </div>
                 )}
                 {selectedId && !current && (
@@ -1882,6 +1910,11 @@ export function AgentPage({
               )}
               <details className="context-details context-section context-advanced">
                 <summary>Tùy chọn nâng cao</summary>
+                <ProjectPicker
+                  value={projectId}
+                  onChange={setProjectId}
+                  disabled={busy || !!selectedActive || !!workflowId}
+                />
                 <div className="context-field-grid">
                   <label className="context-label">
                     Nhóm sản phẩm
@@ -1981,12 +2014,31 @@ export function AgentPage({
           </section>
           {page === "jobs" && <ToolJobs />}
           {page === "jobs" && (
-            <AgentJobs
-              conversations={conversations}
-              runs={allRuns}
+            <JobBoard
+              user={user}
               onOpen={openConversation}
               onNew={newConversation}
             />
+          )}
+          {page === "workspace" && (
+            <Suspense fallback={<p role="status">Đang tải không gian nhóm…</p>}>
+              <CompanyWorkspacePage
+                onAssetsChanged={reload}
+                user={user}
+                assets={assets}
+                onOpen={openConversation}
+                onResearch={(text, refs) => {
+                  sourceProvenance.current = refs;
+                  setResearch(text);
+                  setSources(refs.map((s) => s.url).join("\n"));
+                  setContextOpen(true);
+                  onNavigate("agent");
+                  toast.success(
+                    "Đã thêm nghiên cứu vào ngữ cảnh yêu cầu tiếp theo.",
+                  );
+                }}
+              />
+            </Suspense>
           )}
           {page === "library" && (
             <AgentLibrary

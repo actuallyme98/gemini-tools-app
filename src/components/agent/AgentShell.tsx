@@ -8,6 +8,7 @@ const titles: Record<string, string> = {
   agent: "Trợ lý AI",
   jobs: "Công việc",
   library: "Thư viện",
+  workspace: "Không gian nhóm",
   templates: "Templates",
   workflows: "Custom workflows",
   guide: "Hướng dẫn sử dụng",
