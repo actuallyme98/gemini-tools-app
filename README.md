@@ -1,3 +1,5 @@
+> Current URL, loading, select and schedule access details: [routing-and-controls.md](docs/routing-and-controls.md). Hash examples below are retained compatibility links and redirect to the corresponding paths. Automatic scheduling is now admin-only.
+
 # LCG Creative Studio
 
 Không gian sản xuất sáng tạo cho công ty: chuẩn bị và duyệt ý tưởng, Agent chạy nền, kiểm tra artwork/thumbnail, tạo mockup hàng loạt và xuất thành phẩm.

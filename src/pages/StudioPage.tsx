@@ -1,10 +1,6 @@
-import {
-  lazy,
-  Suspense,
-  useEffect,
-  useState,
-  useSyncExternalStore,
-} from "react";
+import { StudioSelect } from "../components/ui/StudioSelect";
+import { useStudioNavigate } from "../navigation";
+import { lazy, Suspense, useEffect, useState } from "react";
 import {
   ArrowRight,
   Check,
@@ -31,7 +27,6 @@ import {
 import {
   studioClient,
   studioLabels,
-  studioNavigate,
   exportStudioImages,
   type StudioBootstrap,
   type StudioIdea,
@@ -51,14 +46,10 @@ import { StudioGuideVisuals } from "../components/studio/StudioGuideVisuals";
 import { GoogleSignIn } from "../components/agent/GoogleSignIn";
 import { Button } from "../components/ui/button";
 import "../styles/studio.css";
+import { useLocation, useParams } from "react-router";
+import { StudioSkeleton } from "../components/studio/StudioSkeleton";
 
 const AdminPage = lazy(() => import("./AdminPage"));
-
-const subscribeHash = (listener: () => void) => {
-  window.addEventListener("hashchange", listener);
-  return () => window.removeEventListener("hashchange", listener);
-};
-const currentHash = () => window.location.hash;
 
 function IdeaList({
   data,
@@ -73,6 +64,7 @@ function IdeaList({
   user?: AgentUser;
   selectedId?: string;
 }) {
+  const studioNavigate = useStudioNavigate();
   const [filter, setFilter] = useState("");
   const [page, setPage] = useState(1);
   const [result, setResult] = useState<PageResult<StudioIdea>>();
@@ -124,7 +116,7 @@ function IdeaList({
                 </Button>
               </p>
             ) : !ready ? (
-              <p role="status">Đang tải ý tưởng…</p>
+              <StudioSkeleton variant="list" label="Đang tải ý tưởng…" />
             ) : (
               result.items.map((idea) => (
                 <button
@@ -256,7 +248,8 @@ function IdeaList({
             <label className="sr-only" htmlFor="idea-state-filter">
               Lọc trạng thái ý tưởng
             </label>
-            <select
+            <StudioSelect
+              kind="status"
               id="idea-state-filter"
               value={filter}
               onChange={(event) => {
@@ -272,7 +265,7 @@ function IdeaList({
                   </option>
                 ),
               )}
-            </select>
+            </StudioSelect>
             <Button
               variant="outline"
               size="icon"
@@ -291,7 +284,7 @@ function IdeaList({
             </Button>
           </div>
         ) : !ready ? (
-          <p role="status">Đang tải danh sách…</p>
+          <StudioSkeleton variant="list" />
         ) : result.items.length === 0 ? (
           <div className="studio-card studio-empty">
             <Lightbulb size={34} aria-hidden="true" />
@@ -397,14 +390,14 @@ function Outputs() {
           <label className="sr-only" htmlFor="studio-export-format">
             Định dạng tải ảnh
           </label>
-          <select
+          <StudioSelect
             id="studio-export-format"
             value={format}
             onChange={(event) => setFormat(event.target.value as "png" | "jpg")}
           >
             <option value="png">PNG</option>
             <option value="jpg">JPG</option>
-          </select>
+          </StudioSelect>
           <Button
             disabled={busy || !selected.length}
             onClick={() => {
@@ -431,7 +424,7 @@ function Outputs() {
         </p>
       )}
       {!data ? (
-        <p role="status">Đang tải thành phẩm…</p>
+        <StudioSkeleton variant="gallery" />
       ) : !data.items.length ? (
         <div className="studio-card studio-empty">
           <FolderHeart size={34} />
@@ -492,6 +485,7 @@ function Outputs() {
   );
 }
 function StudioGuide({ admin = false }: { admin?: boolean }) {
+  const studioNavigate = useStudioNavigate();
   return (
     <div>
       <header className="studio-page-heading">
@@ -577,7 +571,7 @@ function StudioGuide({ admin = false }: { admin?: boolean }) {
           <Button
             variant="outline"
             onClick={() => {
-              location.hash = "admin-audit";
+              studioNavigate("admin-audit");
             }}
           >
             Mở Audit logs
@@ -588,18 +582,20 @@ function StudioGuide({ admin = false }: { admin?: boolean }) {
   );
 }
 export default function StudioPage({ page }: { page: string }) {
-  const hash = useSyncExternalStore(subscribeHash, currentHash);
-  const ideaId = new URLSearchParams(hash.split("?")[1] ?? "").get("id") ?? "";
-  const managementParams = new URLSearchParams(hash.split("?")[1] ?? "");
-  const managementTab = [
-    "teams",
-    "stores",
-    "library",
-    "budget",
-    "operations",
-  ].includes(managementParams.get("tab") ?? "")
-    ? managementParams.get("tab")!
-    : "teams";
+  const studioNavigate = useStudioNavigate();
+  const location = useLocation();
+  const ideaId = useParams().id ?? "";
+  const managementParams = new URLSearchParams(location.search);
+  const managementSection = location.pathname.split("/")[2];
+  const managementTab =
+    (
+      {
+        stores: "stores",
+        library: "library",
+        budgets: "budget",
+        schedule: "operations",
+      } as Record<string, string>
+    )[managementSection] ?? "teams";
   const resourceType = managementParams.get("type");
   const [user, setUser] = useState<AgentUser>();
   const [status, setStatus] = useState<AgentAuthStatus>();
@@ -695,11 +691,11 @@ export default function StudioPage({ page }: { page: string }) {
   }
   if (checking)
     return (
-      <main className="studio-login-root">
-        <p role="status">
-          <Loader2 className="animate-spin" size={22} />
-          Đang kiểm tra phiên đăng nhập…
-        </p>
+      <main className="studio-loading-frame">
+        <StudioSkeleton
+          variant="login"
+          label="Đang kiểm tra phiên đăng nhập…"
+        />
       </main>
     );
   if (!user)
@@ -797,12 +793,12 @@ export default function StudioPage({ page }: { page: string }) {
       }
     >
       {page.startsWith("admin") ? (
-        <Suspense fallback={<p role="status">Đang tải quản trị…</p>}>
+        <Suspense fallback={<StudioSkeleton variant="table" />}>
           <AdminPage
             user={user}
             page={page}
             onNavigate={(next) => {
-              location.hash = next;
+              studioNavigate(next);
             }}
           />
         </Suspense>
@@ -815,9 +811,19 @@ export default function StudioPage({ page }: { page: string }) {
           </Button>
         </section>
       ) : !data ? (
-        <p role="status">Đang tải không gian làm việc…</p>
+        <StudioSkeleton
+          variant={
+            page === "studio"
+              ? "dashboard"
+              : page === "studio-new" || page === "studio-manage"
+                ? "form"
+                : page === "studio-outputs" || page === "studio-gallery"
+                  ? "gallery"
+                  : "list"
+          }
+        />
       ) : (
-        <Suspense fallback={<p role="status">Đang tải…</p>}>
+        <Suspense fallback={<StudioSkeleton />}>
           {page === "studio-new" ? (
             !data.stores.length ? (
               <section className="studio-card studio-empty">
@@ -834,7 +840,7 @@ export default function StudioPage({ page }: { page: string }) {
                 )}
               </section>
             ) : ideaId && editing?.id !== ideaId ? (
-              <p role="status">Đang mở bản nháp…</p>
+              <StudioSkeleton variant="form" />
             ) : (
               <IdeaWizard
                 key={ideaId || "new"}
@@ -858,16 +864,11 @@ export default function StudioPage({ page }: { page: string }) {
             )
           ) : page === "studio-mockups" ? (
             <MockupStudio
-              key={hash}
+              key={location.pathname + location.search}
               data={data}
               id={ideaId || undefined}
-              from={
-                new URLSearchParams(hash.split("?")[1]).get("from") || undefined
-              }
-              selection={
-                new URLSearchParams(hash.split("?")[1]).get("selected") ||
-                undefined
-              }
+              from={managementParams.get("from") || undefined}
+              selection={managementParams.get("selected") || undefined}
             />
           ) : page === "studio-outputs" ? (
             <Outputs />

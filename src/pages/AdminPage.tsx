@@ -1,3 +1,5 @@
+import { StudioSkeleton } from "../components/studio/StudioSkeleton";
+import { StudioSelect } from "../components/ui/StudioSelect";
 import {
   useEffect,
   useRef,
@@ -186,12 +188,7 @@ function ResourceState({
   children: ReactNode;
 }) {
   if (resource.loading)
-    return (
-      <div role="status" className="admin-placeholder">
-        <Loader2 className="studio-loading-spinner" aria-hidden="true" /> Đang
-        tải dữ liệu…
-      </div>
-    );
+    return <StudioSkeleton variant="table" label="Đang tải dữ liệu…" />;
   if (resource.error)
     return (
       <div className="admin-placeholder">
@@ -767,10 +764,10 @@ function CreateAccount({
           </label>
           <label>
             Quyền truy cập
-            <select name="role" defaultValue="designer">
+            <StudioSelect name="role" defaultValue="designer">
               <option value="designer">Designer</option>
               <option value="admin">Quản trị viên</option>
-            </select>
+            </StudioSelect>
           </label>
           <div className="admin-dialog-actions">
             <Button
@@ -867,19 +864,19 @@ function Accounts({ user }: { user: AgentUser }) {
         </label>
         <label>
           Quyền
-          <select name="role">
+          <StudioSelect name="role">
             <option value="">Tất cả quyền</option>
             <option value="admin">Quản trị viên</option>
             <option value="designer">Designer</option>
-          </select>
+          </StudioSelect>
         </label>
         <label>
           Trạng thái
-          <select name="disabled">
+          <StudioSelect name="disabled">
             <option value="">Tất cả trạng thái</option>
             <option value="false">Hoạt động</option>
             <option value="true">Đã khóa</option>
-          </select>
+          </StudioSelect>
         </label>
         <Button type="submit" variant="outline">
           Lọc tài khoản
@@ -1216,7 +1213,7 @@ function Runs() {
         </label>
         <label>
           Trạng thái
-          <select name="state">
+          <StudioSelect name="state">
             <option value="">Tất cả trạng thái</option>
             {[
               "planning",
@@ -1233,7 +1230,7 @@ function Runs() {
                 {labels[value]}
               </option>
             ))}
-          </select>
+          </StudioSelect>
         </label>
         <Button variant="outline" type="submit">
           Lọc công việc
@@ -1640,7 +1637,7 @@ function AuditLogs() {
           <>
             <label htmlFor="admin-log-source">
               Nguồn log
-              <select
+              <StudioSelect
                 id="admin-log-source"
                 aria-label="Nguồn log"
                 name="source"
@@ -1648,7 +1645,7 @@ function AuditLogs() {
               >
                 <option value="api">API</option>
                 <option value="worker">Worker xử lý tác vụ</option>
-              </select>
+              </StudioSelect>
             </label>
             <label>
               Ngày log (UTC)

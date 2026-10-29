@@ -1,3 +1,5 @@
+import { StudioSkeleton } from "./StudioSkeleton";
+import { StudioSelect } from "../ui/StudioSelect";
 import { useEffect, useState } from "react";
 import { Loader2, RefreshCw, Wallet } from "lucide-react";
 import { toast } from "sonner";
@@ -123,7 +125,7 @@ export function TeamBudgetPanel({ teams }: { teams: StudioTeam[] }) {
       <div className="studio-form-grid">
         <label>
           Nhóm
-          <select
+          <StudioSelect
             value={teamId}
             onChange={(event) => {
               setTeamId(event.target.value);
@@ -138,7 +140,7 @@ export function TeamBudgetPanel({ teams }: { teams: StudioTeam[] }) {
                 {team.name}
               </option>
             ))}
-          </select>
+          </StudioSelect>
         </label>
         <label>
           Ngày xem usage
@@ -159,9 +161,7 @@ export function TeamBudgetPanel({ teams }: { teams: StudioTeam[] }) {
           {error}
         </p>
       )}
-      {teamId && !current && !error && (
-        <p role="status">Đang tải usage Team…</p>
-      )}
+      {teamId && !current && !error && <StudioSkeleton variant="table" />}
       {summary && (
         <>
           <section className="studio-card studio-team-budget">

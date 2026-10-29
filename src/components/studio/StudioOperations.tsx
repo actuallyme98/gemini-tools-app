@@ -1,3 +1,4 @@
+import { StudioSkeleton } from "./StudioSkeleton";
 import { useEffect, useState } from "react";
 import { Clock3, RefreshCw, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
@@ -170,7 +171,7 @@ export function StudioOperations({
         </p>
       )}
       {!list ? (
-        <p role="status">Đang tải lô chạy…</p>
+        <StudioSkeleton variant="table" />
       ) : !list.items.length ? (
         <section className="studio-card studio-empty">
           <Clock3 size={28} />
@@ -232,7 +233,7 @@ export function StudioOperations({
             {!batchId ? (
               <p>Chọn một lô để xem công việc và lỗi.</p>
             ) : !current ? (
-              <p role="status">Đang mở lô…</p>
+              <StudioSkeleton variant="table" />
             ) : (
               <>
                 <p>

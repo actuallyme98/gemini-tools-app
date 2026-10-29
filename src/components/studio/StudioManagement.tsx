@@ -1,3 +1,4 @@
+import { StudioSelect } from "../ui/StudioSelect";
 import { useState } from "react";
 import { Check, FileArchive, Loader2, Plus, Settings2 } from "lucide-react";
 import { toast } from "sonner";
@@ -17,6 +18,8 @@ import { TeamBudgetPanel } from "./TeamBudgetPanel";
 import { StudioOperations } from "./StudioOperations";
 import { ResourceBrowser } from "./ResourceBrowser";
 import { ResourceVersions } from "./ResourceVersions";
+import { Link } from "react-router";
+import { useStudioNavigate } from "../../navigation";
 
 export function StudioManagement({
   data,
@@ -29,7 +32,8 @@ export function StudioManagement({
   initialTab?: string;
   initialType?: StudioResource["type"];
 }) {
-  const [tab, setTab] = useState(initialTab);
+  const tab = initialTab;
+  const studioNavigate = useStudioNavigate();
   const [busy, setBusy] = useState(false);
   const [team, setTeam] = useState<StudioTeam | undefined>();
   const [teamName, setTeamName] = useState("");
@@ -72,7 +76,7 @@ export function StudioManagement({
   const teamPicker = (
     <label>
       Nhóm
-      <select
+      <StudioSelect
         value={teamId}
         required
         onChange={(event) => {
@@ -88,7 +92,7 @@ export function StudioManagement({
             {item.name}
           </option>
         ))}
-      </select>
+      </StudioSelect>
     </label>
   );
   return (
@@ -99,10 +103,10 @@ export function StudioManagement({
           <h1>Quản lý không gian sáng tạo</h1>
           <p>Phân công nhân sự và chuẩn hóa tài nguyên cho nhóm.</p>
         </div>
-        <a className="studio-link-button" href="#admin">
+        <Link className="studio-link-button" to="/admin">
           <Settings2 size={17} />
           Tài khoản, hạn mức & nhật ký
-        </a>
+        </Link>
       </header>
       <div className="studio-tabs" role="group" aria-label="Mục quản lý">
         {[
@@ -112,7 +116,11 @@ export function StudioManagement({
           ["budget", "Ngân sách Team"],
           ["operations", "Vận hành lịch"],
         ].map(([id, label]) => (
-          <button key={id} aria-pressed={tab === id} onClick={() => setTab(id)}>
+          <button
+            key={id}
+            aria-pressed={tab === id}
+            onClick={() => studioNavigate(`studio-manage?tab=${id}`)}
+          >
             {label}
           </button>
         ))}
@@ -202,7 +210,7 @@ export function StudioManagement({
                         {account.email}
                       </label>
                       {member && (
-                        <select
+                        <StudioSelect
                           aria-label={`Vai trò của ${account.email}`}
                           value={member.role}
                           onChange={(event) =>
@@ -224,7 +232,7 @@ export function StudioManagement({
                           <option value="leader">
                             Leader · có quyền duyệt
                           </option>
-                        </select>
+                        </StudioSelect>
                       )}
                     </div>
                   );
@@ -442,7 +450,7 @@ export function StudioManagement({
               {teamPicker}
               <label>
                 Loại nội dung
-                <select
+                <StudioSelect
                   value={type}
                   onChange={(event) => {
                     setType(event.target.value as StudioResource["type"]);
@@ -455,7 +463,7 @@ export function StudioManagement({
                   <option value="skill">Bộ hướng dẫn (ZIP)</option>
                   <option value="thumbnail">Mẫu ảnh chính</option>
                   <option value="scene">Mẫu bối cảnh</option>
-                </select>
+                </StudioSelect>
               </label>
               {type === "product" && (
                 <fieldset className="studio-span-full">
@@ -508,7 +516,7 @@ export function StudioManagement({
                       </label>
                       <label htmlFor="studio-print-background">
                         Nền artwork
-                        <select
+                        <StudioSelect
                           id="studio-print-background"
                           value={printBackground}
                           onChange={(e) =>
@@ -519,7 +527,7 @@ export function StudioManagement({
                         >
                           <option value="white">Trắng</option>
                           <option value="transparent">Trong suốt</option>
-                        </select>
+                        </StudioSelect>
                       </label>
                       <p className="studio-note">
                         Nhập theo quy chuẩn nhà in, tối đa 32 megapixel.
@@ -555,7 +563,7 @@ export function StudioManagement({
                 <div className="studio-span-full">
                   <label>
                     Phiên bản trước (nếu cập nhật)
-                    <select
+                    <StudioSelect
                       value={previousId}
                       onChange={(event) => {
                         const previous = data.resources.find(
@@ -580,7 +588,7 @@ export function StudioManagement({
                             {item.name}
                           </option>
                         ))}
-                    </select>
+                    </StudioSelect>
                   </label>
                   <label className="studio-upload">
                     <FileArchive aria-hidden="true" />

@@ -1,3 +1,5 @@
+import { studioPath } from "../src/navigation";
+import { chooseOption } from "./select-helper";
 import { test, expect, type Page } from "@playwright/test";
 import { randomUUID } from "node:crypto";
 import { promises as fs } from "node:fs";
@@ -446,7 +448,7 @@ test("admin adjusts employee weekly budgets with confirmation and retains input 
       return route.fulfill({ json: snapshot });
     },
   );
-  await page.goto("/#admin-users");
+  await page.goto(studioPath("admin-users"));
   await page
     .getByRole("button", {
       name: "Điều chỉnh ngân sách staff@lcgmedia.uk",
@@ -535,7 +537,7 @@ test("admin configures weekly defaults and verified model prices with explicit c
       },
     });
   });
-  await page.goto("/#admin-settings");
+  await page.goto(studioPath("admin-settings"));
   await page
     .getByLabel("Hạn mức mặc định mỗi tuần (USD)", { exact: true })
     .fill("60");
@@ -603,7 +605,7 @@ test("credit budgets keep employee meters, limits and model price forms in the p
       },
     });
   });
-  await page.goto("/#admin-users");
+  await page.goto(studioPath("admin-users"));
   await page.reload();
   await expect(
     page.getByText("35,00 credit / 50,00 credit tuần này", { exact: true }),
@@ -621,7 +623,7 @@ test("credit budgets keep employee meters, limits and model price forms in the p
   ).toBeVisible();
   await expect(page.getByRole("dialog")).toContainText("50,00 credit mỗi tuần");
   await page.keyboard.press("Escape");
-  await page.goto("/#admin-settings");
+  await page.goto(studioPath("admin-settings"));
   await expect(
     page.getByLabel("Hạn mức mặc định mỗi tuần (credit)", { exact: true }),
   ).toHaveValue("50");
@@ -658,7 +660,7 @@ test("admin dashboard shows real metrics, accessible tabs and works at mobile wi
   await page
     .getByRole("button", { name: "Quản trị công ty", exact: true })
     .click();
-  await expect(page).toHaveURL(/#admin$/);
+  await expect(page).toHaveURL(/\/admin$/);
   await expect(
     page.getByRole("heading", { name: "Nhịp vận hành hôm nay" }),
   ).toBeVisible();
@@ -717,7 +719,7 @@ test("provider balances show real usage proportions and remain readable on mobil
   page,
 }) => {
   const fixture = await setup(page);
-  await page.goto("/#admin");
+  await page.goto(studioPath("admin"));
   const balances = page.getByRole("region", {
     name: "Số dư provider",
     exact: true,
@@ -797,7 +799,7 @@ test("one provider balance failure does not hide other balances or display a fak
       },
     }),
   );
-  await page.goto("/#admin");
+  await page.goto(studioPath("admin"));
   const balances = page.getByRole("region", {
     name: "Số dư provider",
     exact: true,
@@ -829,7 +831,7 @@ test("accounts support filters, pagination, creation and audited confirmation fo
   page,
 }) => {
   const fixture = await setup(page);
-  await page.goto("/#admin-users");
+  await page.goto(studioPath("admin-users"));
   await expect(
     page.getByRole("region", { name: "Danh sách tài khoản" }),
   ).toBeVisible();
@@ -897,7 +899,7 @@ test("root controls are protected and server conflicts stay inside the confirmat
   page,
 }) => {
   const fixture = await setup(page);
-  await page.goto("/#admin-users");
+  await page.goto(studioPath("admin-users"));
   await page
     .getByRole("button", { name: "Quản lý root@lcgmedia.uk", exact: true })
     .click();
@@ -939,7 +941,7 @@ test("work monitoring shows errors and requires confirmation before cancel", asy
   page,
 }) => {
   const fixture = await setup(page);
-  await page.goto("/#admin-runs");
+  await page.goto(studioPath("admin-runs"));
   await page.getByRole("button", { name: "Chi tiết", exact: true }).click();
   await expect(page.getByRole("dialog")).toContainText("STORAGE_ERROR");
   await expect(page.getByRole("dialog")).toContainText("request-storage-error");
@@ -961,7 +963,7 @@ test("audit logs support details, JSON export and request error search", async (
   page,
 }) => {
   const fixture = await setup(page);
-  await page.goto("/#admin-audit");
+  await page.goto(studioPath("admin-audit"));
   await page.getByRole("button", { name: "Chi tiết", exact: true }).click();
   await expect(page.getByRole("dialog")).toContainText(
     "Employee access changed",
@@ -1001,7 +1003,11 @@ test("audit logs support details, JSON export and request error search", async (
     true,
   );
   await page.keyboard.press("Escape");
-  await page.getByLabel("Nguồn log", { exact: true }).selectOption("worker");
+  await chooseOption(
+    page,
+    page.getByLabel("Nguồn log", { exact: true }),
+    "worker",
+  );
   await page.getByRole("button", { name: "Tìm nhật ký", exact: true }).click();
   await page.getByRole("button", { name: "Chi tiết", exact: true }).click();
   await expect(dialog).toContainText("Worker ·");
@@ -1025,7 +1031,7 @@ test("request detail errors can be retried without showing stale log content", a
         })
       : route.fallback(),
   );
-  await page.goto("/#admin-audit");
+  await page.goto(studioPath("admin-audit"));
   await page
     .getByRole("button", { name: "Request & lỗi hệ thống", exact: true })
     .click();
@@ -1062,7 +1068,7 @@ test("admin usage guide links directly to the administration request logs", asyn
   await page
     .getByRole("button", { name: "Mở Audit logs", exact: true })
     .click();
-  await expect(page).toHaveURL(/#admin-audit$/);
+  await expect(page).toHaveURL(/\/admin\/audit$/);
   await expect(
     page.getByRole("button", { name: "Request & lỗi hệ thống", exact: true }),
   ).toBeVisible();
@@ -1074,7 +1080,7 @@ test("operating policy is persisted only after confirmation and can pause the qu
   page,
 }) => {
   const fixture = await setup(page);
-  await page.goto("/#admin-settings");
+  await page.goto(studioPath("admin-settings"));
   await page.getByLabel("Tên công ty", { exact: true }).fill("LCG Creative");
   await page
     .getByLabel("Domain được phép đăng nhập Google", { exact: true })
@@ -1118,7 +1124,7 @@ test("designer cannot see admin navigation or fetch admin data through direct li
   await expect(
     page.getByRole("button", { name: "Quản trị công ty", exact: true }),
   ).toHaveCount(0);
-  await page.goto("/#admin-users");
+  await page.goto(studioPath("admin-users"));
   await expect(
     page.getByRole("heading", { name: "Bạn không có quyền quản trị" }),
   ).toBeVisible();
@@ -1132,7 +1138,7 @@ test("dashboard failures offer retry without showing stale metrics", async ({
 }) => {
   const fixture = await setup(page);
   fixture.failOverview(true);
-  await page.goto("/#admin");
+  await page.goto(studioPath("admin"));
   await expect(
     page.locator("[data-sonner-toast][data-type=error]"),
   ).toContainText("Không truy cập được dữ liệu Agent.");

@@ -1,3 +1,6 @@
+import { StudioSkeleton } from "./StudioSkeleton";
+import { StudioSelect } from "../ui/StudioSelect";
+import { useStudioNavigate } from "../../navigation";
 import { useCallback, useContext, useEffect, useState } from "react";
 import {
   ArrowLeft,
@@ -15,7 +18,6 @@ import { agentUpload } from "../../services/agent.service";
 import { getErrorMessage } from "../../services/api.service";
 import {
   studioClient,
-  studioNavigate,
   studioLabels,
   exportStudioImages,
   type StudioBootstrap,
@@ -94,6 +96,7 @@ export function MockupStudio({
   from?: string;
   selection?: string;
 }) {
+  const studioNavigate = useStudioNavigate();
   const ai = useContext(AIProviderContext)!;
   const [requestKey] = useState(() => crypto.randomUUID());
   const [sources, setSources] = useState<Source[]>([]);
@@ -336,7 +339,7 @@ export function MockupStudio({
           </p>
         )}
         {!detail ? (
-          <p role="status">Đang tải bộ mockup…</p>
+          <StudioSkeleton variant="gallery" />
         ) : (
           <>
             <header className="studio-page-heading">
@@ -405,14 +408,14 @@ export function MockupStudio({
               <div className="studio-action-row">
                 <label htmlFor="mockup-format">
                   Định dạng
-                  <select
+                  <StudioSelect
                     id="mockup-format"
                     value={format}
                     onChange={(e) => setFormat(e.target.value as "png" | "jpg")}
                   >
                     <option value="png">PNG</option>
                     <option value="jpg">JPG</option>
-                  </select>
+                  </StudioSelect>
                 </label>
                 <Button disabled={busy} onClick={() => void download()}>
                   <Download size={16} />
@@ -583,8 +586,9 @@ export function MockupStudio({
           </label>
           <label htmlFor="mockup-store">
             Cửa hàng
-            <select
+            <StudioSelect
               id="mockup-store"
+              kind="store"
               value={storeId}
               disabled={!!from || sources.length > 0}
               onChange={(e) => {
@@ -599,7 +603,7 @@ export function MockupStudio({
                   {s.name}
                 </option>
               ))}
-            </select>
+            </StudioSelect>
           </label>
           <CatalogSelect
             teamId={shop?.teamId ?? ""}
@@ -789,8 +793,9 @@ export function MockupStudio({
               <summary>Tùy chọn AI</summary>
               <label htmlFor="mockup-model">
                 Model cho bộ ảnh
-                <select
+                <StudioSelect
                   id="mockup-model"
+                  kind="model"
                   value={model || ai.imageModel || ""}
                   onChange={(e) => setModel(e.target.value)}
                 >
@@ -800,7 +805,7 @@ export function MockupStudio({
                       {m.name}
                     </option>
                   ))}
-                </select>
+                </StudioSelect>
               </label>
             </details>
             <p>

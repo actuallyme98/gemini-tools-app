@@ -1,3 +1,5 @@
+> Current URL, loading, select and schedule access details: [routing-and-controls.md](routing-and-controls.md). Hash examples below are retained compatibility links and redirect to the corresponding paths. Automatic scheduling is now admin-only.
+
 # Creative Studio — UI refactor
 
 The customer's `lcg_creative_studio_v4_3_updated.html` is the business reference. Its employee names, product codes, stores, amounts and result images are examples, not production defaults.

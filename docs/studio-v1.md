@@ -1,3 +1,5 @@
+> Current URL, loading, select and schedule access details: [routing-and-controls.md](routing-and-controls.md). Hash examples below are retained compatibility links and redirect to the corresponding paths. Automatic scheduling is now admin-only.
+
 # Creative Studio frontend
 
 Implementation status and remaining gates: `../gemini-tools-api/docs/studio-v1-progress.md` (sibling repository).

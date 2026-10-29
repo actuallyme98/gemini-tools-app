@@ -1,3 +1,5 @@
+import { StudioSkeleton } from "./StudioSkeleton";
+import { useStudioNavigate } from "../../navigation";
 import { useEffect, useState } from "react";
 import {
   ArrowLeft,
@@ -15,7 +17,6 @@ import {
   exportStudioImages,
   studioClient,
   studioLabels,
-  studioNavigate,
   type StudioBootstrap,
   type StudioDetail,
   type StudioReview,
@@ -43,6 +44,7 @@ export function IdeaDetail({
   data: StudioBootstrap;
   user: AgentUser;
 }) {
+  const studioNavigate = useStudioNavigate();
   const [detail, setDetail] = useState<StudioDetail>();
   const [error, setError] = useState("");
   const [revision, setRevision] = useState(0);
@@ -115,19 +117,15 @@ export function IdeaDetail({
       </section>
     );
   if (!detail)
-    return (
-      <p className="studio-loading" role="status">
-        <Loader2 className="animate-spin" size={20} />
-        Đang tải ý tưởng…
-      </p>
-    );
+    return <StudioSkeleton variant="gallery" label="Đang tải ý tưởng…" />;
   const { idea, slots, tickets, reviews } = detail;
   const team = data.teams.find((item) => item.id === idea.teamId);
   const leader =
     user.role === "admin" ||
-    team?.members.some(
-      (member) => member.userId === user.id && member.role === "leader",
-    );
+    (idea.input.timing !== "night" &&
+      team?.members.some(
+        (member) => member.userId === user.id && member.role === "leader",
+      ));
   const resourceName = (resourceId: string) =>
     data.resources.find((item) => item.id === resourceId)?.name ?? "Bản đã lưu";
   const latest = tickets[0];
@@ -443,7 +441,9 @@ export function IdeaDetail({
                         );
                       return artwork.resultId;
                     });
-                    location.hash = `studio-mockups?from=${encodeURIComponent(idea.id)}&selected=${sources.join(",")}`;
+                    studioNavigate(
+                      `studio-mockups?from=${encodeURIComponent(idea.id)}&selected=${sources.join(",")}`,
+                    );
                   } catch (cause) {
                     notifyApiError(cause);
                   }

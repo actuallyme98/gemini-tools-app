@@ -1,3 +1,4 @@
+import { StudioSelect } from "../ui/StudioSelect";
 import { useEffect, useRef, useState } from "react";
 import { RefreshCw, Wallet } from "lucide-react";
 import { agentClient } from "../../services/agent.service";
@@ -213,7 +214,7 @@ export function EmployeeBudgetDialog({
           <>
             <label>
               Tuần sử dụng
-              <select
+              <StudioSelect
                 value={period}
                 disabled={busy}
                 onChange={(event) => {
@@ -230,7 +231,7 @@ export function EmployeeBudgetDialog({
                     Tuần {value}
                   </option>
                 ))}
-              </select>
+              </StudioSelect>
             </label>
             <BudgetMeter data={data} />
             {currentWeek && !reconcile && (
@@ -534,7 +535,7 @@ export function BudgetPolicyPanel() {
                   <div className="budget-price-grid">
                     <label>
                       Kết nối
-                      <select
+                      <StudioSelect
                         aria-label={`Kết nối giá ${index + 1}`}
                         value={rule.provider}
                         onChange={(event) =>
@@ -544,7 +545,7 @@ export function BudgetPolicyPanel() {
                         <option value="shopaikey">Provider 1</option>
                         <option value="gemini">Provider 2</option>
                         <option value="vyceai">Provider văn bản</option>
-                      </select>
+                      </StudioSelect>
                     </label>
                     <label>
                       Model
@@ -560,7 +561,7 @@ export function BudgetPolicyPanel() {
                     </label>
                     <label>
                       Tác vụ
-                      <select
+                      <StudioSelect
                         value={rule.operation}
                         onChange={(event) =>
                           change(index, {
@@ -573,7 +574,7 @@ export function BudgetPolicyPanel() {
                         <option value="text">Văn bản</option>
                         <option value="vision">Phân tích ảnh</option>
                         <option value="health">Kiểm tra health có phí</option>
-                      </select>
+                      </StudioSelect>
                     </label>
                     <label>
                       Giữ chỗ tối đa / lượt ({unit})

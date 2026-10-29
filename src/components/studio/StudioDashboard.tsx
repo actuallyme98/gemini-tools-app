@@ -1,6 +1,8 @@
+import { StudioSkeleton } from "./StudioSkeleton";
+import { useStudioNavigate } from "../../navigation";
 import { useEffect, useState } from "react";
 import { Button } from "../ui/button";
-import { studioClient, studioNavigate } from "../../services/studio.service";
+import { studioClient } from "../../services/studio.service";
 import { getErrorMessage } from "../../services/api.service";
 type Stats = {
   ideas: Record<string, number>;
@@ -14,6 +16,7 @@ type Stats = {
 const sum = (values: Record<string, number>) =>
   Object.values(values).reduce((a, b) => a + b, 0);
 export function StudioDashboard({ onPending }: { onPending: () => void }) {
+  const studioNavigate = useStudioNavigate();
   const [data, setData] = useState<Stats>(),
     [error, setError] = useState(""),
     [retry, setRetry] = useState(0);
@@ -59,7 +62,7 @@ export function StudioDashboard({ onPending }: { onPending: () => void }) {
         </p>
       )}
       {!data ? (
-        <p role="status">Đang tính số liệu từ công việc đã lưu…</p>
+        <StudioSkeleton variant="dashboard" />
       ) : (
         <>
           <div className="studio-overview-grid">

@@ -1,3 +1,4 @@
+import { StudioSelect } from "../ui/StudioSelect";
 import { useState } from "react";
 import { agentClient } from "../../services/agent.service";
 import { notifyApiError } from "../../utils/api-error-toast";
@@ -69,12 +70,15 @@ export function PricingCatalog() {
           </p>
           <label>
             Nhóm giá
-            <select value={group} onChange={(e) => setGroup(e.target.value)}>
+            <StudioSelect
+              value={group}
+              onChange={(e) => setGroup(e.target.value)}
+            >
               <option value="">Tất cả nhóm</option>
               {[...new Set(data.rows.map((r) => r.group))].map((g) => (
                 <option key={g}>{g}</option>
               ))}
-            </select>
+            </StudioSelect>
           </label>
           <label>
             Tìm model

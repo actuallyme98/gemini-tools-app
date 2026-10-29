@@ -1,3 +1,4 @@
+import { StudioSelect } from "../ui/StudioSelect";
 import { useEffect, useId, useState } from "react";
 import {
   studioClient,
@@ -95,7 +96,14 @@ export function CatalogSelect({
     <div className="studio-catalog-select">
       <label htmlFor={id}>
         {label}
-        <select
+        <StudioSelect
+          kind={
+            type === "thumbnail"
+              ? "thumbnail"
+              : type === "scene"
+                ? "scene"
+                : type
+          }
           id={id}
           value={value}
           required
@@ -116,7 +124,7 @@ export function CatalogSelect({
               {r.versionNumber ? ` · v${r.versionNumber}` : ""}
             </option>
           ))}
-        </select>
+        </StudioSelect>
       </label>
       {!readOnly && (
         <details>

@@ -1,3 +1,5 @@
+import { Link } from "react-router";
+import { useStudioNavigate, studioPath } from "../../navigation";
 import { useState, type ReactNode } from "react";
 import {
   BookOpen,
@@ -16,7 +18,6 @@ import {
   Frame,
 } from "lucide-react";
 import type { AgentUser } from "../../services/agent.service";
-import { studioNavigate } from "../../services/studio.service";
 import { WeeklyBudget } from "../agent/UsageBudget";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "../ui/sheet";
 
@@ -65,6 +66,7 @@ export function StudioShell({
   children: ReactNode;
   workbench?: boolean;
 }) {
+  const studioNavigate = useStudioNavigate();
   const [open, setOpen] = useState(false);
   const go = (next: string) => {
     studioNavigate(next);
@@ -82,9 +84,9 @@ export function StudioShell({
           : navigation.find((n) => n.id === page)?.label;
   const sidebar = (
     <>
-      <a
+      <Link
         className="studio-brand"
-        href="#studio"
+        to={studioPath("studio")}
         aria-label="LCG Creative Studio — Tổng quan"
       >
         <span>
@@ -96,7 +98,7 @@ export function StudioShell({
           </strong>
           <small>CREATIVE OPERATIONS</small>
         </div>
-      </a>
+      </Link>
       <button className="studio-create-button" onClick={() => go("studio-new")}>
         <Lightbulb size={17} aria-hidden="true" />
         Tạo ý tưởng mới<span>＋</span>

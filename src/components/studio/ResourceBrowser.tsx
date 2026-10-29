@@ -1,3 +1,5 @@
+import { StudioSkeleton } from "./StudioSkeleton";
+import { StudioSelect } from "../ui/StudioSelect";
 import { useEffect, useState, type ReactNode } from "react";
 import {
   studioClient,
@@ -64,7 +66,7 @@ export function ResourceBrowser({
       <div className="studio-form-grid">
         <label htmlFor="library-team">
           Nhóm trong thư viện
-          <select
+          <StudioSelect
             id="library-team"
             value={teamId}
             onChange={(e) => {
@@ -77,11 +79,11 @@ export function ResourceBrowser({
                 {t.name}
               </option>
             ))}
-          </select>
+          </StudioSelect>
         </label>
         <label htmlFor="library-type">
           Lọc loại nội dung
-          <select
+          <StudioSelect
             id="library-type"
             value={type}
             onChange={(e) => {
@@ -94,7 +96,7 @@ export function ResourceBrowser({
             <option value="skill">Bộ hướng dẫn</option>
             <option value="thumbnail">Mẫu ảnh chính</option>
             <option value="scene">Bối cảnh</option>
-          </select>
+          </StudioSelect>
         </label>
         <label htmlFor="library-query">
           Tìm theo tên hoặc mã
@@ -117,7 +119,9 @@ export function ResourceBrowser({
           </Button>
         </p>
       )}
-      {loading && <p role="status">Đang tìm trong thư viện…</p>}
+      {loading && !result && (
+        <StudioSkeleton variant="gallery" label="Đang tìm trong thư viện…" />
+      )}
       {result
         ? children(result.items)
         : !loading && <p>Chọn nhóm để xem thư viện.</p>}

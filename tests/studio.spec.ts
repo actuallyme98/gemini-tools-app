@@ -1,3 +1,5 @@
+import { studioPath } from "../src/navigation";
+import { chooseOption } from "./select-helper";
 import { test, expect, type Page } from "@playwright/test";
 import { randomUUID } from "node:crypto";
 import { sampleBudget } from "./budget-fixture";
@@ -724,35 +726,191 @@ async function setup(
   };
 }
 async function wizard(page: Page) {
-  await page.goto("/#studio-new");
+  await page.goto(studioPath("studio-new"));
   await page.getByLabel("Tên ý tưởng").fill("Bộ quà thú cưng");
-  await page
-    .getByRole("combobox", { name: /^Sản phẩm/ })
-    .selectOption({ label: "P01 · Thảm in" });
+  await chooseOption(page, page.getByRole("combobox", { name: /^Sản phẩm/ }), {
+    label: "P01 · Thảm in",
+  });
   await page.getByRole("button", { name: "Tiếp tục" }).click();
   await page
     .locator('input[type="file"]')
     .setInputFiles({ name: "idea.png", mimeType: "image/png", buffer: image });
   await expect(page.getByText("idea.png", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Tiếp tục" }).click();
-  await page
-    .getByRole("combobox", { name: /^Bộ hướng dẫn/ })
-    .selectOption({ label: "SK02 · Phát triển ý tưởng" });
-  await page
-    .getByRole("combobox", { name: /^Mẫu ảnh chính của cửa hàng/ })
-    .selectOption({ label: "M01 · Thảm trước cửa" });
+  await chooseOption(
+    page,
+    page.getByRole("combobox", { name: /^Bộ hướng dẫn/ }),
+    { label: "SK02 · Phát triển ý tưởng" },
+  );
+  await chooseOption(
+    page,
+    page.getByRole("combobox", { name: /^Mẫu ảnh chính của cửa hàng/ }),
+    { label: "M01 · Thảm trước cửa" },
+  );
   await page
     .getByLabel("Mô tả cách phát triển")
     .fill("Redesign thành 7 mẫu riêng biệt theo bộ hướng dẫn");
   await page.getByRole("button", { name: "Tiếp tục" }).click();
 }
 
+test("routes survive reload and browser history without rechecking the session on each navigation", async ({
+  page,
+}) => {
+  await setup(page, { admin: true });
+  let authChecks = 0;
+  page.on("request", (request) => {
+    if (new URL(request.url()).pathname === "/api/agent/auth/me") authChecks++;
+  });
+  await page.goto("/ideas");
+  await expect(
+    page.getByRole("heading", { name: "Ý tưởng của nhóm", exact: true }),
+  ).toBeVisible();
+  const initial = authChecks;
+  await page
+    .getByRole("button", { name: "Mockup Studio", exact: true })
+    .click();
+  await expect(page).toHaveURL(/\/mockups$/);
+  await page
+    .getByRole("button", { name: "Quản trị công ty", exact: true })
+    .click();
+  await expect(page).toHaveURL(/\/admin$/);
+  await page.goBack();
+  await expect(
+    page.getByRole("heading", { name: "Tạo mockup", exact: true }),
+  ).toBeVisible();
+  expect(authChecks).toBe(initial);
+  await page.goto("/manage/stores");
+  await page.reload();
+  await expect(
+    page.getByRole("button", { name: "Cửa hàng", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("button", { name: "Thư viện", exact: true }).click();
+  await expect(page).toHaveURL(/\/manage\/library$/);
+});
+
+test("page skeleton holds the layout during loading and respects reduced motion", async ({
+  page,
+}) => {
+  await setup(page);
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route("**/api/agent/studio/bootstrap", async (route) => {
+    await gate;
+    await route.fallback();
+  });
+  try {
+    await page.goto("/ideas");
+    const skeleton = page.locator(
+      ".studio-main .studio-skeleton[aria-busy=true]",
+    );
+    await expect(skeleton).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Ý tưởng của nhóm", exact: true }),
+    ).toHaveCount(0);
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    expect(
+      await skeleton
+        .locator("i")
+        .first()
+        .evaluate((el) => getComputedStyle(el).animationName),
+    ).toBe("none");
+    await page.screenshot({
+      path: "test-results/studio-route-skeleton.png",
+      fullPage: true,
+    });
+    release();
+    await expect(
+      page.getByRole("heading", { name: "Ý tưởng của nhóm", exact: true }),
+    ).toBeVisible();
+    await expect(page.locator(".studio-skeleton")).toHaveCount(0);
+  } finally {
+    release();
+  }
+});
+
+test("status select uses icons, keyboard selection and returns focus after Escape", async ({
+  page,
+}) => {
+  await setup(page);
+  await page.goto("/ideas");
+  const control = page.getByRole("combobox", {
+    name: "Lọc trạng thái ý tưởng",
+    exact: true,
+  });
+  await expect(control).toBeVisible();
+  await control.focus();
+  await control.press("ArrowDown");
+  await expect(page.getByRole("listbox")).toBeVisible();
+  await expect(
+    page
+      .getByRole("option", { name: "Chờ Leader duyệt", exact: true })
+      .locator("svg")
+      .first(),
+  ).toBeVisible();
+  await page.screenshot({
+    path: "test-results/studio-status-select.png",
+    fullPage: true,
+  });
+  await page.keyboard.press("End");
+  await expect(
+    page.getByRole("option", { name: "Đã duyệt", exact: true }),
+  ).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(control).toHaveAttribute("data-value", "approved");
+  await control.click();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("listbox")).toHaveCount(0);
+  await expect(control).toBeFocused();
+});
+
+test("custom select preserves required form validation and focuses the missing choice", async ({
+  page,
+}) => {
+  await setup(page);
+  await page.goto("/ideas/new");
+  await page.getByLabel("Tên ý tưởng").fill("Thiếu sản phẩm");
+  const product = page.getByRole("combobox", { name: /^Sản phẩm/ });
+  await expect(product).toBeEnabled();
+  await page.getByRole("button", { name: "Tiếp tục", exact: true }).click();
+  await expect(product).toHaveAttribute("aria-invalid", "true");
+  await expect(product).toBeFocused();
+  await expect(page.getByRole("alert")).toContainText("Vui lòng chọn một mục.");
+  await chooseOption(page, product, { label: "P01 · Thảm in" });
+  await expect(product).not.toHaveAttribute("aria-invalid", "true");
+  await page.getByRole("button", { name: "Tiếp tục", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "Ảnh ý tưởng", exact: true }),
+  ).toBeVisible();
+});
+
+test("employees and Team Leaders cannot choose an automatic schedule", async ({
+  page,
+}) => {
+  await setup(page, { leader: true });
+  await wizard(page);
+  await page.getByRole("button", { name: "Quay lại", exact: true }).click();
+  await page
+    .getByRole("combobox", { name: "Khi nào thực hiện?", exact: true })
+    .click();
+  await expect(page.getByRole("option", { name: /Lên lịch/ })).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  await expect(
+    page.getByRole("button", { name: "Vận hành lịch", exact: true }),
+  ).toHaveCount(0);
+  await page.goto("/manage/schedule");
+  await expect(
+    page.getByRole("heading", { name: "Khu vực quản trị", exact: true }),
+  ).toBeVisible();
+});
+
 test("new shell owns admin routes and retired links never mount the chat workspace", async ({
   page,
 }) => {
   const fixture = await setup(page, { admin: true });
-  await page.goto("/#agent");
-  await expect(page).toHaveURL(/#studio$/);
+  await page.goto(studioPath("agent"));
+  await expect(page).toHaveURL(/\/$/);
   await expect(
     page.getByRole("heading", { name: "Tổng quan công việc" }),
   ).toBeVisible();
@@ -762,10 +920,10 @@ test("new shell owns admin routes and retired links never mount the chat workspa
   await page
     .getByRole("button", { name: "Thumbnail Library", exact: true })
     .click();
-  await expect(page).toHaveURL(/#studio-manage\?tab=library&type=thumbnail$/);
+  await expect(page).toHaveURL(/\/manage\/library\?type=thumbnail$/);
   await expect(
     page.getByRole("combobox", { name: "Loại nội dung", exact: true }),
-  ).toHaveValue("thumbnail");
+  ).toHaveAttribute("data-value", "thumbnail");
   expect(fixture.errors).toEqual([]);
 });
 
@@ -806,7 +964,7 @@ test("mockup workbench separates controls into three panels without an outer des
   const fixture = await setup(page);
   fixture.addMockupScene();
   await page.setViewportSize({ width: 1440, height: 900 });
-  await page.goto("/#studio-mockups");
+  await page.goto(studioPath("studio-mockups"));
   await expect(page.getByLabel("Tên bộ ảnh", { exact: true })).toBeVisible();
   await expect(page.locator(".studio-mockup-columns>.studio-card")).toHaveCount(
     3,
@@ -816,12 +974,15 @@ test("mockup workbench separates controls into three panels without an outer des
     .evaluate((el) => {
       const boxes = [
         ...el.querySelectorAll(
-          "#mockup-title, #mockup-store, .studio-catalog-select > label > select",
+          "#mockup-title, #mockup-store, .studio-catalog-select > label > [role=combobox]",
         ),
       ]
         .map((e) => e.getBoundingClientRect())
         .filter((b) => b.width > 0);
-      return boxes.slice(1).every((b, i) => b.left >= boxes[i].right + 12);
+      return (
+        boxes.length === 3 &&
+        boxes.slice(1).every((b, i) => b.left >= boxes[i].right + 12)
+      );
     });
   expect(controls).toBe(true);
   expect(
@@ -861,13 +1022,13 @@ test("Design Gallery keeps the idea rail and loads the selected design without o
   await expect(
     page.getByRole("heading", { name: "Bộ quà thú cưng", exact: true }),
   ).toBeVisible();
-  await page.goto("/#studio-gallery");
+  await page.goto(studioPath("studio-gallery"));
   const rail = page.getByRole("complementary", {
     name: "Ý tưởng trong Gallery",
   });
   await expect(rail).toBeVisible();
   await rail.getByRole("button", { name: /Bộ quà thú cưng/ }).click();
-  await expect(page).toHaveURL(/#studio-gallery\?id=/);
+  await expect(page).toHaveURL(/\/gallery\//);
   await expect(
     page
       .getByRole("region", { name: "Thiết kế của ý tưởng" })
@@ -881,7 +1042,7 @@ test("Studio is protected at the root and does not expose navigation before logi
   page,
 }) => {
   const fixture = await setup(page, { login: false });
-  await page.goto("/#studio");
+  await page.goto(studioPath("studio"));
   await expect(
     page.getByRole("heading", { name: "Đăng nhập không gian làm việc" }),
   ).toBeVisible();
@@ -920,7 +1081,7 @@ test("employee completes the four-step idea flow with distinct source/master and
 test("Leader can approve; revisions are sent explicitly", async ({ page }) => {
   const fixture = await setup(page, { leader: true });
   const id = fixture.setPending();
-  await page.goto(`/#studio-ideas?id=${id}`);
+  await page.goto(studioPath(`studio-ideas?id=${id}`));
   await page.getByRole("button", { name: "Duyệt & chạy", exact: true }).click();
   await expect(
     page.getByText("Đã duyệt", { exact: true }).first(),
@@ -937,7 +1098,7 @@ test("failed save is visible and never advances to a success detail", async ({
   await page.getByRole("button", { name: "Gửi Leader duyệt" }).click();
   await expect(page.getByText("Bản nháp đã thay đổi ở tab khác")).toBeVisible();
   expect(fixture.submitted()).toBe(false);
-  await expect(page).toHaveURL(/#studio-new$/);
+  await expect(page).toHaveURL(/\/ideas\/new$/);
   expect(fixture.errors).toEqual([]);
 });
 test("mobile dashboard and menu have no horizontal overflow", async ({
@@ -945,7 +1106,7 @@ test("mobile dashboard and menu have no horizontal overflow", async ({
 }) => {
   const fixture = await setup(page);
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto("/#studio");
+  await page.goto(studioPath("studio"));
   await expect(
     page.getByRole("heading", { name: /Tổng quan công việc/ }),
   ).toBeVisible();
@@ -974,7 +1135,7 @@ test("incomplete drafts autosave on the server and restore after reload", async 
   page,
 }) => {
   const fixture = await setup(page);
-  await page.goto("/#studio-new");
+  await page.goto(studioPath("studio-new"));
   await page.getByLabel("Tên ý tưởng").fill("Nháp đang chuẩn bị");
   await expect(
     page.getByText("Đã lưu lên máy chủ", { exact: true }),
@@ -984,7 +1145,7 @@ test("incomplete drafts autosave on the server and restore after reload", async 
     sourceId: "",
     skillId: "",
   });
-  await page.goto(`/#studio-new?id=${fixture.ideaId()}`);
+  await page.goto(studioPath(`studio-new?id=${fixture.ideaId()}`));
   await expect(page.getByLabel("Tên ý tưởng")).toHaveValue(
     "Nháp đang chuẩn bị",
   );
@@ -996,7 +1157,7 @@ test("desktop Studio has a readable dashboard and one main page scroll", async (
 }) => {
   const fixture = await setup(page);
   await page.setViewportSize({ width: 1440, height: 1024 });
-  await page.goto("/#studio");
+  await page.goto(studioPath("studio"));
   await expect(
     page.getByRole("heading", { name: /Tổng quan công việc/ }),
   ).toBeVisible();
@@ -1019,7 +1180,7 @@ test("admin reviews skill case context, downloads original ZIP, sees history and
 }) => {
   const fixture = await setup(page, { admin: true });
   fixture.enableSkillVersion();
-  await page.goto("/#studio-manage");
+  await page.goto(studioPath("studio-manage"));
   await page.getByRole("button", { name: "Thư viện", exact: true }).click();
   await expect(page.getByText("Phiên bản 1", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Lịch sử", exact: true }).click();
@@ -1041,9 +1202,9 @@ test("admin reviews skill case context, downloads original ZIP, sees history and
   await page
     .getByRole("button", { name: "Nâng phiên bản", exact: true })
     .click();
-  await expect(page.getByLabel("Phiên bản trước (nếu cập nhật)")).toHaveValue(
-    fixture.ids.skill,
-  );
+  await expect(
+    page.getByLabel("Phiên bản trước (nếu cập nhật)"),
+  ).toHaveAttribute("data-value", fixture.ids.skill);
   await page.locator('input[accept=".zip"]').setInputFiles({
     name: "skill.zip",
     mimeType: "application/zip",
@@ -1060,7 +1221,7 @@ test("creative preparation displays observed image roles, risks and each planned
   const id = fixture.setPending();
   fixture.setPlan(id);
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto(`/#studio-ideas?id=${id}`);
+  await page.goto(studioPath(`studio-ideas?id=${id}`));
   await expect(
     page.getByRole("heading", { name: "Chuẩn bị sáng tạo" }),
   ).toBeVisible();
@@ -1094,7 +1255,7 @@ test("uncertain planning remains visible as a persistent error without a mislead
   const fixture = await setup(page);
   const id = fixture.setPending();
   fixture.setPlan(id, true);
-  await page.goto(`/#studio-ideas?id=${id}`);
+  await page.goto(studioPath(`studio-ideas?id=${id}`));
   await expect(
     page.getByRole("alert").filter({ hasText: "Phân tích bị gián đoạn" }),
   ).toBeVisible();
@@ -1112,9 +1273,11 @@ test("daytime sample configuration is visible in confirmation and nightly runs s
   await page
     .getByText("Chạy thử trước khi tạo toàn bộ", { exact: true })
     .click();
-  await page
-    .getByRole("combobox", { name: /^Số mẫu tạo trước/ })
-    .selectOption("2");
+  await chooseOption(
+    page,
+    page.getByRole("combobox", { name: /^Số mẫu tạo trước/ }),
+    "2",
+  );
   await page.getByRole("button", { name: "Tiếp tục", exact: true }).click();
   await expect(
     page.getByText("Tạo trước 2 mẫu, chờ xác nhận để tạo 5 mẫu còn lại", {
@@ -1137,7 +1300,7 @@ test("Leader explicitly continues remaining samples with a cost notice", async (
   const id = fixture.setPending();
   fixture.setPlan(id);
   fixture.setSampleReview();
-  await page.goto(`/#studio-ideas?id=${id}`);
+  await page.goto(studioPath(`studio-ideas?id=${id}`));
   await expect(
     page.getByText(/Tạo phần còn lại có thể phát sinh thêm phí AI/),
   ).toBeVisible();
@@ -1157,7 +1320,7 @@ test("admin sees credit Team usage, changes the daily cap and retains conflicts 
   page,
 }) => {
   const fixture = await setup(page, { admin: true });
-  await page.goto("/#studio-manage");
+  await page.goto(studioPath("studio-manage"));
   await page
     .getByRole("button", { name: "Ngân sách Team", exact: true })
     .click();
@@ -1206,7 +1369,7 @@ test("operations keeps missed batch history, supports catch-up and only resumes 
 }) => {
   const fixture = await setup(page, { admin: true });
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto("/#studio-manage");
+  await page.goto(studioPath("studio-manage"));
   await page
     .getByRole("button", { name: "Vận hành lịch", exact: true })
     .click();
@@ -1338,10 +1501,12 @@ test("mockup creates a persisted Team set with exact scene/color inputs and resu
       },
     });
   });
-  await page.goto("/#studio-mockups");
-  await page
-    .getByRole("combobox", { name: "Sản phẩm", exact: true })
-    .selectOption(fixture.ids.product);
+  await page.goto(studioPath("studio-mockups"));
+  await chooseOption(
+    page,
+    page.getByRole("combobox", { name: "Sản phẩm", exact: true }),
+    fixture.ids.product,
+  );
   await page.getByLabel("Tải ảnh nguồn mockup").setInputFiles({
     name: "design.png",
     mimeType: "image/png",
@@ -1359,7 +1524,7 @@ test("mockup creates a persisted Team set with exact scene/color inputs and resu
   await page
     .getByRole("button", { name: "Tạo 2 ảnh mockup", exact: true })
     .click();
-  await expect(page).toHaveURL(/id=mockup-test/);
+  await expect(page).toHaveURL(/\/mockups\/mockup-test$/);
   await expect(page.locator(".studio-main-workbench")).toHaveCount(0);
   expect(body).toMatchObject({
     storeId: fixture.ids.store,
@@ -1417,10 +1582,10 @@ test("Gallery handoff verifies approved images and fills the source store/produc
   await page.route("**/api/agent/studio/mockups?*", (route) =>
     route.fulfill({ json: { items: [], page: 1, total: 0, limit: 20 } }),
   );
-  await page.goto(`/#studio-mockups?from=${idea}&selected=${result}`);
+  await page.goto(studioPath(`studio-mockups?from=${idea}&selected=${result}`));
   await expect(
     page.getByRole("combobox", { name: "Sản phẩm", exact: true }),
-  ).toHaveValue(fixture.ids.product);
+  ).toHaveAttribute("data-value", fixture.ids.product);
   await expect(
     page.getByRole("combobox", { name: "Cửa hàng", exact: true }),
   ).toBeDisabled();
@@ -1466,7 +1631,7 @@ test("mobile mockup retains uncertain errors with no unsafe resume and fits a si
     }),
   );
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto("/#studio-mockups?id=mockup-unknown");
+  await page.goto(studioPath("studio-mockups?id=mockup-unknown"));
   await expect(
     page.getByRole("heading", { name: "Bộ ảnh cần đối soát" }),
   ).toBeVisible();
@@ -1494,7 +1659,7 @@ test("admin changes the daily time while preserving batch history, conflicts and
   page,
 }) => {
   const fixture = await setup(page, { admin: true });
-  await page.goto("/#studio-manage");
+  await page.goto(studioPath("studio-manage"));
   await page
     .getByRole("button", { name: "Vận hành lịch", exact: true })
     .click();
@@ -1528,15 +1693,14 @@ test("admin changes the daily time while preserving batch history, conflicts and
   ).toBeVisible();
   await wizard(page);
   await page.getByRole("button", { name: "Quay lại", exact: true }).click();
-  await page
-    .getByRole("combobox", { name: "Khi nào thực hiện?", exact: true })
-    .selectOption("night");
+  await chooseOption(
+    page,
+    page.getByRole("combobox", { name: "Khi nào thực hiện?", exact: true }),
+    "night",
+  );
   await expect(
-    page.getByRole("option", {
-      name: "Lên lịch 20:30 hằng ngày (UTC+7)",
-      exact: true,
-    }),
-  ).toHaveCount(1);
+    page.getByRole("combobox", { name: "Khi nào thực hiện?", exact: true }),
+  ).toContainText("Lên lịch 20:30 hằng ngày (UTC+7)");
   await page.getByRole("button", { name: "Tiếp tục", exact: true }).click();
   await expect(
     page.getByText("Kỳ 20:30 kế tiếp sau khi được duyệt · UTC+7", {
@@ -1551,7 +1715,7 @@ test("dashboard shows server counts and the guide illustrates independent artwor
 }) => {
   const fixture = await setup(page);
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto("/#studio");
+  await page.goto(studioPath("studio"));
   const stats = page.getByRole("region", { name: "Số liệu vận hành Studio" });
   await expect(
     stats.getByRole("button", { name: /Ảnh và artwork đã tạo/ }),
@@ -1585,7 +1749,7 @@ test("admin searches and paginates arbitrary catalog entries without relying on 
 }) => {
   const fixture = await setup(page, { admin: true });
   fixture.expandCatalog();
-  await page.goto("/#studio-manage");
+  await page.goto(studioPath("studio-manage"));
   await page.getByRole("button", { name: "Thư viện", exact: true }).click();
   await page
     .getByRole("button", { name: "Trang thư viện sau", exact: true })
@@ -1607,7 +1771,7 @@ test("admin defines an arbitrary product and edits through a new version with it
   page,
 }) => {
   const fixture = await setup(page, { admin: true });
-  await page.goto("/#studio-manage");
+  await page.goto(studioPath("studio-manage"));
   await page.getByRole("button", { name: "Thư viện", exact: true }).click();
   await page
     .getByRole("textbox", { name: "Tên hiển thị", exact: true })
@@ -1657,7 +1821,7 @@ test("Gallery requires a separate artwork review and passes the original artwork
   const id = fixture.setPending();
   fixture.setPlan(id);
   const { rawId } = fixture.setArtwork();
-  await page.goto(`/#studio-ideas?id=${id}`);
+  await page.goto(studioPath(`studio-ideas?id=${id}`));
   await expect(
     page.getByRole("heading", { name: "Artwork gốc · Mẫu 1" }),
   ).toBeVisible();
@@ -1690,16 +1854,21 @@ test("mockup finds approved scenes beyond the bootstrap catalog and adds their a
 }) => {
   const fixture = await setup(page);
   fixture.catalogBeyondBootstrap();
-  await page.goto("/#studio-mockups");
+  await page.goto(studioPath("studio-mockups"));
   await page.getByText("Tìm trong thư viện", { exact: true }).last().click();
   await page
     .getByLabel("Tìm thêm bối cảnh từ thư viện theo tên hoặc mã", {
       exact: true,
     })
     .fill("OUT29");
-  await page
-    .getByRole("combobox", { name: "Thêm bối cảnh từ thư viện", exact: true })
-    .selectOption({ label: "OUT29 · Bối cảnh ngoài trang 29" });
+  await chooseOption(
+    page,
+    page.getByRole("combobox", {
+      name: "Thêm bối cảnh từ thư viện",
+      exact: true,
+    }),
+    { label: "OUT29 · Bối cảnh ngoài trang 29" },
+  );
   await expect(
     page.getByRole("checkbox", {
       name: "Bối cảnh ngoài trang 29",

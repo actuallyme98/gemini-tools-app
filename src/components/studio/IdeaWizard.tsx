@@ -1,3 +1,5 @@
+import { StudioSelect } from "../ui/StudioSelect";
+import { useStudioNavigate } from "../../navigation";
 import {
   useCallback,
   useContext,
@@ -20,7 +22,6 @@ import { AIProviderContext } from "../../context/ai-provider-context";
 import { agentUpload, type AgentUser } from "../../services/agent.service";
 import {
   studioClient,
-  studioNavigate,
   type IdeaInput,
   type StudioBootstrap,
   type StudioIdea,
@@ -46,6 +47,7 @@ export function IdeaWizard({
   user: AgentUser;
   existing?: StudioIdea;
 }) {
+  const studioNavigate = useStudioNavigate();
   const ai = useContext(AIProviderContext)!;
   const id = useId();
   const [resolved, setResolved] = useState<Record<string, StudioResource>>({});
@@ -282,8 +284,9 @@ export function IdeaWizard({
                 </label>
                 <label htmlFor={`${id}-shop`}>
                   Cửa hàng
-                  <select
+                  <StudioSelect
                     id={`${id}-shop`}
+                    kind="store"
                     value={input.storeId}
                     onChange={(e) =>
                       setInput((current) => ({
@@ -306,7 +309,7 @@ export function IdeaWizard({
                         }
                       </option>
                     ))}
-                  </select>
+                  </StudioSelect>
                 </label>
                 <CatalogSelect
                   key={shop?.id ?? "product"}
@@ -433,21 +436,24 @@ export function IdeaWizard({
                 </label>
                 <label htmlFor={`${id}-timing`}>
                   Khi nào thực hiện?
-                  <select
+                  <StudioSelect
                     id={`${id}-timing`}
+                    kind="time"
                     value={input.timing}
                     onChange={(e) =>
                       change("timing", e.target.value as "now" | "night")
                     }
                   >
                     <option value="now">Chạy sau khi Leader duyệt</option>
-                    <option value="night" disabled={!data.schedulerEnabled}>
-                      Lên lịch {data.schedule?.dailyTime ?? "22:00"}{" "}
-                      {data.schedulerEnabled
-                        ? "hằng ngày (UTC+7)"
-                        : "— quản trị chưa bật"}
-                    </option>
-                  </select>
+                    {user.role === "admin" && (
+                      <option value="night" disabled={!data.schedulerEnabled}>
+                        Lên lịch {data.schedule?.dailyTime ?? "22:00"}{" "}
+                        {data.schedulerEnabled
+                          ? "hằng ngày (UTC+7)"
+                          : "— quản trị chưa bật"}
+                      </option>
+                    )}
+                  </StudioSelect>
                 </label>
                 <label className="studio-check studio-span-full">
                   <input
@@ -467,7 +473,7 @@ export function IdeaWizard({
                   <summary>Chạy thử trước khi tạo toàn bộ</summary>
                   <label>
                     Số mẫu tạo trước
-                    <select
+                    <StudioSelect
                       value={
                         input.timing === "night"
                           ? input.count
@@ -489,7 +495,7 @@ export function IdeaWizard({
                           </option>
                         ),
                       )}
-                    </select>
+                    </StudioSelect>
                   </label>
                   <small>
                     Lượt chạy ngay có thể tạm dừng sau nhóm mẫu thử. Lượt theo
@@ -500,8 +506,9 @@ export function IdeaWizard({
                   <summary>Tùy chọn AI nâng cao</summary>
                   <label htmlFor={`${id}-model`}>
                     Model cho lượt chạy này
-                    <select
+                    <StudioSelect
                       id={`${id}-model`}
+                      kind="model"
                       value={input.imageModel || ai.imageModel || ""}
                       onChange={(e) => change("imageModel", e.target.value)}
                     >
@@ -511,7 +518,7 @@ export function IdeaWizard({
                           {model.name}
                         </option>
                       ))}
-                    </select>
+                    </StudioSelect>
                   </label>
                   <small>
                     Model sẽ được chốt khi gửi duyệt. Chi phí được kiểm tra theo

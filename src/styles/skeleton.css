@@ -1,0 +1,140 @@
+.studio-skeleton {
+  width: 100%;
+  min-width: 0;
+  padding: 4px;
+}
+.studio-skeleton i {
+  display: block;
+  border-radius: 6px;
+  background: linear-gradient(100deg, #e9edf3 25%, #f5f7fa 45%, #e9edf3 65%);
+  background-size: 220% 100%;
+  animation: skeleton-shimmer 1.7s ease-in-out infinite;
+}
+.skeleton-heading {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+.skeleton-heading i:first-child {
+  width: clamp(130px, 30%, 260px);
+  height: 26px;
+}
+.skeleton-heading i:last-child {
+  width: clamp(180px, 45%, 380px);
+  max-width: 100%;
+  height: 12px;
+}
+.skeleton-body {
+  display: grid;
+  gap: 12px;
+}
+.skeleton-row {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: white;
+}
+.skeleton-row > div {
+  display: grid;
+  gap: 12px;
+  flex: 1;
+}
+.skeleton-row > div i:first-child {
+  height: 14px;
+  width: 65%;
+}
+.skeleton-row > div i:last-child {
+  height: 11px;
+  width: 40%;
+}
+.skeleton-row .skeleton-image {
+  width: 56px;
+  height: 56px;
+  flex-shrink: 0;
+}
+.skeleton-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 24px;
+}
+.skeleton-metrics > div {
+  display: grid;
+  gap: 14px;
+  padding: 20px;
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.skeleton-metrics i:first-child {
+  width: 50px;
+  height: 28px;
+}
+.skeleton-metrics i:last-child {
+  width: 80%;
+  height: 12px;
+}
+.skeleton-form .skeleton-body {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding: 20px;
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.skeleton-form .skeleton-row {
+  padding: 8px;
+  border: 0;
+  min-height: 80px;
+}
+.skeleton-form .skeleton-row > div i:last-child {
+  height: 40px;
+  width: 100%;
+}
+.skeleton-gallery .skeleton-body {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.skeleton-gallery .skeleton-row {
+  display: block;
+}
+.skeleton-gallery .skeleton-image {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1;
+  margin-bottom: 16px;
+}
+.skeleton-login {
+  max-width: 420px;
+  margin: 20vh auto;
+  padding: 24px;
+}
+.studio-loading-frame {
+  max-width: 1280px;
+  margin: 40px auto;
+  padding: 24px;
+}
+@keyframes skeleton-shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
+@media (max-width: 650px) {
+  .skeleton-gallery .skeleton-body,
+  .skeleton-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .skeleton-form .skeleton-body {
+    grid-template-columns: 1fr;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .studio-skeleton i {
+    animation: none;
+    background: #e9edf3;
+  }
+}

@@ -211,9 +211,6 @@ export async function exportStudioImages(
   );
   saveBlob(await zip.generateAsync({ type: "blob" }), "LCG_Thanh_pham.zip");
 }
-export const studioNavigate = (page: string, id?: string) => {
-  location.hash = page + (id ? `?id=${encodeURIComponent(id)}` : "");
-};
 export const studioLabels: Record<string, string> = {
   draft: "Bản nháp",
   pending: "Chờ Leader duyệt",
