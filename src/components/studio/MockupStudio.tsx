@@ -10,6 +10,8 @@ import {
   Loader2,
   Plus,
   Square,
+  Sparkles,
+  Images,
   X,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -30,6 +32,8 @@ import { notifyApiError } from "../../utils/api-error-toast";
 import { StudioImage } from "./StudioImage";
 import { Button } from "../ui/button";
 import { CatalogSelect } from "./CatalogSelect";
+import { EtsyMockupPicker } from "./EtsyMockupPicker";
+import { MockupBackgrounds, type MockupBackground } from "./MockupBackgrounds";
 import {
   Dialog,
   DialogContent,
@@ -53,7 +57,12 @@ type Job = {
   error?: string;
   product: { name: string };
   sources: { image: { id: string }; ticketId?: string }[];
-  scenes: { id: string; name: string; image: { id: string } }[];
+  scenes: {
+    id: string;
+    name: string;
+    kind?: "template" | "background";
+    image?: { id: string };
+  }[];
 };
 type Slot = {
   id: string;
@@ -105,6 +114,10 @@ export function MockupStudio({
   const [title, setTitle] = useState("Bộ ảnh mockup");
   const [sceneIds, setScenes] = useState<string[]>([]);
   const [colors, setColors] = useState("");
+  const [backgrounds, setBackgrounds] = useState<MockupBackground[]>([]);
+  const [sceneMode, setSceneMode] = useState<"template" | "background">(
+    "template",
+  );
   const [instructions, setInstructions] = useState("");
   const [model, setModel] = useState("");
   const [busy, setBusy] = useState(false);
@@ -140,6 +153,41 @@ export function MockupStudio({
       r.status === "approved" &&
       r.teamId === shop?.teamId,
   );
+  const choices = [
+    ...scenes.map((s) => ({ id: s.id, name: s.name })),
+    ...backgrounds,
+  ];
+  const invalidBackground = backgrounds.some(
+    (b) =>
+      sources.some((s) => s.sceneIds.includes(b.id)) &&
+      (!b.name.trim() || b.prompt.trim().length < 10),
+  );
+  function toggleScene(id: string, checked: boolean) {
+    if (checked && !sceneIds.includes(id) && sceneIds.length >= 12) {
+      toast.error("Mỗi nguồn tối đa 12 bối cảnh.");
+      return;
+    }
+    setScenes((current) =>
+      checked
+        ? [...new Set([...current, id])]
+        : current.filter((v) => v !== id),
+    );
+  }
+  function updateBackgrounds(next: MockupBackground[]) {
+    const removed = backgrounds
+      .filter((b) => !next.some((n) => n.id === b.id))
+      .map((b) => b.id);
+    if (removed.length) {
+      setScenes((current) => current.filter((id) => !removed.includes(id)));
+      setSources((current) =>
+        current.map((s) => ({
+          ...s,
+          sceneIds: s.sceneIds.filter((id) => !removed.includes(id)),
+        })),
+      );
+    }
+    setBackgrounds(next);
+  }
   const count = sources.reduce(
     (n, s) => n + s.sceneIds.length * s.colors.length,
     0,
@@ -271,6 +319,15 @@ export function MockupStudio({
         provider: ai.provider,
         imageModel: model || ai.imageModel,
         instructions,
+        ...(backgrounds.some((b) =>
+          sources.some((s) => s.sceneIds.includes(b.id)),
+        )
+          ? {
+              backgrounds: backgrounds.filter((b) =>
+                sources.some((s) => s.sceneIds.includes(b.id)),
+              ),
+            }
+          : {}),
       });
       studioNavigate("studio-mockups", job.id);
       toast.success("Đã lưu bộ mockup. Bạn có thể đóng tab.");
@@ -470,14 +527,17 @@ export function MockupStudio({
                             id={detail.job.sources[slot.sourceIndex].image.id}
                             name="Ảnh sản phẩm nguồn"
                           />
-                          <StudioImage
-                            id={
-                              detail.job.scenes.find(
-                                (s) => s.id === slot.sceneId,
-                              )?.image.id ?? ""
-                            }
-                            name="Bối cảnh đích"
-                          />
+                          {detail.job.scenes.find((s) => s.id === slot.sceneId)
+                            ?.kind !== "background" && (
+                            <StudioImage
+                              id={
+                                detail.job.scenes.find(
+                                  (s) => s.id === slot.sceneId,
+                                )?.image?.id ?? ""
+                              }
+                              name="Bối cảnh đích"
+                            />
+                          )}
                         </div>
                         <p className="studio-prewrap">{slot.prompt}</p>
                         <small>Mã request: {slot.requestId}</small>
@@ -666,11 +726,15 @@ export function MockupStudio({
                   </Button>
                   <details>
                     <summary>Chỉnh riêng nguồn {index + 1}</summary>
-                    {scenes.map((scene) => (
+                    {choices.map((scene) => (
                       <label className="studio-check" key={scene.id}>
                         <input
                           type="checkbox"
                           checked={source.sceneIds.includes(scene.id)}
+                          disabled={
+                            !source.sceneIds.includes(scene.id) &&
+                            source.sceneIds.length >= 12
+                          }
                           onChange={(e) =>
                             setSources((current) =>
                               current.map((s, i) =>
@@ -715,51 +779,93 @@ export function MockupStudio({
           </section>
           <section className="studio-card studio-mockup-scenes">
             <h2>2. Bối cảnh & màu</h2>
-            <CatalogSelect
-              teamId={shop?.teamId ?? ""}
-              type="scene"
-              value=""
-              label="Thêm bối cảnh từ thư viện"
-              onResolve={resolveResource}
-              onChange={(id) => {
-                if (id)
-                  setScenes((current) =>
-                    current.includes(id) ? current : [...current, id],
-                  );
-              }}
-            />
-            <p>Giữ bối cảnh, thay sản phẩm từ ảnh nguồn.</p>
-            <div className="studio-gallery">
-              {scenes.map((scene) => (
-                <label
-                  className="studio-card studio-scene-choice"
-                  key={scene.id}
-                >
-                  <StudioImage id={scene.assetId ?? ""} name={scene.name} />
-                  <span className="studio-check">
-                    <input
-                      type="checkbox"
-                      checked={sceneIds.includes(scene.id)}
-                      aria-label={scene.name}
-                      onChange={(e) =>
-                        setScenes((current) =>
-                          e.target.checked
-                            ? [...current, scene.id]
-                            : current.filter((id) => id !== scene.id),
-                        )
-                      }
-                    />
-                    {scene.name}
-                  </span>
-                </label>
-              ))}
+            <div
+              className="studio-scene-mode"
+              role="group"
+              aria-label="Cách chọn bối cảnh"
+            >
+              <Button
+                variant="outline"
+                aria-pressed={sceneMode === "template"}
+                onClick={() => setSceneMode("template")}
+              >
+                <Images size={16} />
+                Mẫu Etsy
+              </Button>
+              <Button
+                variant="outline"
+                aria-pressed={sceneMode === "background"}
+                onClick={() => setSceneMode("background")}
+              >
+                <Sparkles size={16} />
+                AI đổi nền
+              </Button>
             </div>
-            {!scenes.length && (
-              <p className="studio-note">
-                Chưa có bối cảnh được duyệt cho Team. Nhờ quản trị viên thêm tại
-                Quản lý → Thư viện.
-              </p>
+            {sceneMode === "template" ? (
+              <>
+                <p>
+                  Giữ cảnh, người mẫu và ánh sáng của ảnh mẫu; thay sản
+                  phẩm/thiết kế bằng ảnh nguồn.
+                </p>
+                <EtsyMockupPicker
+                  teamId={shop?.teamId ?? ""}
+                  selected={sceneIds}
+                  onToggle={toggleScene}
+                  onResolve={resolveResource}
+                />
+                <div className="studio-gallery">
+                  {scenes
+                    .filter(
+                      (scene, index) =>
+                        sceneIds.includes(scene.id) || index < 4,
+                    )
+                    .map((scene) => (
+                      <label
+                        className="studio-card studio-scene-choice"
+                        key={scene.id}
+                      >
+                        <StudioImage
+                          id={scene.assetId ?? ""}
+                          name={scene.name}
+                        />
+                        <span className="studio-check">
+                          <input
+                            type="checkbox"
+                            aria-label={scene.name}
+                            checked={sceneIds.includes(scene.id)}
+                            onChange={(e) =>
+                              toggleScene(scene.id, e.target.checked)
+                            }
+                          />
+                          {scene.name}
+                        </span>
+                      </label>
+                    ))}
+                </div>
+                {!scenes.length && (
+                  <p className="studio-note">
+                    Chọn mẫu từ Etsy Library. Nếu thư viện còn trống, admin cần
+                    upload và duyệt ảnh mẫu trước.
+                  </p>
+                )}
+              </>
+            ) : (
+              <MockupBackgrounds
+                storeId={storeId}
+                productId={productId}
+                sources={sources}
+                values={backgrounds}
+                onChange={updateBackgrounds}
+                selected={sceneIds}
+                onToggle={toggleScene}
+                busy={busy}
+                onBusy={setBusy}
+              />
             )}
+            <p className="studio-muted">
+              Đã chọn {sceneIds.length} bối cảnh · Có thể kết hợp ảnh mẫu và nền
+              AI trong cùng bộ. Bấm áp dụng để cập nhật các ảnh nguồn.
+            </p>
             <label htmlFor="mockup-colors">
               Màu vật liệu sản phẩm (tùy chọn)
               <input
@@ -819,12 +925,18 @@ export function MockupStudio({
                 Kiểm tra thiết kế, chữ và watermark trước khi duyệt.
               </p>
             </details>
+            {invalidBackground && (
+              <p className="studio-note">
+                Nhập tên và prompt ít nhất 10 ký tự cho các nền đang dùng.
+              </p>
+            )}
             <Button
               disabled={
                 !title.trim() ||
                 !productId ||
                 !sources.length ||
                 sources.some((s) => !s.sceneIds.length) ||
+                invalidBackground ||
                 count < 1 ||
                 count > 100 ||
                 !(model || ai.imageModel) ||

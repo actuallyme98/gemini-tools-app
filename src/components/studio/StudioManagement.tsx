@@ -1,6 +1,25 @@
 import { StudioSelect } from "../ui/StudioSelect";
-import { useState } from "react";
-import { Check, FileArchive, Loader2, Plus, Settings2 } from "lucide-react";
+import { useRef, useState } from "react";
+import {
+  ArrowUpRight,
+  Check,
+  CheckCircle2,
+  Clock3,
+  FolderOpen,
+  FileArchive,
+  Layers3,
+  Loader2,
+  Pencil,
+  Plus,
+  Search,
+  Settings2,
+  Store,
+  Users,
+  Wallet,
+} from "lucide-react";
+import { ManagementDialog } from "./ManagementDialog";
+import { StoreProductPicker } from "./StoreProductPicker";
+import "../../styles/management.css";
 import { toast } from "sonner";
 import { agentUpload } from "../../services/agent.service";
 import {
@@ -11,13 +30,11 @@ import {
   type StudioStore,
 } from "../../services/studio.service";
 import { notifyApiError } from "../../utils/api-error-toast";
-import { StudioImage } from "./StudioImage";
+import { ManagementResourceCard } from "./ManagementResourceCard";
 import { Button } from "../ui/button";
-import { SkillVersionCard } from "./SkillVersionCard";
 import { TeamBudgetPanel } from "./TeamBudgetPanel";
 import { StudioOperations } from "./StudioOperations";
 import { ResourceBrowser } from "./ResourceBrowser";
-import { ResourceVersions } from "./ResourceVersions";
 import { Link } from "react-router";
 import { useStudioNavigate } from "../../navigation";
 
@@ -25,7 +42,7 @@ export function StudioManagement({
   data,
   onRefresh,
   initialTab = "teams",
-  initialType = "product",
+  initialType,
 }: {
   data: StudioBootstrap;
   onRefresh: () => void;
@@ -35,6 +52,33 @@ export function StudioManagement({
   const tab = initialTab;
   const studioNavigate = useStudioNavigate();
   const [busy, setBusy] = useState(false);
+  const [editor, setEditor] = useState<"team" | "store" | "resource">();
+  const trigger = useRef<HTMLElement | null>(null);
+  const [query, setQuery] = useState("");
+  const [memberQuery, setMemberQuery] = useState("");
+  function openEditor(kind: "team" | "store" | "resource") {
+    trigger.current =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+    setEditor(kind);
+  }
+  function newResource(selectedTeam: string, selectedType: string) {
+    setTeamId(selectedTeam);
+    setType((selectedType || "product") as StudioResource["type"]);
+    setName("");
+    setCode("");
+    setInstructions("");
+    setPreviousId("");
+    setFile(undefined);
+    setZip(undefined);
+    setPrintEnabled(false);
+    setPrintWidth("");
+    setPrintHeight("");
+    setPrintDpi("300");
+    setPrintBackground("white");
+    openEditor("resource");
+  }
   const [team, setTeam] = useState<StudioTeam | undefined>();
   const [teamName, setTeamName] = useState("");
   const [members, setMembers] = useState<StudioTeam["members"]>([]);
@@ -43,7 +87,9 @@ export function StudioManagement({
   const [teamId, setTeamId] = useState(data.teams[0]?.id ?? "");
   const [sellerIds, setSellerIds] = useState<string[]>([]);
   const [productIds, setProductIds] = useState<string[]>([]);
-  const [type, setType] = useState<StudioResource["type"]>(initialType);
+  const [type, setType] = useState<StudioResource["type"]>(
+    initialType ?? "product",
+  );
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
   const [instructions, setInstructions] = useState("");
@@ -65,7 +111,7 @@ export function StudioManagement({
     setBusy(true);
     try {
       await work();
-      toast.success("Đã lưu cấu hình.");
+      toast.success("Đã hoàn tất.");
       onRefresh();
     } catch (error) {
       notifyApiError(error);
@@ -79,6 +125,7 @@ export function StudioManagement({
       <StudioSelect
         value={teamId}
         required
+        disabled={busy || !!previousId || !!shop}
         onChange={(event) => {
           setTeamId(event.target.value);
           setSellerIds([]);
@@ -96,313 +143,543 @@ export function StudioManagement({
     </label>
   );
   return (
-    <div>
-      <header className="studio-page-heading">
+    <div className="management-workspace">
+      <header className="management-heading">
         <div>
-          <span className="studio-eyebrow">TEAM · STORE · LIBRARY</span>
-          <h1>Quản lý không gian sáng tạo</h1>
-          <p>Phân công nhân sự và chuẩn hóa tài nguyên cho nhóm.</p>
+          <span className="studio-eyebrow">KHÔNG GIAN LÀM VIỆC</span>
+          <h1>Thư viện & nhóm</h1>
+          <p>Quản lý người tham gia, cửa hàng và tài nguyên dùng chung.</p>
         </div>
         <Link className="studio-link-button" to="/admin">
-          <Settings2 size={17} />
-          Tài khoản, hạn mức & nhật ký
+          <Settings2 size={16} />
+          Quản trị công ty
+          <ArrowUpRight size={14} />
         </Link>
       </header>
-      <div className="studio-tabs" role="group" aria-label="Mục quản lý">
+      <nav className="management-navigation" aria-label="Mục quản lý">
         {[
-          ["teams", "Nhân sự & nhóm"],
-          ["stores", "Cửa hàng"],
-          ["library", "Thư viện"],
-          ["budget", "Ngân sách Team"],
-          ["operations", "Vận hành lịch"],
-        ].map(([id, label]) => (
+          { id: "teams", label: "Nhân sự & nhóm", icon: Users },
+          { id: "stores", label: "Cửa hàng", icon: Store },
+          { id: "library", label: "Thư viện", icon: FolderOpen },
+          { id: "budget", label: "Ngân sách Team", icon: Wallet },
+          { id: "operations", label: "Vận hành lịch", icon: Clock3 },
+        ].map(({ id, label, icon: Icon }) => (
           <button
             key={id}
             aria-pressed={tab === id}
+            aria-current={tab === id ? "page" : undefined}
             onClick={() => studioNavigate(`studio-manage?tab=${id}`)}
           >
+            <Icon size={17} aria-hidden="true" />
             {label}
           </button>
         ))}
-      </div>
+      </nav>
       {tab === "budget" && <TeamBudgetPanel teams={data.teams} />}
       {tab === "operations" && (
         <StudioOperations teams={data.teams} onScheduleChanged={onRefresh} />
       )}
       {tab === "teams" && (
-        <div className="studio-management-grid">
-          <section className="studio-card">
-            <h2>Nhóm đang hoạt động</h2>
-            {!data.teams.length && (
-              <p>Tạo nhóm đầu tiên, sau đó thêm sản phẩm và cửa hàng.</p>
-            )}
-            {data.teams.map((item) => (
-              <button
-                className="studio-list-row"
-                key={item.id}
-                onClick={() => {
-                  setTeam(item);
-                  setTeamName(item.name);
-                  setMembers(item.members);
-                }}
-              >
-                <strong>{item.name}</strong>
-                <span>{item.members.length} thành viên · chỉnh sửa</span>
-              </button>
-            ))}
-          </section>
-          <form
-            className="studio-card studio-form-grid"
-            onSubmit={(event) => {
-              event.preventDefault();
-              void act(async () => {
-                const input = { name: teamName, members, archived: false };
-                await (team
-                  ? studioClient.patch(`/teams/${team.id}`, {
-                      ...input,
-                      revision: team.revision,
-                    })
-                  : studioClient.post("/teams", input));
+        <section className="management-section">
+          <header className="management-toolbar">
+            <div>
+              <h2>
+                Nhân sự & nhóm{" "}
+                <span className="management-count">{data.teams.length}</span>
+              </h2>
+              <p>Phân công thành viên và Leader cho từng nhóm.</p>
+            </div>
+            <Button
+              onClick={() => {
                 setTeam(undefined);
                 setTeamName("");
                 setMembers([]);
-              });
-            }}
+                setMemberQuery("");
+                openEditor("team");
+              }}
+            >
+              <Plus size={16} />
+              Tạo nhóm
+            </Button>
+          </header>
+          <label className="management-search" htmlFor="management-team-search">
+            <Search size={17} aria-hidden="true" />
+            <input
+              id="management-team-search"
+              value={query}
+              placeholder="Tìm nhóm theo tên…"
+              aria-label="Tìm nhóm"
+              maxLength={100}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+          </label>
+          <div className="management-entity-grid">
+            {data.teams
+              .filter((item) =>
+                item.name
+                  .toLocaleLowerCase()
+                  .includes(query.trim().toLocaleLowerCase()),
+              )
+              .map((item) => (
+                <article className="management-entity-card" key={item.id}>
+                  <div className="management-entity-top">
+                    <span className="management-entity-icon">
+                      <Users size={22} />
+                    </span>
+                    <span className="management-status">
+                      <CheckCircle2 size={13} />
+                      Đang hoạt động
+                    </span>
+                  </div>
+                  <h3>{item.name}</h3>
+                  <p>
+                    {item.members.length} thành viên ·{" "}
+                    {item.members.filter((m) => m.role === "leader").length}{" "}
+                    Leader
+                  </p>
+                  <div
+                    className="management-avatars"
+                    aria-label={`${item.members.length} thành viên`}
+                  >
+                    {item.members.slice(0, 4).map((member) => (
+                      <span
+                        key={member.userId}
+                        title={
+                          data.users.find((u) => u.id === member.userId)
+                            ?.email ?? "Thành viên"
+                        }
+                      >
+                        {(data.users.find((u) => u.id === member.userId)
+                          ?.email ?? "N")[0].toUpperCase()}
+                      </span>
+                    ))}
+                    <small>
+                      {
+                        data.stores.filter((store) => store.teamId === item.id)
+                          .length
+                      }{" "}
+                      cửa hàng
+                    </small>
+                  </div>
+                  <Button
+                    variant="outline"
+                    aria-label={`Chỉnh sửa nhóm ${item.name}`}
+                    onClick={() => {
+                      setTeam(item);
+                      setTeamName(item.name);
+                      setMembers(item.members);
+                      setMemberQuery("");
+                      openEditor("team");
+                    }}
+                  >
+                    <Pencil size={15} />
+                    Chỉnh sửa nhóm
+                  </Button>
+                </article>
+              ))}
+          </div>
+          {!data.teams.some((item) =>
+            item.name
+              .toLocaleLowerCase()
+              .includes(query.trim().toLocaleLowerCase()),
+          ) && (
+            <div className="management-empty">
+              <Users size={32} />
+              <h3>
+                {data.teams.length
+                  ? "Không tìm thấy nhóm"
+                  : "Bắt đầu với nhóm đầu tiên"}
+              </h3>
+              <p>
+                {data.teams.length
+                  ? "Thử một tên khác hoặc xóa từ khóa tìm kiếm."
+                  : "Tạo nhóm, chọn thành viên và chỉ định Leader để bắt đầu."}
+              </p>
+            </div>
+          )}
+          <ManagementDialog
+            open={editor === "team"}
+            title={team ? "Chỉnh sửa nhóm" : "Tạo nhóm"}
+            description="Chọn người tham gia và phân công vai trò trong nhóm."
+            busy={busy}
+            onClose={() => setEditor(undefined)}
+            trigger={trigger}
           >
-            <h2>{team ? "Chỉnh sửa nhóm" : "Tạo nhóm"}</h2>
-            <label>
-              Tên nhóm
-              <input
-                type="text"
-                required
-                maxLength={160}
-                value={teamName}
-                onChange={(event) => setTeamName(event.target.value)}
-              />
-            </label>
-            <fieldset className="studio-member-list">
-              <legend>Thành viên và vai trò</legend>
-              {data.users
-                .filter((account) => !account.disabled)
-                .map((account) => {
-                  const member = members.find(
-                    (value) => value.userId === account.id,
-                  );
-                  return (
-                    <div key={account.id}>
-                      <label className="studio-check">
-                        <input
-                          type="checkbox"
-                          checked={!!member}
-                          onChange={(event) =>
-                            setMembers(
-                              event.target.checked
-                                ? [
-                                    ...members,
-                                    { userId: account.id, role: "seller" },
-                                  ]
-                                : members.filter(
-                                    (value) => value.userId !== account.id,
+            <form
+              className="management-form"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void act(async () => {
+                  const input = { name: teamName, members, archived: false };
+                  await (team
+                    ? studioClient.patch(`/teams/${team.id}`, {
+                        ...input,
+                        revision: team.revision,
+                      })
+                    : studioClient.post("/teams", input));
+                  setTeam(undefined);
+                  setTeamName("");
+                  setMembers([]);
+                  setEditor(undefined);
+                });
+              }}
+            >
+              <fieldset
+                disabled={busy}
+                className="management-form-body studio-form-grid"
+              >
+                <label>
+                  Tên nhóm
+                  <input
+                    type="text"
+                    required
+                    maxLength={160}
+                    value={teamName}
+                    onChange={(event) => setTeamName(event.target.value)}
+                  />
+                </label>
+                <fieldset className="studio-member-list">
+                  <legend>
+                    Thành viên và vai trò · {members.length} đã chọn
+                  </legend>
+                  <label htmlFor="management-member-search">
+                    Tìm nhân viên
+                    <input
+                      id="management-member-search"
+                      value={memberQuery}
+                      maxLength={100}
+                      placeholder="Tìm theo email…"
+                      onChange={(e) => setMemberQuery(e.target.value)}
+                    />
+                  </label>
+                  {!data.users.length && (
+                    <small>
+                      Chưa có tài khoản nhân viên. Thêm tài khoản ở Quản trị
+                      công ty.
+                    </small>
+                  )}
+                  {data.users
+                    .filter(
+                      (account) =>
+                        (!account.disabled ||
+                          members.some((m) => m.userId === account.id)) &&
+                        account.email
+                          .toLocaleLowerCase()
+                          .includes(memberQuery.trim().toLocaleLowerCase()),
+                    )
+                    .map((account) => {
+                      const member = members.find(
+                        (value) => value.userId === account.id,
+                      );
+                      return (
+                        <div key={account.id}>
+                          <label className="studio-check">
+                            <input
+                              type="checkbox"
+                              checked={!!member}
+                              onChange={(event) =>
+                                setMembers(
+                                  event.target.checked
+                                    ? [
+                                        ...members,
+                                        { userId: account.id, role: "seller" },
+                                      ]
+                                    : members.filter(
+                                        (value) => value.userId !== account.id,
+                                      ),
+                                )
+                              }
+                            />
+                            {account.email}
+                            {account.disabled && (
+                              <small>Đã khóa · bỏ khỏi nhóm để lưu</small>
+                            )}
+                          </label>
+                          {member && (
+                            <StudioSelect
+                              aria-label={`Vai trò của ${account.email}`}
+                              kind="role"
+                              value={member.role}
+                              onChange={(event) =>
+                                setMembers(
+                                  members.map((value) =>
+                                    value.userId === account.id
+                                      ? {
+                                          ...value,
+                                          role: event.target.value as
+                                            "leader" | "seller",
+                                        }
+                                      : value,
                                   ),
-                            )
-                          }
-                        />
-                        {account.email}
-                      </label>
-                      {member && (
-                        <StudioSelect
-                          aria-label={`Vai trò của ${account.email}`}
-                          value={member.role}
-                          onChange={(event) =>
-                            setMembers(
-                              members.map((value) =>
-                                value.userId === account.id
-                                  ? {
-                                      ...value,
-                                      role: event.target.value as
-                                        | "leader"
-                                        | "seller",
-                                    }
-                                  : value,
-                              ),
-                            )
-                          }
-                        >
-                          <option value="seller">Nhân viên</option>
-                          <option value="leader">
-                            Leader · có quyền duyệt
-                          </option>
-                        </StudioSelect>
-                      )}
-                    </div>
-                  );
-                })}
-            </fieldset>
-            <div className="studio-action-row">
-              <Button disabled={busy || !teamName.trim()}>
-                {busy ? (
-                  <Loader2 className="animate-spin" size={16} />
-                ) : (
-                  <Check size={16} />
-                )}
-                Lưu nhóm
-              </Button>
-              {team && (
+                                )
+                              }
+                            >
+                              <option value="seller">Nhân viên</option>
+                              <option value="leader">
+                                Leader · có quyền duyệt
+                              </option>
+                            </StudioSelect>
+                          )}
+                        </div>
+                      );
+                    })}
+                </fieldset>
+              </fieldset>
+              <div className="management-form-footer">
+                <Button disabled={busy || !teamName.trim()}>
+                  {busy ? (
+                    <Loader2 className="animate-spin" size={16} />
+                  ) : (
+                    <Check size={16} />
+                  )}
+                  Lưu nhóm
+                </Button>
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => {
-                    setTeam(undefined);
-                    setTeamName("");
-                    setMembers([]);
-                  }}
+                  disabled={busy}
+                  onClick={() => setEditor(undefined)}
                 >
-                  Tạo nhóm khác
+                  Hủy
                 </Button>
-              )}
-            </div>
-          </form>
-        </div>
+              </div>
+            </form>
+          </ManagementDialog>
+        </section>
       )}
       {tab === "stores" && (
-        <div className="studio-management-grid">
-          <section className="studio-card">
-            <h2>Cửa hàng</h2>
-            {data.stores.map((item) => (
-              <button
-                className="studio-list-row"
-                key={item.id}
-                onClick={() => {
-                  setShop(item);
-                  setShopName(item.name);
-                  setTeamId(item.teamId);
-                  setSellerIds(item.sellerIds);
-                  setProductIds(item.productIds);
-                }}
-              >
-                <strong>{item.name}</strong>
-                <span>
-                  {data.teams.find((value) => value.id === item.teamId)?.name} ·{" "}
-                  {item.productIds.length} sản phẩm
-                </span>
-              </button>
-            ))}
-          </section>
-          <form
-            className="studio-card studio-form-grid"
-            onSubmit={(event) => {
-              event.preventDefault();
-              void act(async () => {
-                const input = {
-                  name: shopName,
-                  teamId,
-                  sellerIds,
-                  productIds,
-                  archived: false,
-                };
-                await (shop
-                  ? studioClient.patch(`/stores/${shop.id}`, {
-                      ...input,
-                      revision: shop.revision,
-                    })
-                  : studioClient.post("/stores", input));
+        <section className="management-section">
+          <header className="management-toolbar">
+            <div>
+              <h2>
+                Cửa hàng{" "}
+                <span className="management-count">{data.stores.length}</span>
+              </h2>
+              <p>Gắn cửa hàng với nhóm, nhân viên và các sản phẩm được dùng.</p>
+            </div>
+            <Button
+              disabled={!data.teams.length}
+              onClick={() => {
                 setShop(undefined);
                 setShopName("");
+                setTeamId(data.teams[0]?.id ?? "");
                 setSellerIds([]);
                 setProductIds([]);
-              });
-            }}
+                openEditor("store");
+              }}
+            >
+              <Plus size={16} />
+              Tạo cửa hàng
+            </Button>
+          </header>
+          <label
+            className="management-search"
+            htmlFor="management-store-search"
           >
-            <h2>{shop ? "Chỉnh sửa cửa hàng" : "Tạo cửa hàng"}</h2>
-            <label>
-              Tên cửa hàng
-              <input
-                type="text"
-                required
-                value={shopName}
-                onChange={(event) => setShopName(event.target.value)}
-              />
-            </label>
-            {teamPicker}
-            <fieldset>
-              <legend>Nhân viên được truy cập</legend>
-              {chosenTeam?.members.map((member) => (
-                <label className="studio-check" key={member.userId}>
-                  <input
-                    type="checkbox"
-                    checked={sellerIds.includes(member.userId)}
-                    onChange={(event) =>
-                      setSellerIds(
-                        changeSet(
-                          sellerIds,
-                          member.userId,
-                          event.target.checked,
-                        ),
-                      )
-                    }
-                  />
-                  {data.users.find((account) => account.id === member.userId)
-                    ?.email ?? member.userId}
-                </label>
-              ))}
-              <small>Leader được xem và duyệt các cửa hàng trong nhóm.</small>
-            </fieldset>
-            <fieldset>
-              <legend>Sản phẩm được phép dùng</legend>
-              {data.resources
-                .filter(
-                  (item) =>
-                    item.teamId === teamId &&
-                    item.type === "product" &&
-                    item.status === "approved",
+            <Search size={17} aria-hidden="true" />
+            <input
+              id="management-store-search"
+              value={query}
+              placeholder="Tìm cửa hàng hoặc nhóm…"
+              aria-label="Tìm cửa hàng"
+              maxLength={100}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+          </label>
+          <div className="management-entity-grid">
+            {data.stores
+              .filter((item) =>
+                (
+                  item.name +
+                  " " +
+                  (data.teams.find((t) => t.id === item.teamId)?.name ?? "")
                 )
-                .map((item) => (
-                  <label key={item.id} className="studio-check">
-                    <input
-                      type="checkbox"
-                      checked={productIds.includes(item.id)}
-                      onChange={(event) =>
-                        setProductIds(
-                          changeSet(productIds, item.id, event.target.checked),
-                        )
-                      }
-                    />
-                    {item.code} · {item.name}
-                  </label>
-                ))}
-            </fieldset>
-            <div className="studio-action-row">
-              <Button disabled={busy || !teamId || !shopName.trim()}>
-                Lưu cửa hàng
-              </Button>
-              {shop && (
+                  .toLocaleLowerCase()
+                  .includes(query.trim().toLocaleLowerCase()),
+              )
+              .map((item) => (
+                <article className="management-entity-card" key={item.id}>
+                  <div className="management-entity-top">
+                    <span className="management-entity-icon">
+                      <Store size={22} />
+                    </span>
+                    <span className="management-status">
+                      <CheckCircle2 size={13} />
+                      Đang hoạt động
+                    </span>
+                  </div>
+                  <h3>{item.name}</h3>
+                  <p>{data.teams.find((t) => t.id === item.teamId)?.name}</p>
+                  <div className="management-card-facts">
+                    <span>
+                      <Users size={15} />
+                      {item.sellerIds.length} nhân viên
+                    </span>
+                    <span>
+                      <Layers3 size={15} />
+                      {item.productIds.length} sản phẩm
+                    </span>
+                  </div>
+                  <Button
+                    variant="outline"
+                    aria-label={`Chỉnh sửa cửa hàng ${item.name}`}
+                    onClick={() => {
+                      setShop(item);
+                      setShopName(item.name);
+                      setTeamId(item.teamId);
+                      setSellerIds(item.sellerIds);
+                      setProductIds(item.productIds);
+                      openEditor("store");
+                    }}
+                  >
+                    <Pencil size={15} />
+                    Chỉnh sửa cửa hàng
+                  </Button>
+                </article>
+              ))}
+          </div>
+          {!data.stores.length && (
+            <div className="management-empty">
+              <Store size={32} />
+              <h3>Chưa có cửa hàng</h3>
+              <p>
+                {data.teams.length
+                  ? "Thêm cửa hàng để nhân viên bắt đầu tạo ý tưởng và mockup."
+                  : "Tạo một nhóm trước khi thêm cửa hàng."}
+              </p>
+            </div>
+          )}
+          {!!data.stores.length &&
+            !data.stores.some((item) =>
+              (
+                item.name +
+                " " +
+                (data.teams.find((t) => t.id === item.teamId)?.name ?? "")
+              )
+                .toLocaleLowerCase()
+                .includes(query.trim().toLocaleLowerCase()),
+            ) && (
+              <div className="management-empty">
+                <Search size={32} />
+                <h3>Không tìm thấy cửa hàng</h3>
+                <p>Thử tên cửa hàng hoặc nhóm khác.</p>
+              </div>
+            )}
+          <ManagementDialog
+            open={editor === "store"}
+            title={shop ? "Chỉnh sửa cửa hàng" : "Tạo cửa hàng"}
+            description="Cấu hình quyền truy cập và sản phẩm cho cửa hàng."
+            busy={busy}
+            onClose={() => setEditor(undefined)}
+            trigger={trigger}
+          >
+            <form
+              className="management-form"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void act(async () => {
+                  const input = {
+                    name: shopName,
+                    teamId,
+                    sellerIds,
+                    productIds,
+                    archived: false,
+                  };
+                  await (shop
+                    ? studioClient.patch(`/stores/${shop.id}`, {
+                        ...input,
+                        revision: shop.revision,
+                      })
+                    : studioClient.post("/stores", input));
+                  setShop(undefined);
+                  setShopName("");
+                  setSellerIds([]);
+                  setProductIds([]);
+                  setEditor(undefined);
+                });
+              }}
+            >
+              <fieldset
+                disabled={busy}
+                className="management-form-body studio-form-grid"
+              >
+                <label>
+                  Tên cửa hàng
+                  <input
+                    type="text"
+                    required
+                    maxLength={160}
+                    value={shopName}
+                    onChange={(event) => setShopName(event.target.value)}
+                  />
+                </label>
+                {teamPicker}
+                <fieldset>
+                  <legend>Nhân viên được truy cập</legend>
+                  {chosenTeam?.members.map((member) => (
+                    <label className="studio-check" key={member.userId}>
+                      <input
+                        type="checkbox"
+                        checked={sellerIds.includes(member.userId)}
+                        onChange={(event) =>
+                          setSellerIds(
+                            changeSet(
+                              sellerIds,
+                              member.userId,
+                              event.target.checked,
+                            ),
+                          )
+                        }
+                      />
+                      {data.users.find(
+                        (account) => account.id === member.userId,
+                      )?.email ?? member.userId}
+                    </label>
+                  ))}
+                  <small>
+                    Leader được xem và duyệt các cửa hàng trong nhóm.
+                  </small>
+                </fieldset>
+                <fieldset>
+                  <legend>Sản phẩm được phép dùng</legend>
+                  <StoreProductPicker
+                    key={teamId}
+                    teamId={teamId}
+                    value={productIds}
+                    onChange={setProductIds}
+                  />
+                </fieldset>
+              </fieldset>
+              <div className="management-form-footer">
+                <Button disabled={busy || !teamId || !shopName.trim()}>
+                  Lưu cửa hàng
+                </Button>
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => {
-                    setShop(undefined);
-                    setShopName("");
-                    setSellerIds([]);
-                    setProductIds([]);
-                  }}
+                  disabled={busy}
+                  onClick={() => setEditor(undefined)}
                 >
-                  Tạo cửa hàng khác
+                  Hủy
                 </Button>
-              )}
-            </div>
-          </form>
-        </div>
+              </div>
+            </form>
+          </ManagementDialog>
+        </section>
       )}
       {tab === "library" && (
         <>
-          <section className="studio-card">
-            <h2>Thêm vào thư viện</h2>
-            <p>
-              Bản mới không ghi đè nội dung đã được dùng trong lượt chạy cũ.
-            </p>
+          <ManagementDialog
+            open={editor === "resource"}
+            title={previousId ? "Tạo phiên bản mới" : "Thêm tài nguyên"}
+            description="Tài nguyên được chia sẻ trong nhóm. Phiên bản mới không thay đổi công việc cũ."
+            busy={busy}
+            onClose={() => setEditor(undefined)}
+            trigger={trigger}
+          >
             <form
               id="studio-library-form"
-              className="studio-form-grid"
+              className="management-form"
               onSubmit={(event) => {
                 event.preventDefault();
                 void act(async () => {
@@ -444,350 +721,279 @@ export function StudioManagement({
                   setFile(undefined);
                   setZip(undefined);
                   setPreviousId("");
+                  setEditor(undefined);
                 });
               }}
             >
-              {teamPicker}
-              <label>
-                Loại nội dung
-                <StudioSelect
-                  value={type}
-                  onChange={(event) => {
-                    setType(event.target.value as StudioResource["type"]);
-                    setPreviousId("");
-                    setFile(undefined);
-                    setZip(undefined);
-                  }}
-                >
-                  <option value="product">Sản phẩm</option>
-                  <option value="skill">Bộ hướng dẫn (ZIP)</option>
-                  <option value="thumbnail">Mẫu ảnh chính</option>
-                  <option value="scene">Mẫu bối cảnh</option>
-                </StudioSelect>
-              </label>
-              {type === "product" && (
-                <fieldset className="studio-span-full">
-                  <legend>Quy chuẩn artwork của sản phẩm</legend>
-                  <label className="studio-check">
-                    <input
-                      type="checkbox"
-                      checked={printEnabled}
-                      onChange={(e) => setPrintEnabled(e.target.checked)}
-                    />
-                    Khai báo kích thước file in
-                  </label>
-                  {printEnabled && (
-                    <div className="studio-form-grid">
-                      <label htmlFor="studio-print-width">
-                        Chiều rộng (pixel)
-                        <input
-                          id="studio-print-width"
-                          type="number"
-                          min={64}
-                          max={8192}
-                          required
-                          value={printWidth}
-                          onChange={(e) => setPrintWidth(e.target.value)}
-                        />
-                      </label>
-                      <label htmlFor="studio-print-height">
-                        Chiều cao (pixel)
-                        <input
-                          id="studio-print-height"
-                          type="number"
-                          min={64}
-                          max={8192}
-                          required
-                          value={printHeight}
-                          onChange={(e) => setPrintHeight(e.target.value)}
-                        />
-                      </label>
-                      <label htmlFor="studio-print-dpi">
-                        DPI
-                        <input
-                          id="studio-print-dpi"
-                          type="number"
-                          min={72}
-                          max={600}
-                          required
-                          value={printDpi}
-                          onChange={(e) => setPrintDpi(e.target.value)}
-                        />
-                      </label>
-                      <label htmlFor="studio-print-background">
-                        Nền artwork
-                        <StudioSelect
-                          id="studio-print-background"
-                          value={printBackground}
-                          onChange={(e) =>
-                            setPrintBackground(
-                              e.target.value as "transparent" | "white",
-                            )
-                          }
-                        >
-                          <option value="white">Trắng</option>
-                          <option value="transparent">Trong suốt</option>
-                        </StudioSelect>
-                      </label>
-                      <p className="studio-note">
-                        Nhập theo quy chuẩn nhà in, tối đa 32 megapixel.
-                        Metadata DPI không đảm bảo độ nét hoặc chất lượng thiết
-                        kế.
-                      </p>
-                    </div>
-                  )}
-                </fieldset>
-              )}
-              <label>
-                Tên hiển thị
-                <input
-                  type="text"
-                  required
-                  value={name}
-                  maxLength={160}
-                  onChange={(event) => setName(event.target.value)}
-                />
-              </label>
-              <label>
-                Mã nhận diện
-                <input
-                  type="text"
-                  required
-                  value={code}
-                  maxLength={80}
-                  onChange={(event) => setCode(event.target.value)}
-                  placeholder="Ví dụ: P01, SK02, M01"
-                />
-              </label>
-              {type === "skill" ? (
-                <div className="studio-span-full">
-                  <label>
-                    Phiên bản trước (nếu cập nhật)
-                    <StudioSelect
-                      value={previousId}
-                      onChange={(event) => {
-                        const previous = data.resources.find(
-                          (item) => item.id === event.target.value,
-                        );
-                        setPreviousId(event.target.value);
-                        if (previous) {
-                          setCode(previous.code);
-                          setName(previous.name);
-                        }
-                      }}
-                    >
-                      <option value="">Bộ hướng dẫn mới</option>
-                      {data.resources
-                        .filter(
-                          (item) =>
-                            item.type === "skill" && item.teamId === teamId,
-                        )
-                        .map((item) => (
-                          <option key={item.id} value={item.id}>
-                            {item.code} · v{item.versionNumber ?? 1} ·{" "}
-                            {item.name}
-                          </option>
-                        ))}
-                    </StudioSelect>
-                  </label>
-                  <label className="studio-upload">
-                    <FileArchive aria-hidden="true" />
-                    <strong>Chọn ZIP có SKILL.md</strong>
-                    <input
-                      key={`zip-${code ? "selected" : "empty"}`}
-                      type="file"
-                      accept=".zip"
-                      required
-                      onChange={(event) => setZip(event.target.files?.[0])}
-                    />
-                    <small>
-                      Tối đa 50 MB. Chỉ đọc tài liệu và tài nguyên; không chạy
-                      script từ ZIP.
-                    </small>
-                  </label>
-                </div>
-              ) : (
-                <>
-                  <label className="studio-span-full">
-                    Mô tả / quy tắc sản phẩm
-                    <textarea
-                      rows={3}
-                      value={instructions}
-                      maxLength={40000}
-                      onChange={(event) => setInstructions(event.target.value)}
-                    />
-                  </label>
-                  {["thumbnail", "scene"].includes(type) && (
-                    <label>
-                      Ảnh mẫu
+              <fieldset
+                disabled={busy}
+                className="management-form-body studio-form-grid"
+              >
+                {teamPicker}
+                <label>
+                  Loại nội dung
+                  <StudioSelect
+                    value={type}
+                    disabled={!!previousId}
+                    onChange={(event) => {
+                      setType(event.target.value as StudioResource["type"]);
+                      setPreviousId("");
+                      setFile(undefined);
+                      setZip(undefined);
+                    }}
+                  >
+                    <option value="product">Sản phẩm</option>
+                    <option value="skill">Bộ hướng dẫn (ZIP)</option>
+                    <option value="thumbnail">Mẫu ảnh chính</option>
+                    <option value="scene">
+                      Mẫu mockup Etsy (ảnh tham chiếu)
+                    </option>
+                  </StudioSelect>
+                </label>
+                {type === "scene" && (
+                  <p className="studio-note studio-span-full">
+                    Upload ảnh mockup mẫu bạn đã có từ Etsy Library. Mỗi ảnh
+                    được lưu thành một mẫu; duyệt mẫu để nhân viên có thể chọn
+                    nhiều ảnh làm bộ bối cảnh trong Mockup Studio. Ảnh này là
+                    ảnh đích cần ghép sản phẩm nguồn vào.
+                  </p>
+                )}
+                <label>
+                  Tên hiển thị
+                  <input
+                    type="text"
+                    required
+                    value={name}
+                    maxLength={160}
+                    onChange={(event) => setName(event.target.value)}
+                  />
+                </label>
+                <label>
+                  Mã nhận diện
+                  <input
+                    type="text"
+                    required
+                    value={code}
+                    disabled={!!previousId}
+                    maxLength={80}
+                    onChange={(event) => setCode(event.target.value)}
+                    placeholder="Ví dụ: P01, SK02, M01"
+                  />
+                </label>
+                {type === "product" && (
+                  <fieldset className="studio-span-full">
+                    <legend>Quy chuẩn artwork của sản phẩm</legend>
+                    <label className="studio-check">
                       <input
+                        type="checkbox"
+                        checked={printEnabled}
+                        onChange={(e) => setPrintEnabled(e.target.checked)}
+                      />
+                      Khai báo kích thước file in
+                    </label>
+                    {printEnabled && (
+                      <div className="studio-form-grid">
+                        <label htmlFor="studio-print-width">
+                          Chiều rộng (pixel)
+                          <input
+                            id="studio-print-width"
+                            type="number"
+                            min={64}
+                            max={8192}
+                            required
+                            value={printWidth}
+                            onChange={(e) => setPrintWidth(e.target.value)}
+                          />
+                        </label>
+                        <label htmlFor="studio-print-height">
+                          Chiều cao (pixel)
+                          <input
+                            id="studio-print-height"
+                            type="number"
+                            min={64}
+                            max={8192}
+                            required
+                            value={printHeight}
+                            onChange={(e) => setPrintHeight(e.target.value)}
+                          />
+                        </label>
+                        <label htmlFor="studio-print-dpi">
+                          DPI
+                          <input
+                            id="studio-print-dpi"
+                            type="number"
+                            min={72}
+                            max={600}
+                            required
+                            value={printDpi}
+                            onChange={(e) => setPrintDpi(e.target.value)}
+                          />
+                        </label>
+                        <label htmlFor="studio-print-background">
+                          Nền artwork
+                          <StudioSelect
+                            id="studio-print-background"
+                            value={printBackground}
+                            onChange={(e) =>
+                              setPrintBackground(
+                                e.target.value as "transparent" | "white",
+                              )
+                            }
+                          >
+                            <option value="white">Trắng</option>
+                            <option value="transparent">Trong suốt</option>
+                          </StudioSelect>
+                        </label>
+                        <p className="studio-note">
+                          Nhập theo quy chuẩn nhà in, tối đa 32 megapixel.
+                          Metadata DPI không đảm bảo độ nét hoặc chất lượng
+                          thiết kế.
+                        </p>
+                      </div>
+                    )}
+                  </fieldset>
+                )}
+                {type === "skill" ? (
+                  <div className="studio-span-full">
+                    <label>
+                      Phiên bản trước (nếu cập nhật)
+                      <StudioSelect
+                        value={previousId}
+                        onChange={(event) => {
+                          const previous = data.resources.find(
+                            (item) => item.id === event.target.value,
+                          );
+                          setPreviousId(event.target.value);
+                          if (previous) {
+                            setCode(previous.code);
+                            setName(previous.name);
+                          }
+                        }}
+                      >
+                        <option value="">Bộ hướng dẫn mới</option>
+                        {data.resources
+                          .filter(
+                            (item) =>
+                              item.type === "skill" && item.teamId === teamId,
+                          )
+                          .map((item) => (
+                            <option key={item.id} value={item.id}>
+                              {item.code} · v{item.versionNumber ?? 1} ·{" "}
+                              {item.name}
+                            </option>
+                          ))}
+                      </StudioSelect>
+                    </label>
+                    <label className="studio-upload">
+                      <FileArchive aria-hidden="true" />
+                      <strong>Chọn ZIP có SKILL.md</strong>
+                      <input
+                        key={`zip-${code ? "selected" : "empty"}`}
                         type="file"
-                        accept="image/png,image/jpeg,image/webp"
-                        required={!previousId}
-                        onChange={(event) => setFile(event.target.files?.[0])}
+                        accept=".zip"
+                        required
+                        onChange={(event) => setZip(event.target.files?.[0])}
+                      />
+                      <small>
+                        Tối đa 50 MB. Chỉ đọc tài liệu và tài nguyên; không chạy
+                        script từ ZIP.
+                      </small>
+                    </label>
+                  </div>
+                ) : (
+                  <>
+                    <label className="studio-span-full">
+                      Mô tả / quy tắc sản phẩm
+                      <textarea
+                        rows={3}
+                        value={instructions}
+                        maxLength={40000}
+                        onChange={(event) =>
+                          setInstructions(event.target.value)
+                        }
                       />
                     </label>
-                  )}
-                </>
-              )}
-              <Button
-                disabled={
-                  busy ||
-                  !teamId ||
-                  !name ||
-                  !code ||
-                  (type === "skill" && !zip)
-                }
-              >
-                {busy ? (
-                  <Loader2 className="animate-spin" size={16} />
-                ) : (
-                  <Plus size={16} />
+                    {["thumbnail", "scene"].includes(type) && (
+                      <label>
+                        Ảnh mẫu
+                        <input
+                          type="file"
+                          accept="image/png,image/jpeg,image/webp"
+                          required={!previousId}
+                          onChange={(event) => setFile(event.target.files?.[0])}
+                        />
+                      </label>
+                    )}
+                  </>
                 )}
-                {previousId && type !== "skill"
-                  ? "Lưu phiên bản mới"
-                  : `Thêm ${type === "skill" ? "& kiểm tra ZIP" : "vào thư viện"}`}
-              </Button>
+              </fieldset>
+              <div className="management-form-footer">
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={busy}
+                  onClick={() => setEditor(undefined)}
+                >
+                  Hủy
+                </Button>
+                <Button
+                  disabled={
+                    busy ||
+                    !teamId ||
+                    !name ||
+                    !code ||
+                    (type === "skill" && !zip)
+                  }
+                >
+                  {busy ? (
+                    <Loader2 className="animate-spin" size={16} />
+                  ) : (
+                    <Plus size={16} />
+                  )}
+                  {previousId && type !== "skill"
+                    ? "Lưu phiên bản mới"
+                    : `Thêm ${type === "skill" ? "& kiểm tra ZIP" : "vào thư viện"}`}
+                </Button>
+              </div>
             </form>
-          </section>
-          <ResourceBrowser teams={data.teams} refreshToken={data.resources}>
+          </ManagementDialog>
+          <ResourceBrowser
+            teams={data.teams}
+            refreshToken={data.resources}
+            onCreate={newResource}
+          >
             {(items) => (
               <div className="studio-resource-grid">
                 {items.map((item) => (
-                  <article key={item.id} className="studio-card">
-                    {item.assetId && (
-                      <StudioImage id={item.assetId} name={item.name} />
-                    )}
-                    <span className="studio-eyebrow">
-                      {item.type} · {item.code}
-                    </span>
-                    <h3>{item.name}</h3>
-                    <p>
-                      {
-                        data.teams.find((value) => value.id === item.teamId)
-                          ?.name
-                      }{" "}
-                      ·{" "}
-                      {item.status === "approved"
-                        ? "Đã duyệt"
-                        : item.status === "pending"
-                          ? "Cần kiểm tra"
-                          : "Đã lưu trữ"}
-                    </p>
-                    {item.issues.map((issue) => (
-                      <p key={issue} className="studio-error">
-                        {issue}
-                      </p>
-                    ))}
-                    {item.type !== "skill" && (
-                      <Button
-                        variant="outline"
-                        disabled={busy}
-                        onClick={() => {
-                          setTeamId(item.teamId);
-                          setType(item.type);
-                          setName(item.name);
-                          setCode(item.code);
-                          setInstructions(item.instructions);
-                          setPreviousId(item.id);
-                          setFile(undefined);
-                          setPrintEnabled(!!item.printSpec);
-                          setPrintWidth(
-                            item.printSpec ? String(item.printSpec.width) : "",
-                          );
-                          setPrintHeight(
-                            item.printSpec ? String(item.printSpec.height) : "",
-                          );
-                          setPrintDpi(String(item.printSpec?.dpi ?? 300));
-                          setPrintBackground(
-                            item.printSpec?.background ?? "white",
-                          );
-                          document
-                            .getElementById("studio-library-form")
-                            ?.scrollIntoView({ block: "start" });
-                        }}
-                      >
-                        Chỉnh sửa bằng phiên bản mới
-                      </Button>
-                    )}
-                    {item.printSpec && (
-                      <p>
-                        {item.printSpec.width} × {item.printSpec.height} pixel ·{" "}
-                        {item.printSpec.dpi} DPI · nền{" "}
-                        {item.printSpec.background === "transparent"
-                          ? "trong suốt"
-                          : "trắng"}
-                      </p>
-                    )}
-                    {item.type !== "skill" && (
-                      <ResourceVersions resource={item} />
-                    )}
-                    {item.files && (
-                      <details>
-                        <summary>
-                          {item.files.length} file trong bộ hướng dẫn
-                        </summary>
-                        <ul>
-                          {item.files.map((file) => (
-                            <li key={file.path}>{file.path}</li>
-                          ))}
-                        </ul>
-                      </details>
-                    )}
-                    {item.type === "skill" && (
-                      <SkillVersionCard
-                        resource={item}
-                        busy={busy}
-                        act={act}
-                        upgrade={(resource) => {
-                          setTeamId(resource.teamId);
-                          setType("skill");
-                          setPreviousId(resource.id);
-                          setName(resource.name);
-                          setCode(resource.code);
-                          setZip(undefined);
-                          document
-                            .getElementById("studio-library-form")
-                            ?.scrollIntoView({ block: "start" });
-                        }}
-                      />
-                    )}
-                    {item.status === "pending" && (
-                      <Button
-                        disabled={
-                          busy ||
-                          !!item.issues.length ||
-                          (!!item.importState && item.importState !== "ready")
-                        }
-                        onClick={() =>
-                          void act(() =>
-                            studioClient.post(`/resources/${item.id}/review`, {
-                              revision: item.revision,
-                              status: "approved",
-                            }),
-                          )
-                        }
-                      >
-                        Duyệt để sử dụng
-                      </Button>
-                    )}
-                    {item.status === "approved" && (
-                      <Button
-                        variant="outline"
-                        disabled={busy}
-                        onClick={() =>
-                          void act(() =>
-                            studioClient.post(`/resources/${item.id}/review`, {
-                              revision: item.revision,
-                              status: "archived",
-                            }),
-                          )
-                        }
-                      >
-                        Ngừng sử dụng
-                      </Button>
-                    )}
-                  </article>
+                  <ManagementResourceCard
+                    key={item.id}
+                    resource={item}
+                    teamName={
+                      data.teams.find((t) => t.id === item.teamId)?.name ?? ""
+                    }
+                    busy={busy}
+                    act={act}
+                    onEdit={() => {
+                      setTeamId(item.teamId);
+                      setType(item.type);
+                      setName(item.name);
+                      setCode(item.code);
+                      setInstructions(item.instructions);
+                      setPreviousId(item.id);
+                      setFile(undefined);
+                      setZip(undefined);
+                      setPrintEnabled(!!item.printSpec);
+                      setPrintWidth(
+                        item.printSpec ? String(item.printSpec.width) : "",
+                      );
+                      setPrintHeight(
+                        item.printSpec ? String(item.printSpec.height) : "",
+                      );
+                      setPrintDpi(String(item.printSpec?.dpi ?? 300));
+                      setPrintBackground(item.printSpec?.background ?? "white");
+                      openEditor("resource");
+                    }}
+                  />
                 ))}
               </div>
             )}

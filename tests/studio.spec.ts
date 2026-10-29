@@ -32,6 +32,32 @@ async function setup(
     photo: randomUUID(),
     source: randomUUID(),
   };
+  const teams = [
+    {
+      id: ids.team,
+      name: "Creative",
+      revision: 1,
+      archived: false,
+      memberIds: [user.id],
+      members: [
+        { userId: user.id, role: options.leader ? "leader" : "seller" },
+      ],
+    },
+  ];
+  const stores = [
+    {
+      id: ids.store,
+      name: "Store A",
+      teamId: ids.team,
+      sellerIds: [user.id],
+      productIds: [ids.product],
+      revision: 1,
+      archived: false,
+    },
+  ];
+  let teamBody: Record<string, unknown> | undefined,
+    storeBody: Record<string, unknown> | undefined,
+    failTeam = false;
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   const resources: StudioResource[] = [
@@ -115,6 +141,37 @@ async function setup(
   await page.route("**/api/**", async (route) => {
     const path = new URL(route.request().url()).pathname,
       method = route.request().method();
+    if (
+      (path === "/api/agent/studio/teams" ||
+        path.startsWith("/api/agent/studio/teams/")) &&
+      ["POST", "PATCH"].includes(method)
+    ) {
+      teamBody = route.request().postDataJSON() as Record<string, unknown>;
+      if (failTeam)
+        return route.fulfill({
+          status: 409,
+          json: {
+            message: "Nhóm đã thay đổi ở tab khác. Tải lại trước khi lưu.",
+          },
+        });
+      if (method === "PATCH") {
+        Object.assign(teams[0], teamBody);
+        teams[0].revision++;
+      }
+      return route.fulfill({ json: { ...teamBody, id: teams[0].id } });
+    }
+    if (
+      (path === "/api/agent/studio/stores" ||
+        path.startsWith("/api/agent/studio/stores/")) &&
+      ["POST", "PATCH"].includes(method)
+    ) {
+      storeBody = route.request().postDataJSON() as Record<string, unknown>;
+      if (method === "PATCH") {
+        Object.assign(stores[0], storeBody);
+        stores[0].revision++;
+      }
+      return route.fulfill({ json: { ...storeBody, id: stores[0].id } });
+    }
     if (path === "/api/ai/providers")
       return route.fulfill({
         json: {
@@ -185,12 +242,14 @@ async function setup(
       });
     if (path === "/api/agent/studio/resources" && method === "GET") {
       const params = new URL(route.request().url()).searchParams;
+      const status = params.get("status");
       const type = params.get("type"),
         q = (params.get("q") ?? "").toLowerCase(),
         pageNumber = Number(params.get("page") ?? 1);
       const filtered = resources.filter(
         (r) =>
           (!type || r.type === type) &&
+          (!status || r.status === status) &&
           (!q || `${r.name} ${r.code}`.toLowerCase().includes(q)),
       );
       return route.fulfill({
@@ -348,27 +407,10 @@ async function setup(
     if (path === "/api/agent/studio/bootstrap")
       return route.fulfill({
         json: {
-          teams: [
-            {
-              id: ids.team,
-              name: "Creative",
-              memberIds: [user.id],
-              members: [
-                { userId: user.id, role: options.leader ? "leader" : "seller" },
-              ],
-            },
-          ],
-          stores: [
-            {
-              id: ids.store,
-              name: "Store A",
-              teamId: ids.team,
-              sellerIds: [user.id],
-              productIds: [ids.product],
-            },
-          ],
+          teams,
+          stores,
           resources: limitBootstrap ? resources.slice(0, 3) : resources,
-          users: [],
+          users: [{ id: user.id, email: user.email, disabled: false }],
           nextNight: "2026-10-28T15:00:00.000Z",
           schedule: schedule(),
           schedulerEnabled: true,
@@ -539,6 +581,11 @@ async function setup(
         });
     },
     libraryBody: () => libraryBody,
+    teamBody: () => teamBody,
+    storeBody: () => storeBody,
+    failTeam: (value: boolean) => {
+      failTeam = value;
+    },
     libraryCreatedId: () => libraryCreatedId,
     expandCatalog: () => {
       for (let i = 0; i < 30; i++)
@@ -922,6 +969,14 @@ test("new shell owns admin routes and retired links never mount the chat workspa
     .click();
   await expect(page).toHaveURL(/\/manage\/library\?type=thumbnail$/);
   await expect(
+    page
+      .getByRole("group", { name: "Loại tài nguyên", exact: true })
+      .getByRole("button", { name: "Mẫu ảnh chính", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await page
+    .getByRole("button", { name: "Thêm tài nguyên", exact: true })
+    .click();
+  await expect(
     page.getByRole("combobox", { name: "Loại nội dung", exact: true }),
   ).toHaveAttribute("data-value", "thumbnail");
   expect(fixture.errors).toEqual([]);
@@ -1182,6 +1237,16 @@ test("admin reviews skill case context, downloads original ZIP, sees history and
   fixture.enableSkillVersion();
   await page.goto(studioPath("studio-manage"));
   await page.getByRole("button", { name: "Thư viện", exact: true }).click();
+  await page
+    .getByRole("article")
+    .filter({
+      has: page.getByRole("heading", {
+        name: "Phát triển ý tưởng",
+        exact: true,
+      }),
+    })
+    .getByText("Thông tin & phiên bản", { exact: true })
+    .click();
   await expect(page.getByText("Phiên bản 1", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Lịch sử", exact: true }).click();
   await expect(page.getByRole("list", { name: "Lịch sử SK02" })).toBeVisible();
@@ -1214,6 +1279,260 @@ test("admin reviews skill case context, downloads original ZIP, sees history and
   await expect.poll(fixture.importedPrevious).toBe(fixture.ids.skill);
   expect(fixture.errors).toEqual([]);
 });
+test("management keeps lists compact and edits Team roles with conflict recovery and focus return", async ({
+  page,
+}) => {
+  const fixture = await setup(page, { admin: true });
+  await page.goto("/manage/teams");
+  await expect(
+    page.getByRole("heading", { name: "Thư viện & nhóm", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("textbox", { name: "Tên nhóm", exact: true }),
+  ).toHaveCount(0);
+  await page
+    .getByRole("textbox", { name: "Tìm nhóm", exact: true })
+    .fill("không có");
+  await expect(
+    page.getByRole("heading", { name: "Không tìm thấy nhóm", exact: true }),
+  ).toBeVisible();
+  await page.getByRole("textbox", { name: "Tìm nhóm", exact: true }).fill("");
+  const edit = page.getByRole("button", {
+    name: "Chỉnh sửa nhóm Creative",
+    exact: true,
+  });
+  await edit.click();
+  const dialog = page.getByRole("dialog", {
+    name: "Chỉnh sửa nhóm",
+    exact: true,
+  });
+  await expect(dialog).toBeVisible();
+  await expect(
+    dialog.getByRole("checkbox", { name: fixture.user.email, exact: true }),
+  ).toBeChecked();
+  await dialog
+    .getByRole("textbox", { name: "Tên nhóm", exact: true })
+    .fill("Creative POD");
+  await chooseOption(
+    page,
+    dialog.getByRole("combobox", {
+      name: `Vai trò của ${fixture.user.email}`,
+      exact: true,
+    }),
+    "leader",
+  );
+  fixture.failTeam(true);
+  await dialog.getByRole("button", { name: "Lưu nhóm", exact: true }).click();
+  await expect(
+    page.getByText("Nhóm đã thay đổi ở tab khác. Tải lại trước khi lưu.", {
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(
+    dialog.getByRole("textbox", { name: "Tên nhóm", exact: true }),
+  ).toHaveValue("Creative POD");
+  expect(fixture.teamBody()).toMatchObject({
+    name: "Creative POD",
+    revision: 1,
+    members: [{ userId: fixture.user.id, role: "leader" }],
+  });
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+  await expect(edit).toBeFocused();
+  fixture.failTeam(false);
+  await edit.click();
+  await dialog
+    .getByRole("textbox", { name: "Tên nhóm", exact: true })
+    .fill("Creative POD");
+  await dialog.getByRole("button", { name: "Lưu nhóm", exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(
+    page.getByRole("heading", { name: "Creative POD", exact: true }),
+  ).toBeVisible();
+  await page.screenshot({
+    path: "test-results/management-teams.png",
+    fullPage: true,
+  });
+  expect(fixture.errors).toEqual([]);
+});
+
+test("management Store editor finds products outside bootstrap and preserves permissions and revisions", async ({
+  page,
+}) => {
+  const fixture = await setup(page, { admin: true });
+  let productQuery = "";
+  const extra = randomUUID();
+  await page.route("**/api/agent/studio/resources?**", (route) => {
+    const params = new URL(route.request().url()).searchParams;
+    if (params.get("type") !== "product") return route.fallback();
+    productQuery = params.get("q") ?? "";
+    return route.fulfill({
+      json: {
+        items: [
+          {
+            id: extra,
+            teamId: fixture.ids.team,
+            type: "product",
+            name: "Cốc đặt riêng",
+            code: "CUSTOM-MUG",
+            status: "approved",
+            revision: 1,
+            instructions: "",
+            issues: [],
+          },
+        ],
+        total: 1,
+        page: 1,
+        limit: 24,
+      },
+    });
+  });
+  await page.goto("/manage/stores");
+  await page
+    .getByRole("button", { name: "Chỉnh sửa cửa hàng Store A", exact: true })
+    .click();
+  const dialog = page.getByRole("dialog", {
+    name: "Chỉnh sửa cửa hàng",
+    exact: true,
+  });
+  await expect(
+    dialog.getByRole("combobox", { name: "Nhóm", exact: true }),
+  ).toBeDisabled();
+  await expect(
+    dialog.getByRole("checkbox", { name: fixture.user.email, exact: true }),
+  ).toBeChecked();
+  await dialog
+    .getByRole("textbox", { name: "Tìm sản phẩm", exact: true })
+    .fill("CUSTOM-MUG");
+  await expect.poll(() => productQuery).toBe("CUSTOM-MUG");
+  await dialog
+    .getByRole("checkbox", { name: "CUSTOM-MUG · Cốc đặt riêng", exact: true })
+    .check();
+  await dialog
+    .getByRole("textbox", { name: "Tên cửa hàng", exact: true })
+    .fill("LCG Home");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect
+    .poll(async () => {
+      const box = await dialog.boundingBox();
+      return !!box && box.x >= 0 && box.x + box.width <= 390;
+    })
+    .toBe(true);
+  await expect(
+    dialog.getByRole("button", { name: "Lưu cửa hàng", exact: true }),
+  ).toBeInViewport();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+  await page.screenshot({
+    path: "test-results/management-store-mobile.png",
+    fullPage: true,
+  });
+  await dialog
+    .getByRole("button", { name: "Lưu cửa hàng", exact: true })
+    .click();
+  await expect.poll(fixture.storeBody).toMatchObject({
+    name: "LCG Home",
+    teamId: fixture.ids.team,
+    revision: 1,
+    sellerIds: [fixture.user.id],
+    productIds: [fixture.ids.product, extra],
+  });
+  await expect(dialog).toHaveCount(0);
+  await expect(
+    page.getByRole("heading", { name: "LCG Home", exact: true }),
+  ).toBeVisible();
+  expect(fixture.errors).toEqual([]);
+});
+
+test("library filters persist in URL, show recoverable errors and create the selected resource type", async ({
+  page,
+}) => {
+  const fixture = await setup(page, { admin: true });
+  fixture.addMockupScene();
+  let fail = false;
+  await page.route("**/api/agent/studio/resources?**", (route) =>
+    fail
+      ? route.fulfill({
+          status: 503,
+          json: { message: "Không tải được tài nguyên" },
+        })
+      : route.fallback(),
+  );
+  await page.goto("/manage/library?type=scene");
+  const types = page.getByRole("group", {
+    name: "Loại tài nguyên",
+    exact: true,
+  });
+  await expect(
+    types.getByRole("button", { name: "Mockup Etsy", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await chooseOption(
+    page,
+    page.getByRole("combobox", { name: "Trạng thái", exact: true }),
+    "approved",
+  );
+  await page
+    .getByRole("textbox", { name: "Tìm theo tên hoặc mã", exact: true })
+    .fill("SC");
+  await expect(page).toHaveURL(/status=approved.*q=SC/);
+  await page.reload();
+  await expect(
+    page.getByRole("textbox", { name: "Tìm theo tên hoặc mã", exact: true }),
+  ).toHaveValue("SC");
+  await expect(
+    page.getByRole("combobox", { name: "Trạng thái", exact: true }),
+  ).toHaveAttribute("data-value", "approved");
+  await expect(page.locator(".management-resource-card")).toHaveCount(1);
+  await page.screenshot({
+    path: "test-results/management-library.png",
+    fullPage: true,
+  });
+  fail = true;
+  await page
+    .getByRole("button", { name: "Làm mới thư viện", exact: true })
+    .click();
+  await expect(page.getByRole("alert")).toContainText(
+    "Không tải được tài nguyên",
+  );
+  await expect(page.locator(".management-resource-card")).toHaveCount(0);
+  fail = false;
+  await page
+    .getByRole("button", { name: "Tải lại thư viện", exact: true })
+    .click();
+  await expect(page.locator(".management-resource-card")).toHaveCount(1);
+  await page
+    .getByRole("button", { name: "Thêm tài nguyên", exact: true })
+    .click();
+  const dialog = page.getByRole("dialog", {
+    name: "Thêm tài nguyên",
+    exact: true,
+  });
+  await expect(
+    dialog.getByRole("combobox", { name: "Loại nội dung", exact: true }),
+  ).toHaveAttribute("data-value", "scene");
+  await dialog.getByRole("button", { name: "Hủy", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "Thêm tài nguyên", exact: true }),
+  ).toBeFocused();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(
+    types.getByRole("button", { name: "Mockup Etsy", exact: true }),
+  ).toBeVisible();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+  await page.screenshot({
+    path: "test-results/management-library-mobile.png",
+    fullPage: true,
+  });
+  expect(fixture.errors).toEqual([]);
+});
+
 test("creative preparation displays observed image roles, risks and each planned brief on mobile", async ({
   page,
 }) => {
@@ -1594,6 +1913,191 @@ test("Gallery handoff verifies approved images and fills the source store/produc
   expect(fixture.errors).toEqual([]);
 });
 
+test("AI background suggestions stay editable and selected prompts are sent alongside Etsy templates without image generation on suggestion", async ({
+  page,
+}) => {
+  const fixture = await setup(page);
+  const scene = fixture.addMockupScene();
+  let suggestionBody: Record<string, unknown> | undefined,
+    createBody: Record<string, unknown> | undefined;
+  await page.route(
+    "**/api/agent/studio/mockups/background-suggestions",
+    async (route) => {
+      suggestionBody = route.request().postDataJSON();
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      return route.fulfill({
+        json: {
+          suggestions: [
+            {
+              title: "Vườn sáng",
+              prompt: "Chỉ đổi nền thành vườn xanh có ánh sáng tự nhiên.",
+            },
+            {
+              title: "Bàn gỗ",
+              prompt: "Chỉ đổi nền thành bàn gỗ sáng bên cạnh cửa sổ.",
+            },
+            {
+              title: "Studio",
+              prompt: "Chỉ đổi nền thành studio màu kem tối giản.",
+            },
+          ],
+        },
+      });
+    },
+  );
+  await page.route("**/api/agent/studio/mockups", async (route) => {
+    if (route.request().method() === "POST") {
+      createBody = route.request().postDataJSON();
+      return route.fulfill({
+        status: 409,
+        json: { message: "Fixture submission captured" },
+      });
+    }
+    return route.fulfill({ json: { items: [], total: 0, page: 1, limit: 20 } });
+  });
+  await page.goto(studioPath("studio-mockups"));
+  await chooseOption(
+    page,
+    page.getByRole("combobox", { name: "Sản phẩm", exact: true }),
+    fixture.ids.product,
+  );
+  await page.getByLabel("Tải ảnh nguồn mockup").setInputFiles({
+    name: "source.png",
+    mimeType: "image/png",
+    buffer: image,
+  });
+  await page
+    .getByRole("checkbox", { name: scene.name, exact: true })
+    .last()
+    .check();
+  await page.getByRole("button", { name: "AI đổi nền", exact: true }).click();
+  await page
+    .getByLabel("Mong muốn về nền", { exact: false })
+    .fill("Nền Giáng sinh nhẹ nhàng");
+  await page.getByRole("button", { name: "AI gợi ý nền", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "Đang gợi ý…", exact: true }),
+  ).toBeDisabled();
+  await expect(
+    page.getByRole("combobox", { name: "Model cho bộ ảnh", exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Tạo 0 ảnh mockup", exact: true }),
+  ).toBeDisabled();
+  await expect(page.getByLabel("Tên nền", { exact: true })).toHaveCount(3);
+  expect(createBody).toBeUndefined();
+  expect(suggestionBody).toMatchObject({
+    storeId: fixture.ids.store,
+    productId: fixture.ids.product,
+    source: { assetId: fixture.ids.source },
+    count: 3,
+    directions: "Nền Giáng sinh nhẹ nhàng",
+  });
+  await page
+    .getByRole("textbox", { name: "Prompt nền", exact: true })
+    .first()
+    .fill("Thay nền thành sân vườn Giáng sinh, giữ nguyên sản phẩm.");
+  await page.getByRole("checkbox", { name: "Chọn nền 1", exact: true }).check();
+  await page
+    .getByRole("button", { name: "Áp dụng cho tất cả nguồn", exact: true })
+    .click();
+  await expect(
+    page.getByText("2 ảnh sẽ được tạo", { exact: true }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Tạo 2 ảnh mockup", exact: true })
+    .click();
+  await expect.poll(() => createBody).toBeDefined();
+  expect(createBody).toMatchObject({
+    backgrounds: [
+      {
+        name: "Vườn sáng",
+        prompt: "Thay nền thành sân vườn Giáng sinh, giữ nguyên sản phẩm.",
+      },
+    ],
+  });
+  const input = createBody as unknown as {
+    backgrounds: { id: string }[];
+    sources: { sceneIds: string[] }[];
+  };
+  expect(input.sources[0].sceneIds).toEqual([
+    scene.id,
+    input.backgrounds[0].id,
+  ]);
+  expect(fixture.errors).toEqual([]);
+});
+
+test("prompt-only backgrounds work without Etsy templates, validate edits, preserve them on AI errors and remove applied combinations", async ({
+  page,
+}) => {
+  const fixture = await setup(page);
+  let attempts = 0;
+  await page.route(
+    "**/api/agent/studio/mockups/background-suggestions",
+    (route) => {
+      attempts++;
+      return route.fulfill({
+        status: 503,
+        json: { message: "AI gợi ý nền đang bận. Hãy thử lại sau." },
+      });
+    },
+  );
+  await page.goto(studioPath("studio-mockups"));
+  await chooseOption(
+    page,
+    page.getByRole("combobox", { name: "Sản phẩm", exact: true }),
+    fixture.ids.product,
+  );
+  await page.getByLabel("Tải ảnh nguồn mockup").setInputFiles({
+    name: "source.png",
+    mimeType: "image/png",
+    buffer: image,
+  });
+  await page.getByRole("button", { name: "AI đổi nền", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Thêm nền tự viết", exact: true })
+    .click();
+  await page.getByRole("checkbox", { name: "Chọn nền 1", exact: true }).check();
+  await page
+    .getByRole("button", { name: "Áp dụng cho tất cả nguồn", exact: true })
+    .click();
+  await expect(
+    page.getByRole("button", { name: "Tạo 1 ảnh mockup", exact: true }),
+  ).toBeDisabled();
+  await page
+    .getByRole("textbox", { name: "Prompt nền", exact: true })
+    .fill("Thay nền thành góc bàn sáng, giữ toàn bộ sản phẩm.");
+  await expect(
+    page.getByRole("button", { name: "Tạo 1 ảnh mockup", exact: true }),
+  ).toBeEnabled();
+  await page.getByRole("button", { name: "AI gợi ý nền", exact: true }).click();
+  await expect(
+    page.getByText("AI gợi ý nền đang bận. Hãy thử lại sau.", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("textbox", { name: "Prompt nền", exact: true }),
+  ).toHaveValue("Thay nền thành góc bàn sáng, giữ toàn bộ sản phẩm.");
+  expect(attempts).toBe(1);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(
+    page.getByRole("button", { name: "AI gợi ý nền", exact: true }),
+  ).toBeEnabled();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+  await page.screenshot({
+    path: "test-results/studio-background-mobile.png",
+    fullPage: true,
+  });
+  await page.getByRole("button", { name: "Xóa nền 1", exact: true }).click();
+  await expect(
+    page.getByText("0 ảnh sẽ được tạo", { exact: true }),
+  ).toBeVisible();
+  expect(fixture.errors).toEqual([]);
+});
+
 test("mobile mockup retains uncertain errors with no unsafe resume and fits a single page scroll", async ({
   page,
 }) => {
@@ -1774,6 +2278,9 @@ test("admin defines an arbitrary product and edits through a new version with it
   await page.goto(studioPath("studio-manage"));
   await page.getByRole("button", { name: "Thư viện", exact: true }).click();
   await page
+    .getByRole("button", { name: "Thêm tài nguyên", exact: true })
+    .click();
+  await page
     .getByRole("textbox", { name: "Tên hiển thị", exact: true })
     .fill("Ốp lưng tùy chỉnh");
   await page
@@ -1855,20 +2362,42 @@ test("mockup finds approved scenes beyond the bootstrap catalog and adds their a
   const fixture = await setup(page);
   fixture.catalogBeyondBootstrap();
   await page.goto(studioPath("studio-mockups"));
-  await page.getByText("Tìm trong thư viện", { exact: true }).last().click();
   await page
-    .getByLabel("Tìm thêm bối cảnh từ thư viện theo tên hoặc mã", {
-      exact: true,
-    })
-    .fill("OUT29");
-  await chooseOption(
-    page,
-    page.getByRole("combobox", {
-      name: "Thêm bối cảnh từ thư viện",
+    .getByRole("button", { name: "Chọn ảnh mẫu từ Etsy Library", exact: true })
+    .click();
+  await expect(
+    page.getByRole("dialog", {
+      name: "Etsy Library · Mẫu mockup",
       exact: true,
     }),
-    { label: "OUT29 · Bối cảnh ngoài trang 29" },
-  );
+  ).toBeVisible();
+  await page.getByLabel("Tìm ảnh mẫu", { exact: true }).fill("OUT29");
+  await page
+    .getByRole("dialog")
+    .getByRole("checkbox", { name: "Bối cảnh ngoài trang 29", exact: true })
+    .check();
+  await page.screenshot({
+    path: "test-results/studio-etsy-library.png",
+    fullPage: true,
+  });
+  await page.getByRole("button", { name: "Xong", exact: true }).click();
+  await expect(
+    page.getByRole("button", {
+      name: "Chọn ảnh mẫu từ Etsy Library",
+      exact: true,
+    }),
+  ).toBeFocused();
+  await page
+    .getByRole("button", { name: "Chọn ảnh mẫu từ Etsy Library", exact: true })
+    .click();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(
+    page.getByRole("button", {
+      name: "Chọn ảnh mẫu từ Etsy Library",
+      exact: true,
+    }),
+  ).toBeFocused();
   await expect(
     page.getByRole("checkbox", {
       name: "Bối cảnh ngoài trang 29",

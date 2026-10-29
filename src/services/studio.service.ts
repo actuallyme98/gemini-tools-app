@@ -162,8 +162,8 @@ export type StudioPage<T> = {
 export const studioClient = {
   get: async <T>(path: string, signal?: AbortSignal) =>
     (await agentClient.get<T>(`/studio${path}`, { signal })).data,
-  post: async <T>(path: string, body: unknown = {}) =>
-    (await agentClient.post<T>(`/studio${path}`, body)).data,
+  post: async <T>(path: string, body: unknown = {}, signal?: AbortSignal) =>
+    (await agentClient.post<T>(`/studio${path}`, body, { signal })).data,
   patch: async <T>(path: string, body: unknown) =>
     (await agentClient.patch<T>(`/studio${path}`, body)).data,
 };

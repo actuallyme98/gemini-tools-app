@@ -516,7 +516,7 @@ function StudioGuide({ admin = false }: { admin?: boolean }) {
           [
             "04",
             "Tạo bộ mockup phụ",
-            "Trong Gallery, chọn ảnh đã Đạt → Tạo mockup từ các thiết kế. Hoặc vào Tạo mockup và tải ảnh ngoài. Chọn bối cảnh, nhập màu vật liệu nếu cần rồi Áp dụng cho tất cả nguồn; có thể chỉnh riêng từng nguồn. Kiểm tra tổng số ảnh trước khi tạo. Bộ ảnh lưu trên server, không cần giữ tab mở.",
+            "Trong Gallery, chọn ảnh đã Đạt → Tạo mockup từ các thiết kế. Hoặc vào Tạo mockup và tải ảnh ngoài. Ở Mẫu Etsy, chọn nhiều ảnh từ thư viện đã upload/duyệt: Agent giữ cảnh của ảnh mẫu và thay sản phẩm bằng ảnh nguồn. Ở AI đổi nền, nhập mong muốn rồi bấm AI gợi ý nền, sửa và tích chọn prompt muốn dùng; cũng có thể tự viết. Gợi ý chỉ tạo prompt, có sử dụng hạn mức AI. Có thể kết hợp cả hai cách trong cùng bộ, nhập màu vật liệu nếu cần rồi Áp dụng cho tất cả nguồn; có thể chỉnh riêng từng nguồn. Kiểm tra tổng số ảnh trước khi tạo. Bộ ảnh lưu trên server, không cần giữ tab mở.",
           ],
           [
             "05",
