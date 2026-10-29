@@ -219,6 +219,16 @@ export function Sidebar({
         ) : null}
       </section>
       <div className="sidebar-bottom">
+        {user && import.meta.env.VITE_STUDIO_ENABLED === "true" && (
+          <button
+            type="button"
+            className="workspace-nav-item"
+            onClick={() => onPageChange("studio")}
+          >
+            <Boxes size={18} aria-hidden="true" />
+            <span>Creative Studio</span>
+          </button>
+        )}
         <button
           type="button"
           className="workspace-nav-item"

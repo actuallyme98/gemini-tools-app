@@ -48,6 +48,7 @@ jobs:
           push: true
           build-args: |
             VITE_API_BASE_URL=https://api.lcgmedia.uk
+            VITE_STUDIO_ENABLED=${{ vars.STUDIO_ENABLED || 'false' }}
           tags: |
             ${{ steps.image.outputs.name }}:${{ github.sha }}
             ${{ steps.image.outputs.name }}:latest

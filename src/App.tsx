@@ -1,17 +1,20 @@
 import { lazy, Suspense, useSyncExternalStore } from "react";
-import { HomePage } from "./pages/HomePage";
-import { MockupGeneratorPage } from "./pages/MockupGeneratorPage";
-import { IdeaGeneratorPage } from "./pages/IdeaGeneratorPage";
-import { ImageProcessingPage } from "./pages/ImageProcessingPage";
-import { BackgroundStudioPage } from "./pages/BackgroundStudioPage";
-import { AgentPage } from "./pages/AgentPage";
 import { AIProviderProvider } from "./context/AIProviderProvider";
 import { Toaster } from "./components/ui/sonner";
 const SharedConversationPage = lazy(
   () => import("./pages/SharedConversationPage"),
 );
+const StudioPage = lazy(() => import("./pages/StudioPage"));
+const LegacyWorkspace = lazy(() => import("./pages/LegacyWorkspace"));
 
 const pages = [
+  "studio",
+  "studio-new",
+  "studio-ideas",
+  "studio-mockups",
+  "studio-outputs",
+  "studio-manage",
+  "studio-guide",
   "agent",
   "share",
   "jobs",
@@ -34,7 +37,11 @@ const pages = [
 ];
 function currentPage() {
   const page = location.hash.slice(1).split("?")[0];
-  return pages.includes(page) ? page : "agent";
+  return pages.includes(page)
+    ? page
+    : import.meta.env.VITE_STUDIO_ENABLED === "true"
+      ? "studio"
+      : "agent";
 }
 function subscribe(callback: () => void) {
   window.addEventListener("hashchange", callback);
@@ -61,29 +68,19 @@ export default function App() {
         closeButton
         duration={6000}
       />
-      <AgentPage page={page} onNavigate={navigate}>
-        <section hidden={page !== "home"} aria-label="Công cụ">
-          <HomePage onNavigate={navigate} />
-        </section>
-        <section
-          hidden={page !== "mockup-generator"}
-          aria-label="Mockup Generator"
+      {page.startsWith("studio") ? (
+        <Suspense
+          fallback={<main role="status">Đang tải Creative Studio…</main>}
         >
-          <MockupGeneratorPage />
-        </section>
-        <section
-          hidden={page !== "background-studio"}
-          aria-label="Mockup Studio"
+          <StudioPage page={page} />
+        </Suspense>
+      ) : (
+        <Suspense
+          fallback={<main role="status">Đang tải không gian làm việc…</main>}
         >
-          <BackgroundStudioPage />
-        </section>
-        <section hidden={page !== "idea-generator"} aria-label="Idea Generator">
-          <IdeaGeneratorPage />
-        </section>
-        <section hidden={page !== "image-editor"} aria-label="Image Editor">
-          <ImageProcessingPage />
-        </section>
-      </AgentPage>
+          <LegacyWorkspace page={page} onNavigate={navigate} />
+        </Suspense>
+      )}
     </AIProviderProvider>
   );
 }
