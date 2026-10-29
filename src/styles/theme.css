@@ -2,15 +2,15 @@
 
 :root {
   --brand-orange: #f58216;
-  --brand-foreground: #321700;
-  --brand-strong: #a74407;
-  --brand-soft: #fff1e4;
+  --brand-foreground: #ffffff;
+  --brand-strong: #b84b0a;
+  --brand-soft: #fff2e8;
   --brand-pale: #fffbf7;
   --brand-border: #f3c69e;
   --brand-focus: #c45508;
-  --surface: #fffdfb;
-  --surface-subtle: #f3eee7;
-  --surface-sidebar: #f2ede6;
+  --surface: #ffffff;
+  --surface-subtle: #f4f6f9;
+  --surface-sidebar: #162338;
   --surface-shadow: 0 2px 5px #49301d04, 0 12px 32px #49301d06;
   --surface-shadow-raised: 0 4px 12px #49301d06, 0 16px 40px #49301d0a;
   --creative-sage: #37685b;
@@ -18,23 +18,29 @@
   --creative-sand: #855d2f;
   --creative-sand-soft: #f7f0df;
   --font-size: 16px;
-  --background: #fbf9f6;
-  --foreground: #302a25;
+  --background: #f5f7fa;
+  --foreground: #172338;
   --card: #ffffff;
-  --card-foreground: #302a25;
+  --card-foreground: #172338;
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
-  --primary: var(--brand-orange);
+  --primary: var(--brand-strong);
   --primary-foreground: var(--brand-foreground);
   --secondary: #f2ede6;
   --secondary-foreground: #302a25;
   --muted: #f3eee7;
-  --muted-foreground: #70665d;
+  --muted-foreground: #5f6d80;
   --accent: #f3eee7;
   --accent-foreground: #302a25;
   --destructive: #d4183d;
   --destructive-foreground: #ffffff;
-  --border: #e7e0d7;
+  --border: #e0e6ee;
+  --workspace-ink: var(--foreground);
+  --workspace-muted: var(--muted-foreground);
+  --workspace-line: var(--border);
+  --workspace-accent: var(--brand-strong);
+  --workspace-paper: var(--background);
+  --workspace-tint: var(--brand-soft);
   --input: transparent;
   --input-background: #f3eee7;
   --switch-background: #cbced4;
@@ -158,6 +164,13 @@
 
   body {
     @apply bg-background text-foreground;
+    font-family:
+      "Inter",
+      "Segoe UI",
+      system-ui,
+      -apple-system,
+      sans-serif;
+    -webkit-font-smoothing: antialiased;
   }
 
   /**

@@ -746,6 +746,137 @@ async function wizard(page: Page) {
     .fill("Redesign thành 7 mẫu riêng biệt theo bộ hướng dẫn");
   await page.getByRole("button", { name: "Tiếp tục" }).click();
 }
+
+test("new shell owns admin routes and retired links never mount the chat workspace", async ({
+  page,
+}) => {
+  const fixture = await setup(page, { admin: true });
+  await page.goto("/#agent");
+  await expect(page).toHaveURL(/#studio$/);
+  await expect(
+    page.getByRole("heading", { name: "Tổng quan công việc" }),
+  ).toBeVisible();
+  await expect(
+    page.locator(".agent-application,.workspace-shell,.agent-composer"),
+  ).toHaveCount(0);
+  await page
+    .getByRole("button", { name: "Thumbnail Library", exact: true })
+    .click();
+  await expect(page).toHaveURL(/#studio-manage\?tab=library&type=thumbnail$/);
+  await expect(
+    page.getByRole("combobox", { name: "Loại nội dung", exact: true }),
+  ).toHaveValue("thumbnail");
+  expect(fixture.errors).toEqual([]);
+});
+
+test("idea workbench keeps previews and submit inside the desktop viewport through all four steps", async ({
+  page,
+}) => {
+  const fixture = await setup(page);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await wizard(page);
+  await expect(
+    page.locator(".studio-wizard-preview .studio-image"),
+  ).toHaveCount(2);
+  const action = page.getByRole("button", {
+    name: "Gửi Leader duyệt",
+    exact: true,
+  });
+  const bounds = await action.boundingBox();
+  expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(900);
+  expect(
+    await page.evaluate(() => document.documentElement.scrollHeight),
+  ).toBeLessThanOrEqual(900);
+  await page.screenshot({
+    path: "test-results/studio-redesign-idea.png",
+    fullPage: true,
+  });
+  await page.setViewportSize({ width: 1366, height: 768 });
+  const compactBounds = await action.boundingBox();
+  expect(compactBounds!.y + compactBounds!.height).toBeLessThanOrEqual(768);
+  expect(
+    await page.evaluate(() => document.documentElement.scrollHeight),
+  ).toBeLessThanOrEqual(768);
+  expect(fixture.errors).toEqual([]);
+});
+
+test("mockup workbench separates controls into three panels without an outer desktop scroll", async ({
+  page,
+}) => {
+  const fixture = await setup(page);
+  fixture.addMockupScene();
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/#studio-mockups");
+  await expect(page.getByLabel("Tên bộ ảnh", { exact: true })).toBeVisible();
+  await expect(page.locator(".studio-mockup-columns>.studio-card")).toHaveCount(
+    3,
+  );
+  const controls = await page
+    .locator(".studio-mockup-config")
+    .evaluate((el) => {
+      const boxes = [
+        ...el.querySelectorAll(
+          "#mockup-title, #mockup-store, .studio-catalog-select > label > select",
+        ),
+      ]
+        .map((e) => e.getBoundingClientRect())
+        .filter((b) => b.width > 0);
+      return boxes.slice(1).every((b, i) => b.left >= boxes[i].right + 12);
+    });
+  expect(controls).toBe(true);
+  expect(
+    await page.evaluate(() => document.documentElement.scrollHeight),
+  ).toBeLessThanOrEqual(900);
+  await page.getByRole("button", { name: /Bộ ảnh đã lưu/ }).click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await expect(
+    page
+      .getByRole("dialog")
+      .getByRole("heading", { name: "Bộ ảnh mockup đã lưu" }),
+  ).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog")).not.toBeVisible();
+  await page.screenshot({
+    path: "test-results/studio-redesign-mockup.png",
+    fullPage: true,
+  });
+  await page.setViewportSize({ width: 1366, height: 768 });
+  expect(
+    await page.evaluate(() => document.documentElement.scrollHeight),
+  ).toBeLessThanOrEqual(768);
+  const submitBounds = await page
+    .getByRole("button", { name: /^Tạo \d+ ảnh mockup$/ })
+    .boundingBox();
+  expect(submitBounds!.y + submitBounds!.height).toBeLessThanOrEqual(768);
+  expect(fixture.errors).toEqual([]);
+});
+test("Design Gallery keeps the idea rail and loads the selected design without opening a legacy page", async ({
+  page,
+}) => {
+  const fixture = await setup(page);
+  await wizard(page);
+  await page
+    .getByRole("button", { name: "Gửi Leader duyệt", exact: true })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "Bộ quà thú cưng", exact: true }),
+  ).toBeVisible();
+  await page.goto("/#studio-gallery");
+  const rail = page.getByRole("complementary", {
+    name: "Ý tưởng trong Gallery",
+  });
+  await expect(rail).toBeVisible();
+  await rail.getByRole("button", { name: /Bộ quà thú cưng/ }).click();
+  await expect(page).toHaveURL(/#studio-gallery\?id=/);
+  await expect(
+    page
+      .getByRole("region", { name: "Thiết kế của ý tưởng" })
+      .getByRole("heading", { name: "Bộ quà thú cưng", exact: true }),
+  ).toBeVisible();
+  await expect(page.locator(".agent-application")).toHaveCount(0);
+  expect(fixture.errors).toEqual([]);
+});
+
 test("Studio is protected at the root and does not expose navigation before login", async ({
   page,
 }) => {
@@ -765,7 +896,9 @@ test("employee completes the four-step idea flow with distinct source/master and
   const fixture = await setup(page);
   await wizard(page);
   await expect(
-    page.getByText("Ảnh ý tưởng tham khảo", { exact: true }),
+    page
+      .locator(".studio-wizard-preview")
+      .getByRole("img", { name: "Ảnh ý tưởng tham khảo", exact: true }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Gửi Leader duyệt" }).click();
   await expect(
@@ -814,7 +947,7 @@ test("mobile dashboard and menu have no horizontal overflow", async ({
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/#studio");
   await expect(
-    page.getByRole("heading", { name: /Một nơi cho cả/ }),
+    page.getByRole("heading", { name: /Tổng quan công việc/ }),
   ).toBeVisible();
   expect(
     await page.evaluate(
@@ -822,7 +955,7 @@ test("mobile dashboard and menu have no horizontal overflow", async ({
     ),
   ).toBe(true);
   await page.getByRole("button", { name: "Mở menu" }).click();
-  await page.getByRole("button", { name: "Ý tưởng", exact: true }).click();
+  await page.getByRole("button", { name: "Idea Board", exact: true }).click();
   await expect(
     page.getByRole("heading", { name: "Ý tưởng của nhóm", exact: true }),
   ).toBeVisible();
@@ -865,7 +998,7 @@ test("desktop Studio has a readable dashboard and one main page scroll", async (
   await page.setViewportSize({ width: 1440, height: 1024 });
   await page.goto("/#studio");
   await expect(
-    page.getByRole("heading", { name: /Một nơi cho cả/ }),
+    page.getByRole("heading", { name: /Tổng quan công việc/ }),
   ).toBeVisible();
   await expect(
     page.getByRole("navigation", { name: "Điều hướng Studio" }),
@@ -1227,6 +1360,7 @@ test("mockup creates a persisted Team set with exact scene/color inputs and resu
     .getByRole("button", { name: "Tạo 2 ảnh mockup", exact: true })
     .click();
   await expect(page).toHaveURL(/id=mockup-test/);
+  await expect(page.locator(".studio-main-workbench")).toHaveCount(0);
   expect(body).toMatchObject({
     storeId: fixture.ids.store,
     productId: fixture.ids.product,

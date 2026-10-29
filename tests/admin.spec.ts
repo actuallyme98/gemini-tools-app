@@ -116,6 +116,26 @@ async function setup(page: Page, role: "admin" | "designer" = "admin") {
       return json({ token: "a".repeat(64), user: profile });
     if (path === "/auth/me") return json(profile);
     if (path === "/usage") return json(sampleBudget(profile.id));
+    if (path === "/studio/bootstrap")
+      return json({
+        teams: [],
+        stores: [],
+        resources: [],
+        users: [],
+        schedulerEnabled: false,
+      });
+    if (path === "/studio/dashboard")
+      return json({
+        ideas: {},
+        tickets: {},
+        mockups: {},
+        outputs: {},
+        reviews: {},
+        storeCount: 0,
+        generatedAt: now,
+      });
+    if (path === "/studio/ideas")
+      return json({ items: [], page: 1, limit: 24, total: 0 });
     if (path === "/workspace/projects") return json([]);
     if (path === "/admin/budget-policy" && method === "GET")
       return json({ defaultWeeklyUsd: 50, prices: [], updatedAt: now });
@@ -369,7 +389,7 @@ async function setup(page: Page, role: "admin" | "designer" = "admin") {
   await page.getByRole("button", { name: "Đăng nhập", exact: true }).click();
   await expect(
     page.getByRole("heading", {
-      name: "Bạn muốn tạo gì hôm nay?",
+      name: "Tổng quan công việc",
       exact: true,
     }),
   ).toBeVisible();
@@ -1034,7 +1054,7 @@ test("admin usage guide links directly to the administration request logs", asyn
 }) => {
   const fixture = await setup(page);
   await page
-    .getByRole("button", { name: "Hướng dẫn sử dụng?", exact: true })
+    .getByRole("button", { name: "Hướng dẫn sử dụng", exact: true })
     .click();
   await expect(
     page.getByRole("heading", { name: "Dành cho quản trị viên", exact: true }),

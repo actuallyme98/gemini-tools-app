@@ -2059,7 +2059,7 @@ export default function AdminPage({
           <LockKeyhole aria-hidden="true" />
           <h1>Bạn không có quyền quản trị</h1>
           <p>Liên hệ quản trị viên để được cấp quyền phù hợp.</p>
-          <Button onClick={() => onNavigate("agent")}>Về trợ lý AI</Button>
+          <Button onClick={() => onNavigate("studio")}>Về Studio</Button>
         </div>
       </section>
     );
@@ -2071,23 +2071,12 @@ export default function AdminPage({
             <ShieldCheck size={14} aria-hidden="true" />
             LCG MEDIA · ADMINISTRATION
           </span>
-          <h1>
-            Một nơi để vận hành
-            <br />
-            <span>cả đội ngũ sáng tạo.</span>
-          </h1>
-          <p>
-            Quản lý con người, theo dõi công việc và giữ hệ thống trong tầm kiểm
-            soát.
-          </p>
+          <h1>Quản trị công ty</h1>
+          <p>Tài khoản, ngân sách, nhật ký và thiết lập hệ thống.</p>
         </div>
         <div className="admin-access">
-          <span className="admin-access-icon">
-            <ShieldCheck size={23} aria-hidden="true" />
-          </span>
-          <strong>Không gian quản trị</strong>
-          <small>{user.email}</small>
-          <span>Chỉ dành cho quản trị viên</span>
+          <ShieldCheck size={17} aria-hidden="true" />
+          <strong>Quyền quản trị</strong>
         </div>
       </header>
       <nav className="admin-tabs" aria-label="Điều hướng quản trị">

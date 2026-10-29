@@ -1,17 +1,19 @@
 import { useState, type ReactNode } from "react";
 import {
-  ArrowUpRight,
   BookOpen,
-  CheckCheck,
   ChevronRight,
   FolderHeart,
+  Images,
   LayoutDashboard,
+  Layers3,
   Lightbulb,
   LogOut,
   Menu,
   Settings2,
+  ShieldCheck,
   Sparkles,
-  X,
+  BookMarked,
+  Frame,
 } from "lucide-react";
 import type { AgentUser } from "../../services/agent.service";
 import { studioNavigate } from "../../services/studio.service";
@@ -19,93 +21,160 @@ import { WeeklyBudget } from "../agent/UsageBudget";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "../ui/sheet";
 
 const navigation = [
-  { id: "studio", label: "Tổng quan", icon: LayoutDashboard },
-  { id: "studio-ideas", label: "Ý tưởng", icon: Lightbulb },
-  { id: "studio-mockups", label: "Tạo mockup", icon: Sparkles },
-  { id: "studio-outputs", label: "Thành phẩm", icon: FolderHeart },
+  {
+    id: "studio",
+    label: "Tổng quan",
+    icon: LayoutDashboard,
+    group: "WORKSPACE",
+  },
+  {
+    id: "studio-ideas",
+    label: "Idea Board",
+    icon: Lightbulb,
+    group: "SẢN XUẤT",
+  },
+  {
+    id: "studio-gallery",
+    label: "Design Gallery",
+    icon: Images,
+    group: "SẢN XUẤT",
+  },
+  {
+    id: "studio-mockups",
+    label: "Mockup Studio",
+    icon: Sparkles,
+    group: "SẢN XUẤT",
+  },
+  {
+    id: "studio-outputs",
+    label: "Thành phẩm",
+    icon: FolderHeart,
+    group: "SẢN XUẤT",
+  },
 ];
 export function StudioShell({
   user,
   page,
   onLogout,
   children,
+  workbench = false,
 }: {
   user: AgentUser;
   page: string;
   onLogout: () => void;
   children: ReactNode;
+  workbench?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const go = (next: string) => {
     studioNavigate(next);
     setOpen(false);
   };
+  const admin = page.startsWith("admin");
+  const title = admin
+    ? "Quản trị công ty"
+    : page === "studio-new"
+      ? "Tạo ý tưởng"
+      : page === "studio-manage"
+        ? "Quản lý thư viện & nhóm"
+        : page === "studio-guide"
+          ? "Hướng dẫn sử dụng"
+          : navigation.find((n) => n.id === page)?.label;
   const sidebar = (
     <>
-      <a className="studio-brand" href="#studio">
+      <a
+        className="studio-brand"
+        href="#studio"
+        aria-label="LCG Creative Studio — Tổng quan"
+      >
         <span>
-          <Sparkles aria-hidden="true" size={23} />
+          <Layers3 size={23} aria-hidden="true" />
         </span>
         <div>
-          <strong>LCG</strong>
-          <small>CREATIVE STUDIO</small>
+          <strong>
+            LCG Studio<span>AI</span>
+          </strong>
+          <small>CREATIVE OPERATIONS</small>
         </div>
       </a>
-      <p className="studio-nav-label">KHÔNG GIAN SÁNG TẠO</p>
+      <button className="studio-create-button" onClick={() => go("studio-new")}>
+        <Lightbulb size={17} aria-hidden="true" />
+        Tạo ý tưởng mới<span>＋</span>
+      </button>
       <nav aria-label="Điều hướng Studio">
-        {navigation.map(({ id, label, icon: Icon }) => (
-          <button
-            key={id}
-            aria-current={
-              page === id || (id === "studio-ideas" && page === "studio-new")
-                ? "page"
-                : undefined
-            }
-            onClick={() => go(id)}
-          >
-            <Icon size={19} aria-hidden="true" />
-            {label}
-            <ChevronRight
-              className="studio-nav-chevron"
-              size={15}
-              aria-hidden="true"
-            />
-          </button>
+        {navigation.map(({ id, label, icon: Icon, group }, index) => (
+          <div key={id}>
+            {(index === 0 || navigation[index - 1].group !== group) && (
+              <p className="studio-nav-label">{group}</p>
+            )}
+            <button
+              aria-current={
+                page === id || (id === "studio-ideas" && page === "studio-new")
+                  ? "page"
+                  : undefined
+              }
+              onClick={() => go(id)}
+            >
+              <Icon size={18} aria-hidden="true" />
+              {label}
+              <ChevronRight
+                className="studio-nav-chevron"
+                size={14}
+                aria-hidden="true"
+              />
+            </button>
+          </div>
         ))}
         {user.role === "admin" && (
-          <button
-            aria-current={page === "studio-manage" ? "page" : undefined}
-            onClick={() => go("studio-manage")}
-          >
-            <Settings2 size={19} aria-hidden="true" />
-            Quản lý
-          </button>
+          <div>
+            <p className="studio-nav-label">THƯ VIỆN</p>
+            <button
+              onClick={() => go("studio-manage?tab=library&type=thumbnail")}
+            >
+              <Frame size={18} aria-hidden="true" />
+              Thumbnail Library
+            </button>
+            <button onClick={() => go("studio-manage?tab=library&type=skill")}>
+              <BookMarked size={18} aria-hidden="true" />
+              Product & Skills
+            </button>
+            <p className="studio-nav-label">QUẢN LÝ</p>
+            <button
+              aria-current={page === "studio-manage" ? "page" : undefined}
+              onClick={() => go("studio-manage")}
+            >
+              <Settings2 size={18} aria-hidden="true" />
+              Thư viện & nhóm
+            </button>
+            <button
+              aria-current={admin ? "page" : undefined}
+              onClick={() => go("admin")}
+            >
+              <ShieldCheck size={18} aria-hidden="true" />
+              Quản trị công ty
+            </button>
+          </div>
         )}
       </nav>
-      <div className="studio-sidebar-tip">
-        <CheckCheck size={19} aria-hidden="true" />
-        <strong>Bạn chuẩn bị. Agent thực hiện.</strong>
-        <p>Chốt ý tưởng cùng Leader. Xem và duyệt ảnh khi có kết quả.</p>
-      </div>
       <div className="studio-nav-bottom">
-        <button onClick={() => go("studio-guide")}>
+        <button
+          aria-current={page === "studio-guide" ? "page" : undefined}
+          onClick={() => go("studio-guide")}
+        >
           <BookOpen size={18} aria-hidden="true" />
           Hướng dẫn sử dụng
         </button>
-        <a href="#agent">
-          Lịch sử & trợ lý cũ <ArrowUpRight size={15} aria-hidden="true" />
-        </a>
       </div>
       <div className="studio-profile">
-        <span>{user.email.slice(0, 1).toUpperCase()}</span>
+        <span>{user.email[0].toUpperCase()}</span>
         <div>
           <strong>
             {user.role === "admin" ? "Quản trị viên" : "Thành viên"}
           </strong>
-          <small>{user.email}</small>
+          <small title={user.email}>{user.email}</small>
         </div>
         <button aria-label="Đăng xuất" onClick={onLogout}>
-          <LogOut size={17} aria-hidden="true" />
+          <LogOut size={17} />
         </button>
       </div>
     </>
@@ -115,8 +184,8 @@ export function StudioShell({
       <a
         className="skip-link"
         href="#studio-main"
-        onClick={(event) => {
-          event.preventDefault();
+        onClick={(e) => {
+          e.preventDefault();
           document.getElementById("studio-main")?.focus();
         }}
       >
@@ -127,16 +196,9 @@ export function StudioShell({
         <SheetContent side="left" className="studio-mobile-nav">
           <SheetTitle className="sr-only">Điều hướng Studio</SheetTitle>
           <SheetDescription className="sr-only">
-            Ý tưởng, mockup và thành phẩm của bạn.
+            Không gian sản xuất sáng tạo.
           </SheetDescription>
           {sidebar}
-          <button
-            className="studio-mobile-close"
-            aria-label="Đóng menu"
-            onClick={() => setOpen(false)}
-          >
-            <X size={20} />
-          </button>
         </SheetContent>
       </Sheet>
       <div className="studio-main-layout">
@@ -149,19 +211,17 @@ export function StudioShell({
             <Menu size={22} />
           </button>
           <span>
-            Không gian làm việc <ChevronRight size={14} aria-hidden="true" />{" "}
-            <strong>
-              {navigation.find((item) => item.id === page)?.label ??
-                (page === "studio-new"
-                  ? "Tạo ý tưởng"
-                  : page === "studio-manage"
-                    ? "Quản lý"
-                    : "Hướng dẫn")}
-            </strong>
+            <span>Workspace</span>
+            <ChevronRight size={14} aria-hidden="true" />
+            <strong>{title}</strong>
           </span>
           <WeeklyBudget userId={user.id} activeCount={0} />
         </header>
-        <main id="studio-main" tabIndex={-1} className="studio-main">
+        <main
+          id="studio-main"
+          tabIndex={-1}
+          className={`studio-main${workbench ? " studio-main-workbench" : ""}`}
+        >
           {children}
         </main>
       </div>

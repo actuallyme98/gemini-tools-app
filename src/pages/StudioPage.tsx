@@ -1,4 +1,10 @@
-import { Suspense, useEffect, useState, useSyncExternalStore } from "react";
+import {
+  lazy,
+  Suspense,
+  useEffect,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import {
   ArrowRight,
   Check,
@@ -6,6 +12,7 @@ import {
   Download,
   FolderHeart,
   Lightbulb,
+  Images,
   Loader2,
   Plus,
   RefreshCw,
@@ -45,6 +52,8 @@ import { GoogleSignIn } from "../components/agent/GoogleSignIn";
 import { Button } from "../components/ui/button";
 import "../styles/studio.css";
 
+const AdminPage = lazy(() => import("./AdminPage"));
+
 const subscribeHash = (listener: () => void) => {
   window.addEventListener("hashchange", listener);
   return () => window.removeEventListener("hashchange", listener);
@@ -54,9 +63,15 @@ const currentHash = () => window.location.hash;
 function IdeaList({
   data,
   dashboard = false,
+  gallery = false,
+  user,
+  selectedId,
 }: {
   data: StudioBootstrap;
   dashboard?: boolean;
+  gallery?: boolean;
+  user?: AgentUser;
+  selectedId?: string;
 }) {
   const [filter, setFilter] = useState("");
   const [page, setPage] = useState(1);
@@ -80,34 +95,119 @@ function IdeaList({
     return () => controller.abort();
   }, [page, filter, retry]);
   const ready = result?.page === page;
+  if (gallery && user)
+    return (
+      <div className="studio-design-gallery">
+        <header className="studio-page-heading">
+          <div>
+            <span className="studio-eyebrow">AI REDESIGN</span>
+            <h1>Design Gallery</h1>
+            <p>
+              Chọn ý tưởng, duyệt thiết kế và chuyển mẫu đạt sang Mockup Studio.
+            </p>
+          </div>
+        </header>
+        <div className="studio-gallery-workspace">
+          <aside
+            className="studio-card studio-gallery-rail"
+            aria-label="Ý tưởng trong Gallery"
+          >
+            <h2>Ý tưởng của nhóm</h2>
+            {error ? (
+              <p role="alert" className="studio-error">
+                {error}
+                <Button
+                  variant="outline"
+                  onClick={() => setRetry((v) => v + 1)}
+                >
+                  Thử lại
+                </Button>
+              </p>
+            ) : !ready ? (
+              <p role="status">Đang tải ý tưởng…</p>
+            ) : (
+              result.items.map((idea) => (
+                <button
+                  key={idea.id}
+                  className="studio-gallery-source"
+                  aria-pressed={(selectedId ?? result.items[0]?.id) === idea.id}
+                  onClick={() => studioNavigate("studio-gallery", idea.id)}
+                >
+                  <StudioImage
+                    id={idea.input.sourceId}
+                    name={idea.input.title}
+                  />
+                  <span>
+                    <strong>{idea.input.title}</strong>
+                    <small>{studioLabels[idea.state]}</small>
+                  </span>
+                </button>
+              ))
+            )}
+            {ready && !result.items.length && (
+              <p className="studio-muted">
+                Chưa có ý tưởng. Tạo ý tưởng và gửi Leader duyệt để bắt đầu.
+              </p>
+            )}
+            <div className="studio-action-row">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={page === 1}
+                onClick={() => setPage((p) => p - 1)}
+              >
+                Trước
+              </Button>
+              <small>Trang {page}</small>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={!result || page * result.limit >= result.total}
+                onClick={() => {
+                  setPage((p) => p + 1);
+                  studioNavigate("studio-gallery");
+                }}
+              >
+                Sau
+              </Button>
+            </div>
+          </aside>
+          <section
+            className="studio-gallery-content"
+            aria-label="Thiết kế của ý tưởng"
+          >
+            {selectedId || result?.items[0]?.id ? (
+              <IdeaDetail
+                key={selectedId ?? result?.items[0]?.id}
+                id={selectedId ?? result!.items[0].id}
+                data={data}
+                user={user}
+              />
+            ) : (
+              <div className="studio-card studio-empty">
+                <Images size={30} aria-hidden="true" />
+                <h2>Chưa có bộ thiết kế</h2>
+                <p>Ảnh được tạo từ ý tưởng sẽ xuất hiện tại đây.</p>
+              </div>
+            )}
+          </section>
+        </div>
+      </div>
+    );
   return (
     <div>
       {dashboard ? (
         <>
           <header className="studio-welcome">
-            <span className="studio-eyebrow">
-              TỪ Ý TƯỞNG ĐẾN BỘ ẢNH SẢN PHẨM
-            </span>
-            <h1>
-              Một nơi cho cả
-              <br />
-              <em>quy trình sáng tạo.</em>
-            </h1>
-            <p>
-              Bạn chọn hướng đi. Cùng Leader chốt đầu vào.
-              <br />
-              Agent xử lý nền, cả nhóm kiểm tra và sử dụng kết quả.
-            </p>
+            <div>
+              <span className="studio-eyebrow">CREATIVE PRODUCTION</span>
+              <h1>Tổng quan công việc</h1>
+              <p>Theo dõi ý tưởng, tiến độ xử lý và thành phẩm của nhóm.</p>
+            </div>
             <Button onClick={() => studioNavigate("studio-new")}>
               <Plus size={18} />
-              Tạo ý tưởng đầu tiên của bạn
+              Tạo ý tưởng
             </Button>
-            <div className="studio-welcome-decoration" aria-hidden="true">
-              <div>
-                <Sparkles size={54} />
-              </div>
-              <span>IDEA → DESIGN → MOCKUP</span>
-            </div>
           </header>
           <article className="studio-note">
             <Clock3 size={23} aria-hidden="true" />
@@ -133,9 +233,15 @@ function IdeaList({
       ) : (
         <header className="studio-page-heading">
           <div>
-            <span className="studio-eyebrow">IDEA BOARD</span>
-            <h1>Ý tưởng của nhóm</h1>
-            <p>Chuẩn bị, duyệt và theo dõi bộ thiết kế trong cùng một hồ sơ.</p>
+            <span className="studio-eyebrow">
+              {gallery ? "DESIGN GALLERY" : "IDEA BOARD"}
+            </span>
+            <h1>{gallery ? "Design Gallery" : "Ý tưởng của nhóm"}</h1>
+            <p>
+              {gallery
+                ? "Chọn ý tưởng để xem, duyệt thiết kế và chuyển sang Mockup Studio."
+                : "Chuẩn bị ý tưởng, gửi duyệt và theo dõi kết quả."}
+            </p>
           </div>
           <Button onClick={() => studioNavigate("studio-new")}>
             <Plus size={17} />
@@ -385,7 +491,7 @@ function Outputs() {
     </div>
   );
 }
-function StudioGuide() {
+function StudioGuide({ admin = false }: { admin?: boolean }) {
   return (
     <div>
       <header className="studio-page-heading">
@@ -460,17 +566,41 @@ function StudioGuide() {
           liên hệ quản trị kiểm tra. Lỡ lịch chỉ được quản trị chạy bù. Dừng chỉ
           ngăn phần chưa gửi đến AI.
         </p>
-        <p>
-          Hội thoại và công việc cũ được giữ trong “Lịch sử & trợ lý cũ”. Chưa
-          tự chuyển dữ liệu cá nhân cũ thành dữ liệu dùng chung của nhóm.
-        </p>
       </section>
+      {admin && (
+        <section className="studio-card">
+          <h2>Dành cho quản trị viên</h2>
+          <p>
+            Quản trị công ty quản lý tài khoản, hạn mức, nhật ký và hàng đợi.
+            Thư viện & nhóm quản lý tài nguyên sản xuất.
+          </p>
+          <Button
+            variant="outline"
+            onClick={() => {
+              location.hash = "admin-audit";
+            }}
+          >
+            Mở Audit logs
+          </Button>
+        </section>
+      )}
     </div>
   );
 }
 export default function StudioPage({ page }: { page: string }) {
   const hash = useSyncExternalStore(subscribeHash, currentHash);
   const ideaId = new URLSearchParams(hash.split("?")[1] ?? "").get("id") ?? "";
+  const managementParams = new URLSearchParams(hash.split("?")[1] ?? "");
+  const managementTab = [
+    "teams",
+    "stores",
+    "library",
+    "budget",
+    "operations",
+  ].includes(managementParams.get("tab") ?? "")
+    ? managementParams.get("tab")!
+    : "teams";
+  const resourceType = managementParams.get("type");
   const [user, setUser] = useState<AgentUser>();
   const [status, setStatus] = useState<AgentAuthStatus>();
   const [checking, setChecking] = useState(true);
@@ -514,7 +644,7 @@ export default function StudioPage({ page }: { page: string }) {
     };
   }, []);
   useEffect(() => {
-    if (!user) return;
+    if (!user || page.startsWith("admin")) return;
     const controller = new AbortController();
     void studioClient
       .get<StudioBootstrap>("/bootstrap", controller.signal)
@@ -658,15 +788,31 @@ export default function StudioPage({ page }: { page: string }) {
       </main>
     );
   return (
-    <StudioShell user={user} page={page} onLogout={logout}>
-      {error ? (
+    <StudioShell
+      user={user}
+      page={page}
+      onLogout={logout}
+      workbench={
+        page === "studio-new" || (page === "studio-mockups" && !ideaId)
+      }
+    >
+      {page.startsWith("admin") ? (
+        <Suspense fallback={<p role="status">Đang tải quản trị…</p>}>
+          <AdminPage
+            user={user}
+            page={page}
+            onNavigate={(next) => {
+              location.hash = next;
+            }}
+          />
+        </Suspense>
+      ) : error ? (
         <section className="studio-card studio-error" role="alert">
           <h1>Chưa tải được Studio</h1>
           <p>{error}</p>
           <Button onClick={() => setRetry((value) => value + 1)}>
             Thử lại
           </Button>
-          <a href="#agent">Mở dữ liệu & lịch sử cũ</a>
         </section>
       ) : !data ? (
         <p role="status">Đang tải không gian làm việc…</p>
@@ -697,6 +843,13 @@ export default function StudioPage({ page }: { page: string }) {
                 existing={ideaId ? editing : undefined}
               />
             )
+          ) : page === "studio-gallery" ? (
+            <IdeaList
+              data={data}
+              gallery
+              user={user}
+              selectedId={ideaId || undefined}
+            />
           ) : page === "studio-ideas" ? (
             ideaId ? (
               <IdeaDetail key={ideaId} id={ideaId} data={data} user={user} />
@@ -721,7 +874,16 @@ export default function StudioPage({ page }: { page: string }) {
           ) : page === "studio-manage" ? (
             user.role === "admin" ? (
               <StudioManagement
+                key={`${managementTab}:${resourceType}`}
                 data={data}
+                initialTab={managementTab}
+                initialType={
+                  resourceType === "skill" ||
+                  resourceType === "thumbnail" ||
+                  resourceType === "scene"
+                    ? resourceType
+                    : "product"
+                }
                 onRefresh={() => setRetry((value) => value + 1)}
               />
             ) : (
@@ -731,7 +893,7 @@ export default function StudioPage({ page }: { page: string }) {
               </section>
             )
           ) : page === "studio-guide" ? (
-            <StudioGuide />
+            <StudioGuide admin={user.role === "admin"} />
           ) : (
             <IdeaList data={data} dashboard />
           )}

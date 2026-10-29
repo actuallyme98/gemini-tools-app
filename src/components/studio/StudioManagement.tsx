@@ -21,11 +21,15 @@ import { ResourceVersions } from "./ResourceVersions";
 export function StudioManagement({
   data,
   onRefresh,
+  initialTab = "teams",
+  initialType = "product",
 }: {
   data: StudioBootstrap;
   onRefresh: () => void;
+  initialTab?: string;
+  initialType?: StudioResource["type"];
 }) {
-  const [tab, setTab] = useState("teams");
+  const [tab, setTab] = useState(initialTab);
   const [busy, setBusy] = useState(false);
   const [team, setTeam] = useState<StudioTeam | undefined>();
   const [teamName, setTeamName] = useState("");
@@ -35,7 +39,7 @@ export function StudioManagement({
   const [teamId, setTeamId] = useState(data.teams[0]?.id ?? "");
   const [sellerIds, setSellerIds] = useState<string[]>([]);
   const [productIds, setProductIds] = useState<string[]>([]);
-  const [type, setType] = useState<StudioResource["type"]>("product");
+  const [type, setType] = useState<StudioResource["type"]>(initialType);
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
   const [instructions, setInstructions] = useState("");
@@ -91,11 +95,9 @@ export function StudioManagement({
     <div>
       <header className="studio-page-heading">
         <div>
-          <span className="studio-eyebrow">
-            CẤU HÌNH MỘT LẦN, CẢ NHÓM CÙNG DÙNG
-          </span>
+          <span className="studio-eyebrow">TEAM · STORE · LIBRARY</span>
           <h1>Quản lý không gian sáng tạo</h1>
-          <p>Cấp đúng cửa hàng, sản phẩm và bộ hướng dẫn cho từng nhóm.</p>
+          <p>Phân công nhân sự và chuẩn hóa tài nguyên cho nhóm.</p>
         </div>
         <a className="studio-link-button" href="#admin">
           <Settings2 size={17} />

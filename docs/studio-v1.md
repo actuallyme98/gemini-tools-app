@@ -2,11 +2,9 @@
 
 Implementation status and remaining gates: `../gemini-tools-api/docs/studio-v1-progress.md` (sibling repository).
 
-Routes: `/#studio`, `/#studio-ideas`, `/#studio-new`, `/#studio-ideas?id=<idea-id>`, `/#studio-mockups`, `/#studio-outputs`, `/#studio-manage`, `/#studio-guide`. `/#studio-new?id=<idea-id>` reopens an existing draft. Private legacy history stays at `/#agent`.
+Routes: `/#studio`, `/#studio-ideas`, `/#studio-new`, `/#studio-ideas?id=<idea-id>`, `/#studio-mockups`, `/#studio-outputs`, `/#studio-manage`, `/#studio-guide`. `/#studio-new?id=<idea-id>` reopens an existing draft. The chat/tool UI is retired. `/#agent` redirects to Studio. All `/#admin*` routes are authenticated inside the same Studio shell.
 
-`VITE_STUDIO_ENABLED=true` makes Studio the default entry page. It is off by default for gradual rollout; the API also requires `STUDIO_ENABLED=true`. Night dispatch has a separate server-side flag. Do not enable it just to show the interface.
-
-Docker accepts the `VITE_STUDIO_ENABLED` build argument; publishing maps the repository variable `STUDIO_ENABLED` to it, defaulting to false. Changing only the Nginx runtime environment does not change a prebuilt Vite bundle.
+Studio is the only frontend and opens by default. The API requires `STUDIO_ENABLED=true`; night dispatch has a separate server-side flag. The retired frontend build flag is removed. See `studio-redesign.md` for the current layout and validation.
 
 Studio is split into its own shell, API client, idea wizard, detail/review gallery, management and authenticated image components. It reuses company sessions, toast, budget UI, existing UI primitives and provider catalog. It does not mount the legacy chat component behind Studio screens.
 

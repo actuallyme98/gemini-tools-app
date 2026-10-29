@@ -1,3 +1,5 @@
+> Historical backend/chat implementation notes. The chat and tool UI described here has been retired; current routes and UX are documented in studio-v1.md and studio-redesign.md.
+
 # LCG Agent workspace
 
 The app opens the AI Agent workspace by default. `/#agent` opens chat, `/#jobs` lists work, `/#library` manages assets, `/#templates` manages reusable placement templates and `/#settings` configures models. The old tools are grouped under **Công cụ**, with their existing deep links preserved. Fulfillment remains outside this release.

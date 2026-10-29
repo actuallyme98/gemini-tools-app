@@ -28,6 +28,13 @@ import { notifyApiError } from "../../utils/api-error-toast";
 import { StudioImage } from "./StudioImage";
 import { Button } from "../ui/button";
 import { CatalogSelect } from "./CatalogSelect";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "../ui/dialog";
 type Source = {
   assetId: string;
   name: string;
@@ -103,6 +110,7 @@ export function MockupStudio({
   const [recent, setRecent] = useState<StudioPage<Job>>();
   const [page, setPage] = useState(1);
   const [retry, setRetry] = useState(0);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
   const [format, setFormat] = useState<"png" | "jpg">("png");
   const [resolved, setResolved] = useState<Record<string, StudioResource>>({});
@@ -543,16 +551,16 @@ export function MockupStudio({
       </div>
     );
   return (
-    <div className="studio-mockup">
+    <div className="studio-mockup studio-mockup-workspace">
       <header className="studio-page-heading">
         <div>
           <span className="studio-eyebrow">TỪ THIẾT KẾ ĐẾN BỘ ẢNH</span>
           <h1>Tạo mockup</h1>
-          <p>
-            Chọn nguồn, bối cảnh và màu. Agent lưu tiến độ từng ảnh để cả nhóm
-            cùng kiểm tra.
-          </p>
+          <p>Ảnh nguồn → bối cảnh → bộ ảnh. Giữ nguyên thiết kế sản phẩm.</p>
         </div>
+        <Button variant="outline" onClick={() => setHistoryOpen(true)}>
+          Bộ ảnh đã lưu {recent ? `(${recent.total})` : ""}
+        </Button>
       </header>
       {error && (
         <p className="studio-error" role="alert">
@@ -560,7 +568,10 @@ export function MockupStudio({
         </p>
       )}
       <fieldset disabled={busy} className="studio-mockup-form">
-        <section className="studio-card studio-form-grid">
+        <section
+          className="studio-card studio-form-grid studio-mockup-config"
+          aria-label="Thông tin bộ mockup"
+        >
           <label htmlFor="mockup-title">
             Tên bộ ảnh
             <input
@@ -601,259 +612,272 @@ export function MockupStudio({
             readOnly={!!from}
           />
         </section>
-        <section className="studio-card">
-          <h2>1. Ảnh sản phẩm / thiết kế nguồn</h2>
-          <p>
-            Dùng ảnh đã duyệt trong Gallery, hoặc tải ảnh ngoài. Mỗi bộ tối đa
-            12 nguồn.
-          </p>
-          <div className="studio-action-row">
-            <Button
-              variant="outline"
-              onClick={() => studioNavigate("studio-ideas")}
-            >
-              Chọn thiết kế trong Gallery
-            </Button>
-            <label className="studio-upload">
-              <ImagePlus size={22} />
-              Tải ảnh có sẵn
-              <input
-                type="file"
-                accept="image/png,image/jpeg,image/webp"
-                multiple
-                aria-label="Tải ảnh nguồn mockup"
-                onChange={(e) => {
-                  void upload(e.target.files);
-                  e.target.value = "";
-                }}
-              />
-            </label>
-          </div>
-          <div className="studio-gallery">
-            {sources.map((source, index) => (
-              <article className="studio-card" key={source.assetId}>
-                <StudioImage id={source.assetId} name={source.name} />
-                <strong>{source.name}</strong>
-                <p>
-                  {source.sceneIds.length} bối cảnh × {source.colors.length} màu
-                </p>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() =>
-                    setSources((current) =>
-                      current.filter((_, i) => i !== index),
-                    )
-                  }
-                >
-                  <X size={15} />
-                  Bỏ nguồn này
-                </Button>
-                <details>
-                  <summary>Chỉnh riêng nguồn {index + 1}</summary>
-                  {scenes.map((scene) => (
-                    <label className="studio-check" key={scene.id}>
-                      <input
-                        type="checkbox"
-                        checked={source.sceneIds.includes(scene.id)}
-                        onChange={(e) =>
-                          setSources((current) =>
-                            current.map((s, i) =>
-                              i !== index
-                                ? s
-                                : {
-                                    ...s,
-                                    sceneIds: e.target.checked
-                                      ? [...s.sceneIds, scene.id]
-                                      : s.sceneIds.filter(
-                                          (id) => id !== scene.id,
-                                        ),
-                                  },
-                            ),
-                          )
-                        }
-                      />
-                      {scene.name}
-                    </label>
-                  ))}
-                  <label htmlFor={`mockup-colors-${index}`}>
-                    Màu riêng (phân cách dấu phẩy)
-                    <input
-                      id={`mockup-colors-${index}`}
-                      value={source.colors.join(", ")}
-                      onChange={(e) => {
-                        const value = e.target.value
-                          .split(",")
-                          .map((v) => v.trim());
-                        setSources((current) =>
-                          current.map((s, i) =>
-                            i !== index ? s : { ...s, colors: value },
-                          ),
-                        );
-                      }}
-                    />
-                  </label>
-                </details>
-              </article>
-            ))}
-          </div>
-        </section>
-        <section className="studio-card">
-          <h2>2. Bối cảnh & màu</h2>
-          <CatalogSelect
-            teamId={shop?.teamId ?? ""}
-            type="scene"
-            value=""
-            label="Thêm bối cảnh từ thư viện"
-            onResolve={resolveResource}
-            onChange={(id) => {
-              if (id)
-                setScenes((current) =>
-                  current.includes(id) ? current : [...current, id],
-                );
-            }}
-          />
-          <p>
-            Ảnh bối cảnh là ảnh đích: giữ bố cục và thay sản phẩm/thiết kế nguồn
-            vào đó.
-          </p>
-          <div className="studio-gallery">
-            {scenes.map((scene) => (
-              <label className="studio-card studio-scene-choice" key={scene.id}>
-                <StudioImage id={scene.assetId ?? ""} name={scene.name} />
-                <span className="studio-check">
-                  <input
-                    type="checkbox"
-                    checked={sceneIds.includes(scene.id)}
-                    aria-label={scene.name}
-                    onChange={(e) =>
-                      setScenes((current) =>
-                        e.target.checked
-                          ? [...current, scene.id]
-                          : current.filter((id) => id !== scene.id),
+        <div className="studio-mockup-columns">
+          <section className="studio-card studio-mockup-source">
+            <h2>1. Ảnh sản phẩm / thiết kế nguồn</h2>
+            <p>Từ Gallery hoặc upload · tối đa 12 ảnh.</p>
+            <div className="studio-action-row">
+              <Button
+                variant="outline"
+                onClick={() => studioNavigate("studio-gallery")}
+              >
+                Chọn thiết kế trong Gallery
+              </Button>
+              <label className="studio-upload">
+                <ImagePlus size={22} />
+                Tải ảnh có sẵn
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  multiple
+                  aria-label="Tải ảnh nguồn mockup"
+                  className="sr-only"
+                  onChange={(e) => {
+                    void upload(e.target.files);
+                    e.target.value = "";
+                  }}
+                />
+              </label>
+            </div>
+            <div className="studio-gallery">
+              {sources.map((source, index) => (
+                <article className="studio-card" key={source.assetId}>
+                  <StudioImage id={source.assetId} name={source.name} />
+                  <strong>{source.name}</strong>
+                  <p>
+                    {source.sceneIds.length} bối cảnh × {source.colors.length}{" "}
+                    màu
+                  </p>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() =>
+                      setSources((current) =>
+                        current.filter((_, i) => i !== index),
                       )
                     }
-                  />
-                  {scene.name}
-                </span>
-              </label>
-            ))}
-          </div>
-          {!scenes.length && (
-            <p className="studio-note">
-              Chưa có bối cảnh được duyệt cho Team. Nhờ quản trị viên thêm tại
-              Quản lý → Thư viện.
-            </p>
-          )}
-          <label htmlFor="mockup-colors">
-            Màu vật liệu sản phẩm (tùy chọn)
-            <input
-              id="mockup-colors"
-              placeholder="Ví dụ: trắng, đen. Để trống giữ màu gốc."
-              value={colors}
-              onChange={(e) => setColors(e.target.value)}
+                  >
+                    <X size={15} />
+                    Bỏ nguồn này
+                  </Button>
+                  <details>
+                    <summary>Chỉnh riêng nguồn {index + 1}</summary>
+                    {scenes.map((scene) => (
+                      <label className="studio-check" key={scene.id}>
+                        <input
+                          type="checkbox"
+                          checked={source.sceneIds.includes(scene.id)}
+                          onChange={(e) =>
+                            setSources((current) =>
+                              current.map((s, i) =>
+                                i !== index
+                                  ? s
+                                  : {
+                                      ...s,
+                                      sceneIds: e.target.checked
+                                        ? [...s.sceneIds, scene.id]
+                                        : s.sceneIds.filter(
+                                            (id) => id !== scene.id,
+                                          ),
+                                    },
+                              ),
+                            )
+                          }
+                        />
+                        {scene.name}
+                      </label>
+                    ))}
+                    <label htmlFor={`mockup-colors-${index}`}>
+                      Màu riêng (phân cách dấu phẩy)
+                      <input
+                        id={`mockup-colors-${index}`}
+                        value={source.colors.join(", ")}
+                        onChange={(e) => {
+                          const value = e.target.value
+                            .split(",")
+                            .map((v) => v.trim());
+                          setSources((current) =>
+                            current.map((s, i) =>
+                              i !== index ? s : { ...s, colors: value },
+                            ),
+                          );
+                        }}
+                      />
+                    </label>
+                  </details>
+                </article>
+              ))}
+            </div>
+          </section>
+          <section className="studio-card studio-mockup-scenes">
+            <h2>2. Bối cảnh & màu</h2>
+            <CatalogSelect
+              teamId={shop?.teamId ?? ""}
+              type="scene"
+              value=""
+              label="Thêm bối cảnh từ thư viện"
+              onResolve={resolveResource}
+              onChange={(id) => {
+                if (id)
+                  setScenes((current) =>
+                    current.includes(id) ? current : [...current, id],
+                  );
+              }}
             />
-          </label>
-          <Button
-            variant="outline"
-            onClick={applyAll}
-            disabled={!sources.length || !sceneIds.length}
-          >
-            Áp dụng cho tất cả nguồn
-          </Button>
-        </section>
-        <section className="studio-card">
-          <h2>3. Kiểm tra & tạo bộ ảnh</h2>
-          <label htmlFor="mockup-instructions">
-            Yêu cầu bổ sung
-            <textarea
-              id="mockup-instructions"
-              maxLength={8000}
-              rows={3}
-              value={instructions}
-              onChange={(e) => setInstructions(e.target.value)}
-            />
-          </label>
-          <details>
-            <summary>Tùy chọn AI</summary>
-            <label htmlFor="mockup-model">
-              Model cho bộ ảnh
-              <select
-                id="mockup-model"
-                value={model || ai.imageModel || ""}
-                onChange={(e) => setModel(e.target.value)}
-              >
-                <option value="">Chọn model</option>
-                {ai.imageModels?.models.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.name}
-                  </option>
-                ))}
-              </select>
+            <p>Giữ bối cảnh, thay sản phẩm từ ảnh nguồn.</p>
+            <div className="studio-gallery">
+              {scenes.map((scene) => (
+                <label
+                  className="studio-card studio-scene-choice"
+                  key={scene.id}
+                >
+                  <StudioImage id={scene.assetId ?? ""} name={scene.name} />
+                  <span className="studio-check">
+                    <input
+                      type="checkbox"
+                      checked={sceneIds.includes(scene.id)}
+                      aria-label={scene.name}
+                      onChange={(e) =>
+                        setScenes((current) =>
+                          e.target.checked
+                            ? [...current, scene.id]
+                            : current.filter((id) => id !== scene.id),
+                        )
+                      }
+                    />
+                    {scene.name}
+                  </span>
+                </label>
+              ))}
+            </div>
+            {!scenes.length && (
+              <p className="studio-note">
+                Chưa có bối cảnh được duyệt cho Team. Nhờ quản trị viên thêm tại
+                Quản lý → Thư viện.
+              </p>
+            )}
+            <label htmlFor="mockup-colors">
+              Màu vật liệu sản phẩm (tùy chọn)
+              <input
+                id="mockup-colors"
+                placeholder="Ví dụ: trắng, đen. Để trống giữ màu gốc."
+                value={colors}
+                onChange={(e) => setColors(e.target.value)}
+              />
             </label>
-          </details>
-          <p>
-            <strong>{count} ảnh sẽ được tạo</strong> từ {sources.length} nguồn.
-            Tối đa 100 ảnh mỗi bộ.
-          </p>
-          <p className="studio-note">
-            Mỗi tổ hợp là một request có thể phát sinh phí. Hệ thống kiểm tra
-            hạn mức cá nhân/Team trước từng request. Ảnh hoàn tất cần được bạn
-            duyệt; AI không đảm bảo giữ đúng mọi chi tiết.
-          </p>
-          <Button
-            disabled={
-              !title.trim() ||
-              !productId ||
-              !sources.length ||
-              sources.some((s) => !s.sceneIds.length) ||
-              count < 1 ||
-              count > 100 ||
-              !(model || ai.imageModel) ||
-              ai.imageModelsLoading
-            }
-            onClick={() => void create()}
-          >
-            <Plus size={18} />
-            Tạo {count} ảnh mockup
-          </Button>
-        </section>
-      </fieldset>
-      <section className="studio-gallery-section">
-        <h2>Các bộ mockup đã lưu</h2>
-        {recent?.items.map((job) => (
-          <button
-            className="studio-list-item studio-card"
-            key={job.id}
-            onClick={() => studioNavigate("studio-mockups", job.id)}
-          >
-            <strong>{job.title}</strong>
-            <span>
-              {job.count} ảnh · {studioLabels[job.state]}
-            </span>
-          </button>
-        ))}
-        {recent && !recent.total && (
-          <p>Chưa có bộ mockup trong phạm vi bạn được xem.</p>
-        )}
-        <div className="studio-action-row">
-          <Button
-            variant="outline"
-            disabled={page === 1}
-            onClick={() => setPage((v) => v - 1)}
-          >
-            Trang trước
-          </Button>
-          <span>Trang {page}</span>
-          <Button
-            variant="outline"
-            disabled={!recent || page * recent.limit >= recent.total}
-            onClick={() => setPage((v) => v + 1)}
-          >
-            Trang sau
-          </Button>
+            <Button
+              variant="outline"
+              onClick={applyAll}
+              disabled={!sources.length || !sceneIds.length}
+            >
+              Áp dụng cho tất cả nguồn
+            </Button>
+          </section>
+          <section className="studio-card studio-mockup-submit">
+            <h2>3. Kiểm tra & tạo bộ ảnh</h2>
+            <label htmlFor="mockup-instructions">
+              Yêu cầu bổ sung
+              <textarea
+                id="mockup-instructions"
+                maxLength={8000}
+                rows={3}
+                value={instructions}
+                onChange={(e) => setInstructions(e.target.value)}
+              />
+            </label>
+            <details>
+              <summary>Tùy chọn AI</summary>
+              <label htmlFor="mockup-model">
+                Model cho bộ ảnh
+                <select
+                  id="mockup-model"
+                  value={model || ai.imageModel || ""}
+                  onChange={(e) => setModel(e.target.value)}
+                >
+                  <option value="">Chọn model</option>
+                  {ai.imageModels?.models.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </details>
+            <p>
+              <strong>{count} ảnh sẽ được tạo</strong> từ {sources.length}{" "}
+              nguồn. Tối đa 100 ảnh mỗi bộ.
+            </p>
+            <details>
+              <summary>Chi phí & kiểm tra ảnh</summary>
+              <p className="studio-note">
+                Mỗi tổ hợp là một request tính phí, trong hạn mức cá nhân/Team.
+                Kiểm tra thiết kế, chữ và watermark trước khi duyệt.
+              </p>
+            </details>
+            <Button
+              disabled={
+                !title.trim() ||
+                !productId ||
+                !sources.length ||
+                sources.some((s) => !s.sceneIds.length) ||
+                count < 1 ||
+                count > 100 ||
+                !(model || ai.imageModel) ||
+                ai.imageModelsLoading
+              }
+              onClick={() => void create()}
+            >
+              <Plus size={18} />
+              Tạo {count} ảnh mockup
+            </Button>
+          </section>
         </div>
-      </section>
+      </fieldset>
+      <Dialog open={historyOpen} onOpenChange={setHistoryOpen}>
+        <DialogContent className="studio-history-dialog">
+          <DialogHeader>
+            <DialogTitle>Bộ ảnh mockup đã lưu</DialogTitle>
+            <DialogDescription>
+              Mở bộ ảnh để xem tiến độ, duyệt và tải kết quả.
+            </DialogDescription>
+          </DialogHeader>
+          <section className="studio-gallery-section">
+            <h2>Các bộ mockup đã lưu</h2>
+            {recent?.items.map((job) => (
+              <button
+                className="studio-list-item studio-card"
+                key={job.id}
+                onClick={() => studioNavigate("studio-mockups", job.id)}
+              >
+                <strong>{job.title}</strong>
+                <span>
+                  {job.count} ảnh · {studioLabels[job.state]}
+                </span>
+              </button>
+            ))}
+            {recent && !recent.total && (
+              <p>Chưa có bộ mockup trong phạm vi bạn được xem.</p>
+            )}
+            <div className="studio-action-row">
+              <Button
+                variant="outline"
+                disabled={page === 1}
+                onClick={() => setPage((v) => v - 1)}
+              >
+                Trang trước
+              </Button>
+              <span>Trang {page}</span>
+              <Button
+                variant="outline"
+                disabled={!recent || page * recent.limit >= recent.total}
+                onClick={() => setPage((v) => v + 1)}
+              >
+                Trang sau
+              </Button>
+            </div>
+          </section>
+        </DialogContent>
+      </Dialog>
       {busy && (
         <p role="status">
           <Loader2 className="animate-spin" size={18} />
