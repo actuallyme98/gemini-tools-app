@@ -16,7 +16,12 @@ const image = Buffer.from(
 );
 async function setup(
   page: Page,
-  options: { login?: boolean; leader?: boolean; admin?: boolean } = {},
+  options: {
+    login?: boolean;
+    leader?: boolean;
+    admin?: boolean;
+    unconfigured?: boolean;
+  } = {},
 ) {
   const user = {
     id: randomUUID(),
@@ -407,9 +412,13 @@ async function setup(
     if (path === "/api/agent/studio/bootstrap")
       return route.fulfill({
         json: {
-          teams,
-          stores,
-          resources: limitBootstrap ? resources.slice(0, 3) : resources,
+          teams: options.unconfigured ? [] : teams,
+          stores: options.unconfigured ? [] : stores,
+          resources: options.unconfigured
+            ? []
+            : limitBootstrap
+              ? resources.slice(0, 3)
+              : resources,
           users: [{ id: user.id, email: user.email, disabled: false }],
           nextNight: "2026-10-28T15:00:00.000Z",
           schedule: schedule(),
@@ -952,6 +961,132 @@ test("employees and Team Leaders cannot choose an automatic schedule", async ({
   ).toBeVisible();
 });
 
+test("unconfigured admins get a setup path instead of blocked creation controls", async ({
+  page,
+}) => {
+  const fixture = await setup(page, { admin: true, unconfigured: true });
+  await page.goto("/");
+  const setupGuide = page.getByRole("region", {
+    name: "Thiết lập ban đầu",
+    exact: true,
+  });
+  await expect(
+    setupGuide.getByRole("link", { name: /Tạo nhóm/ }),
+  ).toBeVisible();
+  await setupGuide.getByRole("link", { name: /Tạo nhóm/ }).click();
+  await expect(page).toHaveURL(/\/manage\/teams$/);
+  await page.goto("/manage/library?type=skill");
+  await expect(
+    page.getByRole("button", { name: "Thêm tài nguyên", exact: true }),
+  ).toBeDisabled();
+  await expect(
+    page.getByText(
+      "Tài nguyên cần thuộc một nhóm. Tạo nhóm để bật chức năng thêm vào thư viện.",
+      { exact: true },
+    ),
+  ).toBeVisible();
+  await page
+    .getByRole("link", { name: "Tạo nhóm đầu tiên →", exact: true })
+    .click();
+  await expect(page).toHaveURL(/\/manage\/teams$/);
+  await page.goto("/mockups");
+  await expect(
+    page.getByRole("heading", { name: "Tạo mockup", exact: true }),
+  ).toBeVisible();
+  await expect(page.getByRole("link", { name: /Thêm sản phẩm/ })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "AI gợi ý nền", exact: true }),
+  ).toHaveCount(0);
+  await page.screenshot({
+    path: "test-results/redesign-setup.png",
+    fullPage: true,
+  });
+  expect(fixture.errors).toEqual([]);
+});
+
+test("employees without Stores see access guidance and cannot reach admin setup actions", async ({
+  page,
+}) => {
+  const fixture = await setup(page, { unconfigured: true });
+  await page.goto("/mockups");
+  await expect(
+    page.getByRole("heading", {
+      name: "Chờ cấp không gian làm việc",
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(page.getByRole("link", { name: /Tạo nhóm/ })).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Thư viện & nhóm", exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "AI gợi ý nền", exact: true }),
+  ).toHaveCount(0);
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+  expect(fixture.errors).toEqual([]);
+});
+
+test("mockup explains disabled AI actions and uploading before choosing a Store never locks the picker", async ({
+  page,
+}) => {
+  const fixture = await setup(page);
+  const scene = fixture.addMockupScene();
+  await page.goto("/mockups");
+  const store = page.getByRole("combobox", { name: "Cửa hàng", exact: true });
+  await chooseOption(page, store, { label: "Chọn cửa hàng" });
+  await page.getByLabel("Tải ảnh nguồn mockup").setInputFiles({
+    name: "ornament.png",
+    mimeType: "image/png",
+    buffer: image,
+  });
+  await page.getByRole("button", { name: "AI đổi nền", exact: true }).click();
+  const hint = page.locator("#background-generation-reason");
+  await expect(hint).toContainText("Chọn cửa hàng ở đầu trang");
+  const generate = page.getByRole("button", {
+    name: "AI gợi ý nền",
+    exact: true,
+  });
+  await expect(generate).toBeDisabled();
+  await expect(store).toBeEnabled();
+  await hint
+    .getByRole("button", { name: "Chọn cửa hàng", exact: true })
+    .click();
+  await expect(store).toBeFocused();
+  await chooseOption(page, store, fixture.ids.store);
+  await expect(hint).toContainText("Chọn sản phẩm ở đầu trang");
+  await hint
+    .getByRole("button", { name: "Chọn sản phẩm", exact: true })
+    .click();
+  const product = page.getByRole("combobox", { name: "Sản phẩm", exact: true });
+  await expect(product).toBeFocused();
+  await chooseOption(page, product, fixture.ids.product);
+  await expect(generate).toBeEnabled();
+  await page.getByRole("button", { name: "Mẫu Etsy", exact: true }).click();
+  await page
+    .getByRole("checkbox", { name: scene.name, exact: true })
+    .last()
+    .check();
+  await page
+    .getByRole("button", { name: "Áp dụng cho tất cả nguồn", exact: true })
+    .click();
+  await expect(
+    page.getByRole("button", { name: "Tạo 1 ảnh mockup", exact: true }),
+  ).toBeEnabled();
+  await chooseOption(page, store, { label: "Chọn cửa hàng" });
+  await expect(
+    page.getByRole("button", { name: "Tạo 0 ảnh mockup", exact: true }),
+  ).toBeDisabled();
+  await expect(
+    page.getByText("0 bối cảnh × 1 màu", { exact: true }),
+  ).toBeVisible();
+  expect(fixture.errors).toEqual([]);
+});
+
 test("new shell owns admin routes and retired links never mount the chat workspace", async ({
   page,
 }) => {
@@ -965,7 +1100,12 @@ test("new shell owns admin routes and retired links never mount the chat workspa
     page.locator(".agent-application,.workspace-shell,.agent-composer"),
   ).toHaveCount(0);
   await page
-    .getByRole("button", { name: "Thumbnail Library", exact: true })
+    .getByRole("button", { name: "Thư viện & nhóm", exact: true })
+    .click();
+  await page.getByRole("button", { name: "Thư viện", exact: true }).click();
+  await page
+    .getByRole("group", { name: "Loại tài nguyên", exact: true })
+    .getByRole("button", { name: "Mẫu ảnh chính", exact: true })
     .click();
   await expect(page).toHaveURL(/\/manage\/library\?type=thumbnail$/);
   await expect(
@@ -1104,6 +1244,21 @@ test("Studio is protected at the root and does not expose navigation before logi
   await expect(
     page.getByRole("navigation", { name: "Điều hướng Studio" }),
   ).toHaveCount(0);
+  await page.screenshot({
+    path: "test-results/redesign-login-desktop.png",
+    fullPage: true,
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(
+    page.getByRole("button", { name: "Đăng nhập", exact: true }),
+  ).toBeVisible();
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth),
+  ).toBeLessThanOrEqual(390);
+  await page.screenshot({
+    path: "test-results/redesign-login-mobile.png",
+    fullPage: true,
+  });
   expect(fixture.errors).toEqual([]);
 });
 test("employee completes the four-step idea flow with distinct source/master and sees approval state", async ({

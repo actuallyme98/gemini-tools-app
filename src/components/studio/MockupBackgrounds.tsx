@@ -5,6 +5,7 @@ import { studioClient } from "../../services/studio.service";
 import { notifyApiError } from "../../utils/api-error-toast";
 import { Button } from "../ui/button";
 import { StudioSelect } from "../ui/StudioSelect";
+import { StudioNotice } from "./StudioNotice";
 export type MockupBackground = { id: string; name: string; prompt: string };
 export function MockupBackgrounds({
   storeId,
@@ -34,8 +35,17 @@ export function MockupBackgrounds({
   const controller = useRef<AbortController | null>(null);
   useEffect(() => () => controller.current?.abort(), []);
   const source = sources.find((s) => s.assetId === sourceId) ?? sources[0];
+  const reason = !storeId
+    ? "Chọn cửa hàng ở đầu trang để sử dụng hạn mức đúng nhóm."
+    : !productId
+      ? "Chọn sản phẩm ở đầu trang để AI gợi ý nền phù hợp."
+      : !source
+        ? "Thêm ảnh nguồn ở bước 1 để AI phân tích."
+        : values.length + count > 12
+          ? "Tối đa 12 nền. Giảm số gợi ý hoặc xóa bớt nền đã có."
+          : "";
   async function generate() {
-    if (!source || busy || values.length + count > 12) return;
+    if (!source || busy || reason) return;
     const abort = new AbortController();
     controller.current = abort;
     setGenerating(true);
@@ -127,7 +137,8 @@ export function MockupBackgrounds({
         <Button
           variant="outline"
           onClick={() => void generate()}
-          disabled={busy || !source || !productId || values.length + count > 12}
+          disabled={busy || !!reason}
+          aria-describedby={reason ? "background-generation-reason" : undefined}
         >
           {generating ? (
             <Loader2 className="animate-spin" size={16} />
@@ -137,8 +148,30 @@ export function MockupBackgrounds({
           {generating ? "Đang gợi ý…" : "AI gợi ý nền"}
         </Button>
       </div>
-      {!sources.length && (
-        <small>Thêm ảnh nguồn ở bước 1 để AI gợi ý nền phù hợp.</small>
+      {reason && (
+        <StudioNotice
+          id="background-generation-reason"
+          actions={
+            (!productId || !storeId) && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() =>
+                  document
+                    .getElementById(
+                      !storeId ? "mockup-store" : "mockup-product-choice",
+                    )
+                    ?.focus()
+                }
+              >
+                {!storeId ? "Chọn cửa hàng" : "Chọn sản phẩm"}
+              </Button>
+            )
+          }
+        >
+          {reason}
+        </StudioNotice>
       )}
       <small className="studio-muted">
         Phân tích ảnh và gợi ý prompt có sử dụng hạn mức AI; chưa tạo ảnh.

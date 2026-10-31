@@ -48,6 +48,9 @@ import { Button } from "../components/ui/button";
 import "../styles/studio.css";
 import { useLocation, useParams } from "react-router";
 import { StudioSkeleton } from "../components/studio/StudioSkeleton";
+import { StudioSetup } from "../components/studio/StudioSetup";
+import { StudioHomeActions } from "../components/studio/StudioHomeActions";
+import "../styles/studio-experience.css";
 
 const AdminPage = lazy(() => import("./AdminPage"));
 
@@ -201,20 +204,18 @@ function IdeaList({
               Tạo ý tưởng
             </Button>
           </header>
-          <article className="studio-note">
+          <StudioSetup data={data} admin={user?.role === "admin"} />
+          <article className="studio-schedule-summary">
             <Clock3 size={23} aria-hidden="true" />
             <strong>
               {data.schedulerEnabled
                 ? `Lịch tự động lúc ${data.schedule?.dailyTime ?? "22:00"}`
                 : "Lịch tự động chưa bật"}
             </strong>
-            <p>
-              {data.schedulerEnabled
-                ? "Một lần chọn chỉ chạy một lần. Các ảnh đã hoàn tất được giữ lại."
-                : "Quản trị cần bật và kiểm chứng lịch trước khi nhận lô chạy đêm."}
-            </p>
+
             <span>Giờ Việt Nam · UTC+7</span>
           </article>
+          <StudioHomeActions admin={user?.role === "admin"} />
           <StudioDashboard
             onPending={() => {
               setFilter("pending");
@@ -496,7 +497,7 @@ function StudioGuide({ admin = false }: { admin?: boolean }) {
         </div>
       </header>
       <StudioGuideVisuals />
-      <div className="studio-guide-grid">
+      <div className="studio-guide-grid studio-guide-steps">
         {[
           [
             "01",
@@ -702,8 +703,11 @@ export default function StudioPage({ page }: { page: string }) {
     return (
       <main className="studio-login-root">
         <div className="studio-login-story">
-          <span className="studio-eyebrow">LCG CREATIVE STUDIO</span>
-          <Sparkles size={42} aria-hidden="true" />
+          <span className="studio-login-mark">
+            <Sparkles size={24} aria-hidden="true" />
+            LCG STUDIO
+          </span>
+
           <h1>
             Ý tưởng của bạn.
             <br />
@@ -828,16 +832,7 @@ export default function StudioPage({ page }: { page: string }) {
             !data.stores.length ? (
               <section className="studio-card studio-empty">
                 <h1>Chưa có cửa hàng được cấp</h1>
-                <p>
-                  {user.role === "admin"
-                    ? "Tạo nhóm, sản phẩm, bộ hướng dẫn và cửa hàng trong mục Quản lý trước khi tạo ý tưởng."
-                    : "Liên hệ Leader hoặc quản trị viên để được cấp cửa hàng."}
-                </p>
-                {user.role === "admin" && (
-                  <Button onClick={() => studioNavigate("studio-manage")}>
-                    Thiết lập không gian
-                  </Button>
-                )}
+                <StudioSetup data={data} admin={user.role === "admin"} />
               </section>
             ) : ideaId && editing?.id !== ideaId ? (
               <StudioSkeleton variant="form" />
@@ -866,6 +861,7 @@ export default function StudioPage({ page }: { page: string }) {
             <MockupStudio
               key={location.pathname + location.search}
               data={data}
+              admin={user.role === "admin"}
               id={ideaId || undefined}
               from={managementParams.get("from") || undefined}
               selection={managementParams.get("selected") || undefined}
@@ -896,7 +892,7 @@ export default function StudioPage({ page }: { page: string }) {
           ) : page === "studio-guide" ? (
             <StudioGuide admin={user.role === "admin"} />
           ) : (
-            <IdeaList data={data} dashboard />
+            <IdeaList data={data} user={user} dashboard />
           )}
         </Suspense>
       )}

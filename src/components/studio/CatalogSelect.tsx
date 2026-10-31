@@ -16,8 +16,10 @@ export function CatalogSelect({
   onChange,
   onResolve,
   readOnly = false,
+  controlId,
 }: {
   teamId: string;
+  controlId?: string;
   storeId?: string;
   type: StudioResource["type"];
   value: string;
@@ -26,7 +28,8 @@ export function CatalogSelect({
   onResolve: (resource: StudioResource) => void;
   readOnly?: boolean;
 }) {
-  const id = useId(),
+  const generatedId = useId();
+  const id = controlId ?? generatedId,
     [query, setQuery] = useState(""),
     [page, setPage] = useState(1),
     [retry, setRetry] = useState(0);
@@ -126,7 +129,17 @@ export function CatalogSelect({
           ))}
         </StudioSelect>
       </label>
-      {!readOnly && (
+      {!teamId && (
+        <small className="studio-field-help">
+          Chọn cửa hàng để tải danh mục.
+        </small>
+      )}
+      {teamId && !loading && !options.length && !error && (
+        <small className="studio-field-help">
+          Chưa có mục phù hợp. Nhờ quản trị kiểm tra thư viện và quyền cửa hàng.
+        </small>
+      )}
+      {!readOnly && teamId && (
         <details>
           <summary>Tìm trong thư viện</summary>
           <label htmlFor={`${id}-search`}>

@@ -1,4 +1,6 @@
 import { StudioSkeleton } from "./StudioSkeleton";
+import { StudioSetup } from "./StudioSetup";
+import { StudioNotice } from "./StudioNotice";
 import { StudioSelect } from "../ui/StudioSelect";
 import { useStudioNavigate } from "../../navigation";
 import { useCallback, useContext, useEffect, useState } from "react";
@@ -96,11 +98,13 @@ const parseColors = (value: string) => [
 
 export function MockupStudio({
   data,
+  admin = false,
   id,
   from,
   selection,
 }: {
   data: StudioBootstrap;
+  admin?: boolean;
   id?: string;
   from?: string;
   selection?: string;
@@ -300,8 +304,29 @@ export function MockupStudio({
     );
     toast.success("Đã áp dụng bối cảnh và màu cho tất cả ảnh nguồn.");
   }
+  const createReason = !storeId
+    ? "Chọn cửa hàng trước khi tạo bộ ảnh."
+    : !productId
+      ? "Chọn sản phẩm để xác định đúng thiết kế cần giữ."
+      : !sources.length
+        ? "Thêm ít nhất một ảnh nguồn ở bước 1."
+        : sources.some((s) => !s.sceneIds.length)
+          ? "Chọn bối cảnh rồi bấm Áp dụng cho tất cả nguồn."
+          : invalidBackground
+            ? "Bổ sung tên và prompt cho các nền đang dùng."
+            : count < 1
+              ? "Chọn ít nhất một bối cảnh đang có trong thư viện."
+              : count > 100
+                ? "Bộ ảnh vượt 100 kết quả. Giảm nguồn, bối cảnh hoặc màu."
+                : ai.imageModelsLoading
+                  ? "Đang tải danh sách model ảnh…"
+                  : !(model || ai.imageModel)
+                    ? "Chọn model ảnh trong Tùy chọn AI."
+                    : !title.trim()
+                      ? "Nhập tên bộ ảnh."
+                      : "";
   async function create() {
-    if (busy) return;
+    if (busy || createReason) return;
     setBusy(true);
     setError("");
     try {
@@ -613,6 +638,29 @@ export function MockupStudio({
         )}
       </div>
     );
+  if (!data.stores.length)
+    return (
+      <div className="studio-empty-workflow">
+        <header className="studio-page-heading">
+          <div>
+            <span className="studio-eyebrow">MOCKUP STUDIO</span>
+            <h1>Tạo mockup</h1>
+            <p>Thiết kế của bạn, trong bối cảnh mới.</p>
+          </div>
+        </header>
+        <StudioSetup data={data} admin={admin} />
+        <div className="studio-feature-explainer">
+          <Images size={28} />
+          <div>
+            <h2>Hai cách tạo bộ ảnh</h2>
+            <p>
+              Chọn ảnh mẫu Etsy để ghép sản phẩm vào cảnh có sẵn, hoặc dùng AI
+              gợi ý nền mới. Bắt đầu sau khi được cấp cửa hàng.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
   return (
     <div className="studio-mockup studio-mockup-workspace">
       <header className="studio-page-heading">
@@ -650,11 +698,15 @@ export function MockupStudio({
               id="mockup-store"
               kind="store"
               value={storeId}
-              disabled={!!from || sources.length > 0}
+              disabled={!!from}
               onChange={(e) => {
                 setStore(e.target.value);
                 setProduct("");
                 setScenes([]);
+                setSources((current) =>
+                  current.map((source) => ({ ...source, sceneIds: [] })),
+                );
+                setResolved({});
               }}
             >
               <option value="">Chọn cửa hàng</option>
@@ -671,6 +723,7 @@ export function MockupStudio({
             type="product"
             value={productId}
             label="Sản phẩm"
+            controlId="mockup-product-choice"
             onChange={setProduct}
             onResolve={resolveResource}
             readOnly={!!from}
@@ -885,68 +938,93 @@ export function MockupStudio({
           </section>
           <section className="studio-card studio-mockup-submit">
             <h2>3. Kiểm tra & tạo bộ ảnh</h2>
-            <label htmlFor="mockup-instructions">
-              Yêu cầu bổ sung
-              <textarea
-                id="mockup-instructions"
-                maxLength={8000}
-                rows={3}
-                value={instructions}
-                onChange={(e) => setInstructions(e.target.value)}
-              />
-            </label>
-            <details>
-              <summary>Tùy chọn AI</summary>
-              <label htmlFor="mockup-model">
-                Model cho bộ ảnh
-                <StudioSelect
-                  id="mockup-model"
-                  kind="model"
-                  value={model || ai.imageModel || ""}
-                  onChange={(e) => setModel(e.target.value)}
-                >
-                  <option value="">Chọn model</option>
-                  {ai.imageModels?.models.map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.name}
-                    </option>
-                  ))}
-                </StudioSelect>
+            <div className="studio-mockup-review-controls">
+              <label htmlFor="mockup-instructions">
+                Yêu cầu bổ sung
+                <textarea
+                  id="mockup-instructions"
+                  maxLength={8000}
+                  rows={3}
+                  value={instructions}
+                  onChange={(e) => setInstructions(e.target.value)}
+                />
               </label>
-            </details>
-            <p>
-              <strong>{count} ảnh sẽ được tạo</strong> từ {sources.length}{" "}
-              nguồn. Tối đa 100 ảnh mỗi bộ.
-            </p>
-            <details>
-              <summary>Chi phí & kiểm tra ảnh</summary>
-              <p className="studio-note">
-                Mỗi tổ hợp là một request tính phí, trong hạn mức cá nhân/Team.
-                Kiểm tra thiết kế, chữ và watermark trước khi duyệt.
+              <details>
+                <summary>Tùy chọn AI</summary>
+                <label htmlFor="mockup-model">
+                  Model cho bộ ảnh
+                  <StudioSelect
+                    id="mockup-model"
+                    kind="model"
+                    value={model || ai.imageModel || ""}
+                    onChange={(e) => setModel(e.target.value)}
+                  >
+                    <option value="">Chọn model</option>
+                    {ai.imageModels?.models.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.name}
+                      </option>
+                    ))}
+                  </StudioSelect>
+                </label>
+              </details>
+              <p>
+                <strong>{count} ảnh sẽ được tạo</strong> từ {sources.length}{" "}
+                nguồn. Tối đa 100 ảnh mỗi bộ.
               </p>
-            </details>
-            {invalidBackground && (
-              <p className="studio-note">
-                Nhập tên và prompt ít nhất 10 ký tự cho các nền đang dùng.
-              </p>
-            )}
-            <Button
-              disabled={
-                !title.trim() ||
-                !productId ||
-                !sources.length ||
-                sources.some((s) => !s.sceneIds.length) ||
-                invalidBackground ||
-                count < 1 ||
-                count > 100 ||
-                !(model || ai.imageModel) ||
-                ai.imageModelsLoading
-              }
-              onClick={() => void create()}
-            >
-              <Plus size={18} />
-              Tạo {count} ảnh mockup
-            </Button>
+              <details>
+                <summary>Chi phí & kiểm tra ảnh</summary>
+                <p className="studio-note">
+                  Mỗi tổ hợp là một request tính phí, trong hạn mức cá
+                  nhân/Team. Kiểm tra thiết kế, chữ và watermark trước khi
+                  duyệt.
+                </p>
+              </details>
+              {invalidBackground && (
+                <p className="studio-note">
+                  Nhập tên và prompt ít nhất 10 ký tự cho các nền đang dùng.
+                </p>
+              )}
+            </div>
+            <footer className="studio-mockup-actions">
+              <Button
+                disabled={busy || !!createReason}
+                aria-describedby={
+                  createReason ? "mockup-create-reason" : undefined
+                }
+                onClick={() => void create()}
+              >
+                <Plus size={18} />
+                Tạo {count} ảnh mockup
+              </Button>
+              {createReason && (
+                <StudioNotice
+                  id="mockup-create-reason"
+                  actions={
+                    !productId || !storeId ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() =>
+                          document
+                            .getElementById(
+                              !storeId
+                                ? "mockup-store"
+                                : "mockup-product-choice",
+                            )
+                            ?.focus()
+                        }
+                      >
+                        {!storeId ? "Chọn cửa hàng" : "Chọn sản phẩm"}
+                      </Button>
+                    ) : undefined
+                  }
+                >
+                  {createReason}
+                </StudioNotice>
+              )}
+            </footer>
           </section>
         </div>
       </fieldset>

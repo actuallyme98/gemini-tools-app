@@ -709,6 +709,19 @@ test("admin dashboard shows real metrics, accessible tabs and works at mobile wi
     JSON.stringify(layout),
   ).toBe(true);
   const region = page.getByRole("region", { name: "Danh sách tài khoản" });
+  await expect(
+    region.locator(".admin-account-table tbody tr").first(),
+  ).toBeVisible();
+  const firstAccount = await region
+    .locator(".admin-account-table tbody tr")
+    .first()
+    .boundingBox();
+  expect(firstAccount!.x).toBeGreaterThanOrEqual(0);
+  expect(firstAccount!.x + firstAccount!.width).toBeLessThanOrEqual(375);
+  await page.screenshot({
+    path: test.info().outputPath("redesign-accounts-mobile.png"),
+    fullPage: true,
+  });
   await region.focus();
   await region.press("ArrowRight");
   expect(fixture.errors).toEqual([]);

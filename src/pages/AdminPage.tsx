@@ -891,7 +891,7 @@ function Accounts({ user }: { user: AgentUser }) {
               aria-label="Danh sách tài khoản"
               tabIndex={0}
             >
-              <table className="admin-table">
+              <table className="admin-table admin-account-table" role="table">
                 <thead>
                   <tr>
                     <th>Nhân viên</th>
@@ -907,7 +907,7 @@ function Accounts({ user }: { user: AgentUser }) {
                 <tbody>
                   {data.items.map((account) => (
                     <tr key={account.id}>
-                      <td>
+                      <td data-label="Nhân viên">
                         <strong>{account.email}</strong>
                         <small>
                           {account.id === data.protectedAdminId
@@ -915,20 +915,20 @@ function Accounts({ user }: { user: AgentUser }) {
                             : `Tạo ${date(account.createdAt)}`}
                         </small>
                       </td>
-                      <td>
+                      <td data-label="Quyền & truy cập">
                         <Badge value={account.role} />
                         <Badge
                           value={account.disabled ? "disabled" : "active"}
                         />
                       </td>
-                      <td>
+                      <td data-label="Sử dụng">
                         {account.usage.run?.count || 0} công việc ·{" "}
                         {account.usage.asset?.count || 0} ảnh
                         <small>
                           {account.usage.session?.count || 0} phiên còn hạn
                         </small>
                       </td>
-                      <td>
+                      <td data-label="Ngân sách AI / tuần">
                         {account.budget ? (
                           <BudgetMeter data={account.budget} />
                         ) : (
@@ -944,7 +944,7 @@ function Accounts({ user }: { user: AgentUser }) {
                           <span className="sr-only"> {account.email}</span>
                         </Button>
                       </td>
-                      <td>
+                      <td data-label="Đăng nhập gần nhất">
                         {date(account.lastLoginAt)}
                         <small>
                           {[
@@ -955,7 +955,7 @@ function Accounts({ user }: { user: AgentUser }) {
                             .join(" · ")}
                         </small>
                       </td>
-                      <td>
+                      <td data-label="Thao tác">
                         <Button
                           variant="outline"
                           size="sm"

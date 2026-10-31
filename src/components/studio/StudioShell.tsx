@@ -14,8 +14,6 @@ import {
   Settings2,
   ShieldCheck,
   Sparkles,
-  BookMarked,
-  Frame,
 } from "lucide-react";
 import type { AgentUser } from "../../services/agent.service";
 import { WeeklyBudget } from "../agent/UsageBudget";
@@ -26,7 +24,7 @@ const navigation = [
     id: "studio",
     label: "Tổng quan",
     icon: LayoutDashboard,
-    group: "WORKSPACE",
+    group: "KHÔNG GIAN LÀM VIỆC",
   },
   {
     id: "studio-ideas",
@@ -96,7 +94,7 @@ export function StudioShell({
           <strong>
             LCG Studio<span>AI</span>
           </strong>
-          <small>CREATIVE OPERATIONS</small>
+          <small>Không gian sáng tạo</small>
         </div>
       </Link>
       <button className="studio-create-button" onClick={() => go("studio-new")}>
@@ -129,17 +127,6 @@ export function StudioShell({
         ))}
         {user.role === "admin" && (
           <div>
-            <p className="studio-nav-label">THƯ VIỆN</p>
-            <button
-              onClick={() => go("studio-manage?tab=library&type=thumbnail")}
-            >
-              <Frame size={18} aria-hidden="true" />
-              Thumbnail Library
-            </button>
-            <button onClick={() => go("studio-manage?tab=library&type=skill")}>
-              <BookMarked size={18} aria-hidden="true" />
-              Product & Skills
-            </button>
             <p className="studio-nav-label">QUẢN LÝ</p>
             <button
               aria-current={page === "studio-manage" ? "page" : undefined}
@@ -213,7 +200,7 @@ export function StudioShell({
             <Menu size={22} />
           </button>
           <span>
-            <span>Workspace</span>
+            <span>LCG Workspace</span>
             <ChevronRight size={14} aria-hidden="true" />
             <strong>{title}</strong>
           </span>

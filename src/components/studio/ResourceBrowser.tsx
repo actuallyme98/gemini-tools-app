@@ -1,7 +1,8 @@
 import { StudioSkeleton } from "./StudioSkeleton";
 import { StudioSelect } from "../ui/StudioSelect";
 import { useEffect, useState, type ReactNode } from "react";
-import { useSearchParams } from "react-router";
+import { Link, useSearchParams } from "react-router";
+import { StudioNotice } from "./StudioNotice";
 import {
   FileArchive,
   FolderOpen,
@@ -117,11 +118,28 @@ export function ResourceBrowser({
           <h2>Thư viện tài nguyên</h2>
           <p>Những tài nguyên dùng chung để tạo ý tưởng và mockup.</p>
         </div>
-        <Button disabled={!teamId} onClick={() => onCreate(teamId, type)}>
+        <Button
+          disabled={!teamId}
+          aria-describedby={!teamId ? "library-create-reason" : undefined}
+          onClick={() => onCreate(teamId, type)}
+        >
           <Plus size={16} />
           Thêm tài nguyên
         </Button>
       </header>
+      {!teamId && (
+        <StudioNotice
+          id="library-create-reason"
+          actions={
+            <Link to="/manage/teams" className="studio-inline-link">
+              Tạo nhóm đầu tiên →
+            </Link>
+          }
+        >
+          Tài nguyên cần thuộc một nhóm. Tạo nhóm để bật chức năng thêm vào thư
+          viện.
+        </StudioNotice>
+      )}
       <div
         className="management-library-categories"
         role="group"
@@ -225,6 +243,9 @@ export function ResourceBrowser({
           <FolderOpen size={32} />
           <h3>Chưa có nhóm để lưu tài nguyên</h3>
           <p>Tạo nhóm trong Nhân sự & nhóm để bắt đầu.</p>
+          <Link to="/manage/teams" className="studio-link-button">
+            Tạo nhóm
+          </Link>
         </div>
       ) : !current ? (
         <StudioSkeleton variant="gallery" label="Đang tải tài nguyên…" />

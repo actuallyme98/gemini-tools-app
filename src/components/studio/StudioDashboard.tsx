@@ -1,3 +1,11 @@
+import {
+  AlertCircle,
+  Clock3,
+  Images,
+  Lightbulb,
+  Play,
+  ShieldCheck,
+} from "lucide-react";
 import { StudioSkeleton } from "./StudioSkeleton";
 import { useStudioNavigate } from "../../navigation";
 import { useEffect, useState } from "react";
@@ -69,21 +77,25 @@ export function StudioDashboard({ onPending }: { onPending: () => void }) {
             {[
               {
                 label: "Ý tưởng trong phạm vi của bạn",
+                icon: Lightbulb,
                 value: sum(data.ideas),
                 click: () => studioNavigate("studio-ideas"),
               },
               {
                 label: "Chờ Leader duyệt",
+                icon: ShieldCheck,
                 value: data.ideas.pending ?? 0,
                 click: onPending,
               },
               {
                 label: "Lượt đã lên lịch",
+                icon: Clock3,
                 value: data.tickets.scheduled ?? 0,
                 click: () => studioNavigate("studio-ideas"),
               },
               {
                 label: "Lượt đang chờ / đang chạy",
+                icon: Play,
                 value: ["queued", "running"].reduce(
                   (n, k) => n + (data.tickets[k] ?? 0) + (data.mockups[k] ?? 0),
                   0,
@@ -92,11 +104,13 @@ export function StudioDashboard({ onPending }: { onPending: () => void }) {
               },
               {
                 label: "Ảnh và artwork đã tạo",
+                icon: Images,
                 value: sum(data.outputs),
                 click: () => studioNavigate("studio-outputs"),
               },
               {
                 label: "Lượt cần kiểm tra lỗi / chạy bù",
+                icon: AlertCircle,
                 value: ["failed", "partial_failed", "blocked", "missed"].reduce(
                   (n, k) => n + (data.tickets[k] ?? 0) + (data.mockups[k] ?? 0),
                   0,
@@ -109,6 +123,11 @@ export function StudioDashboard({ onPending }: { onPending: () => void }) {
                 className="studio-card"
                 onClick={item.click}
               >
+                <item.icon
+                  className="studio-metric-icon"
+                  size={19}
+                  aria-hidden="true"
+                />
                 <strong className="studio-metric-value">{item.value}</strong>
                 <span>{item.label}</span>
               </button>

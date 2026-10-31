@@ -38,21 +38,22 @@
 .studio-sidebar {
   position: fixed;
   inset: 0 auto 0 0;
-  width: 232px;
+  width: 236px;
   display: flex;
   flex-direction: column;
-  padding: 24px 16px 16px;
+  padding: 24px 16px 18px;
   background: var(--surface-sidebar);
-  color: #d3ddeb;
+  color: var(--foreground);
   overflow-y: auto;
   z-index: 30;
+  border-right: 1px solid var(--border);
 }
 .studio-brand {
   display: flex;
   gap: 10px;
   align-items: center;
   text-decoration: none;
-  color: #fff;
+  color: var(--foreground);
   padding: 2px 6px 26px;
 }
 .studio-brand > span {
@@ -76,8 +77,8 @@
 .studio-brand strong span {
   font-size: 9px;
   font-weight: 700;
-  background: #ffffff18;
-  border: 1px solid #ffffff20;
+  background: var(--surface-subtle);
+  border: 1px solid var(--border);
   padding: 2px 4px;
   border-radius: 4px;
   letter-spacing: 0.5px;
@@ -85,7 +86,7 @@
 .studio-brand small {
   display: block;
   font-size: 9px;
-  color: #a5b6cd;
+  color: var(--muted-foreground);
   letter-spacing: 1.5px;
   margin-top: 3px;
 }
@@ -95,10 +96,10 @@
   align-items: center;
   width: 100%;
   padding: 11px 12px;
-  color: #fff;
-  border: 1px solid #f5821666;
+  color: white;
+  border: 1px solid var(--brand-strong);
   border-radius: 8px;
-  background: #b84b0a;
+  background: var(--brand-strong);
   font-size: 12px;
   font-weight: 600;
   margin-bottom: 10px;
@@ -111,7 +112,7 @@
   font-size: 9px;
   font-weight: 700;
   letter-spacing: 1.4px;
-  color: #9eacc1;
+  color: var(--muted-foreground);
   padding: 20px 12px 8px;
   margin: 0;
 }
@@ -125,7 +126,7 @@
   min-height: 42px;
   padding: 10px 12px;
   margin: 3px 0;
-  color: #c3cede;
+  color: var(--muted-foreground);
   border: 1px solid transparent;
   border-radius: 8px;
   background: transparent;
@@ -136,15 +137,15 @@
 .studio-sidebar nav button:hover,
 .studio-mobile-nav nav button:hover,
 .studio-nav-bottom button:hover {
-  background: #ffffff0b;
-  color: #fff;
+  background: var(--surface-subtle);
+  color: var(--foreground);
 }
 .studio-sidebar nav button[aria-current],
 .studio-mobile-nav nav button[aria-current],
 .studio-nav-bottom button[aria-current] {
-  background: #ffffff10;
-  border-color: #ffffff0c;
-  color: #ffb36e;
+  background: var(--brand-soft);
+  border-color: var(--brand-border);
+  color: var(--brand-strong);
   font-weight: 600;
 }
 .studio-nav-chevron {
@@ -162,7 +163,7 @@
   display: flex;
   align-items: center;
   gap: 9px;
-  border-top: 1px solid #ffffff14;
+  border-top: 1px solid var(--border);
   margin-top: 12px;
   padding: 17px 3px 0;
 }
@@ -172,10 +173,10 @@
   width: 33px;
   height: 33px;
   flex-shrink: 0;
-  background: #ffffff12;
-  border: 1px solid #ffffff18;
+  background: var(--surface-subtle);
+  border: 1px solid var(--surface-subtle);
   border-radius: 50%;
-  color: #ffb36e;
+  color: var(--brand-strong);
   font-weight: 600;
 }
 .studio-profile > div {
@@ -185,7 +186,7 @@
 .studio-profile strong {
   display: block;
   font-size: 12px;
-  color: #edf2f8;
+  color: var(--foreground);
 }
 .studio-profile small {
   display: block;
@@ -193,7 +194,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 10px;
-  color: #a5b6cd;
+  color: var(--muted-foreground);
 }
 .studio-profile button {
   display: grid;
@@ -201,15 +202,15 @@
   padding: 8px;
   background: transparent;
   border: 0;
-  color: #a5b6cd;
+  color: var(--muted-foreground);
   border-radius: 6px;
 }
 .studio-profile button:hover {
-  color: white;
-  background: #ffffff10;
+  color: var(--brand-strong);
+  background: var(--brand-soft);
 }
 .studio-main-layout {
-  margin-left: 232px;
+  margin-left: 236px;
   min-width: 0;
 }
 .studio-topbar {
@@ -252,7 +253,7 @@
   max-width: 1680px;
   margin: 0 auto;
   min-width: 0;
-  padding: 24px 28px 32px;
+  padding: 28px 32px 36px;
 }
 .studio-main:focus {
   outline: none;
@@ -266,7 +267,7 @@
   gap: 0;
   padding: 24px 16px 16px;
   background: var(--surface-sidebar);
-  color: #d3ddeb;
+  color: var(--foreground);
   width: 280px;
   border: 0;
 }
@@ -277,7 +278,7 @@
   padding: 6px;
   border: 0;
   background: transparent;
-  color: #d3ddeb;
+  color: var(--foreground);
 }
 .studio-boot {
   display: grid;
@@ -295,7 +296,7 @@
 }
 .studio-page-heading h1,
 .studio-welcome h1 {
-  font-size: 25px;
+  font-size: 28px;
   font-weight: 700;
   line-height: 1.25;
   letter-spacing: -0.7px;
@@ -310,8 +311,8 @@
 }
 .studio-eyebrow {
   display: block;
-  font-size: 9px;
-  font-weight: 700;
+  font-size: 10px;
+  font-weight: 650;
   color: var(--brand-strong);
   letter-spacing: 1.2px;
 }
@@ -319,9 +320,9 @@
   min-width: 0;
   padding: 20px;
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--ui-radius);
   background: var(--surface);
-  box-shadow: 0 2px 4px #17233803;
+  box-shadow: var(--ui-panel-shadow);
 }
 .studio-card h2 {
   font-size: 15px;
@@ -349,9 +350,9 @@
   cursor: not-allowed;
 }
 .studio-application [data-slot="button"] {
-  min-height: 40px;
-  border-radius: 8px;
-  font-size: 12px;
+  min-height: var(--ui-control-height);
+  border-radius: var(--ui-control-radius);
+  font-size: 13px;
   font-weight: 600;
   gap: 8px;
   flex-shrink: 0;
@@ -382,9 +383,9 @@
   font-weight: 400;
   line-height: 1.5;
   color: var(--foreground);
-  border: 1px solid #ccd5e1;
-  border-radius: 7px;
-  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--ui-control-radius);
+  background: var(--surface);
   transition:
     border-color 0.15s,
     box-shadow 0.15s;
@@ -396,8 +397,8 @@
   margin-top: 7px;
 }
 .studio-application :where(input, select, textarea):disabled {
-  background: #f4f6f9;
-  color: #68788b;
+  background: var(--surface-subtle);
+  color: var(--muted-foreground);
   cursor: not-allowed;
 }
 .studio-application :where(input, select, textarea):focus,
