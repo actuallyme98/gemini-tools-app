@@ -902,17 +902,6 @@ export function StudioManagement({
                   </div>
                 ) : (
                   <>
-                    <label className="studio-span-full">
-                      Mô tả / quy tắc sản phẩm
-                      <textarea
-                        rows={3}
-                        value={instructions}
-                        maxLength={40000}
-                        onChange={(event) =>
-                          setInstructions(event.target.value)
-                        }
-                      />
-                    </label>
                     {["thumbnail", "scene"].includes(type) && (
                       <label>
                         Ảnh mẫu
@@ -924,6 +913,18 @@ export function StudioManagement({
                         />
                       </label>
                     )}
+                    <label className="studio-span-full">
+                      Mô tả / quy tắc sản phẩm
+                      <textarea
+                        rows={3}
+                        value={instructions}
+                        maxLength={40000}
+                        onChange={(event) =>
+                          setInstructions(event.target.value)
+                        }
+                      />
+                    </label>
+
                   </>
                 )}
               </fieldset>

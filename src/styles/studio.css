@@ -1256,7 +1256,7 @@
   font-size: 12px;
 }
 .studio-mockup-workspace {
-  height: 100%;
+  height: auto;
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -1282,9 +1282,7 @@
   min-height: 0;
 }
 .studio-mockup-columns > .studio-card {
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  scrollbar-gutter: stable;
+  overflow: visible;
   padding: 18px;
 }
 .studio-mockup-columns .studio-gallery {

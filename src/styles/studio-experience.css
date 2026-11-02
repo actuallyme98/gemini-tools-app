@@ -470,7 +470,6 @@
 .studio-mockup-columns > .studio-mockup-submit {
   display: flex;
   flex-direction: column;
-  overflow: hidden;
 }
 .studio-mockup-submit > h2 {
   flex-shrink: 0;
@@ -478,7 +477,6 @@
 .studio-mockup-review-controls {
   flex: 1;
   min-height: 0;
-  overflow-y: auto;
   padding: 0 2px 12px;
 }
 .studio-mockup-review-controls > details {

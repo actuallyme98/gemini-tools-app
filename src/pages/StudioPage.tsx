@@ -792,9 +792,7 @@ export default function StudioPage({ page }: { page: string }) {
       user={user}
       page={page}
       onLogout={logout}
-      workbench={
-        page === "studio-new" || (page === "studio-mockups" && !ideaId)
-      }
+      workbench={page === "studio-new"}
     >
       {page.startsWith("admin") ? (
         <Suspense fallback={<StudioSkeleton variant="table" />}>

@@ -1153,7 +1153,7 @@ test("idea workbench keeps previews and submit inside the desktop viewport throu
   expect(fixture.errors).toEqual([]);
 });
 
-test("mockup workbench separates controls into three panels without an outer desktop scroll", async ({
+test("mockup panels grow with their content and use the page scroll", async ({
   page,
 }) => {
   const fixture = await setup(page);
@@ -1180,9 +1180,24 @@ test("mockup workbench separates controls into three panels without an outer des
       );
     });
   expect(controls).toBe(true);
-  expect(
-    await page.evaluate(() => document.documentElement.scrollHeight),
-  ).toBeLessThanOrEqual(900);
+  await expect(page.locator(".studio-main-workbench")).toHaveCount(0);
+  const expectPageScroll = async () => {
+    const panels = await page
+      .locator(".studio-mockup-columns > .studio-card, .studio-mockup-review-controls")
+      .evaluateAll((elements) => elements.map((element) => ({
+        overflow: getComputedStyle(element).overflowY,
+        clipped: element.scrollHeight > element.clientHeight + 1,
+      })));
+    expect(panels).toHaveLength(4);
+    for (const panel of panels) {
+      expect(panel.overflow).toBe("visible");
+      expect(panel.clipped).toBe(false);
+    }
+    expect(await page.locator(".studio-main").evaluate(
+      (element) => getComputedStyle(element).overflowY,
+    )).toBe("visible");
+  };
+  await expectPageScroll();
   await page.getByRole("button", { name: /Bộ ảnh đã lưu/ }).click();
   await expect(page.getByRole("dialog")).toBeVisible();
   await expect(
@@ -1197,13 +1212,8 @@ test("mockup workbench separates controls into three panels without an outer des
     fullPage: true,
   });
   await page.setViewportSize({ width: 1366, height: 768 });
-  expect(
-    await page.evaluate(() => document.documentElement.scrollHeight),
-  ).toBeLessThanOrEqual(768);
-  const submitBounds = await page
-    .getByRole("button", { name: /^Tạo \d+ ảnh mockup$/ })
-    .boundingBox();
-  expect(submitBounds!.y + submitBounds!.height).toBeLessThanOrEqual(768);
+  await expectPageScroll();
+  await page.getByRole("button", { name: /^Tạo \d+ ảnh mockup$/ }).scrollIntoViewIfNeeded();
   expect(fixture.errors).toEqual([]);
 });
 test("Design Gallery keeps the idea rail and loads the selected design without opening a legacy page", async ({
@@ -1668,6 +1678,14 @@ test("library filters persist in URL, show recoverable errors and create the sel
   await expect(
     dialog.getByRole("combobox", { name: "Loại nội dung", exact: true }),
   ).toHaveAttribute("data-value", "scene");
+  const upload = dialog.getByLabel("Ảnh mẫu", { exact: true });
+  await upload.scrollIntoViewIfNeeded();
+  const uploadBounds = await upload.boundingBox();
+  const footerBounds = await dialog.locator(".management-form-footer").boundingBox();
+  expect(uploadBounds!.y + uploadBounds!.height).toBeLessThanOrEqual(footerBounds!.y);
+  expect(await dialog.locator(".management-form-body").evaluate(
+    (element) => getComputedStyle(element).minHeight,
+  )).toBe("0px");
   await dialog.getByRole("button", { name: "Hủy", exact: true }).click();
   await expect(
     page.getByRole("button", { name: "Thêm tài nguyên", exact: true }),
@@ -2487,6 +2505,9 @@ test("Gallery requires a separate artwork review and passes the original artwork
   await expect(
     page.getByRole("heading", { name: "Artwork gốc · Mẫu 1" }),
   ).toBeVisible();
+  await expect(page.locator(".studio-artwork-result")).toContainText(
+    "Chỉ duyệt thiết kế in phẳng",
+  );
   await page.getByRole("checkbox", { name: "Chọn để tải xuống" }).check();
   await page
     .getByRole("button", { name: "Tạo mockup từ 1 thiết kế", exact: true })
@@ -2562,5 +2583,42 @@ test("mockup finds approved scenes beyond the bootstrap catalog and adds their a
   await expect(
     page.getByRole("img", { name: "Bối cảnh ngoài trang 29", exact: true }),
   ).toBeVisible();
+  expect(fixture.errors).toEqual([]);
+});
+
+for (const viewport of [{ width: 1440, height: 900 }, { width: 1366, height: 768 }, { width: 390, height: 844 }]) {
+  test(`audit: resource uploads remain reachable at ${viewport.width}x${viewport.height}`, async ({ page }) => {
+    await setup(page, { admin: true });
+    await page.setViewportSize(viewport);
+    for (const type of ["scene", "thumbnail", "skill"]) {
+      await page.goto(`/manage/library?type=${type}`);
+      await page.getByRole("button", { name: "Thêm tài nguyên", exact: true }).click();
+      const dialog = page.getByRole("dialog", { name: "Thêm tài nguyên", exact: true });
+      const upload = dialog.locator('input[type="file"]');
+      await upload.scrollIntoViewIfNeeded();
+      const inputBox = await upload.boundingBox();
+      const footer = await dialog.locator(".management-form-footer").boundingBox();
+      expect(inputBox!.y).toBeGreaterThanOrEqual(0);
+      expect(inputBox!.y + inputBox!.height).toBeLessThanOrEqual(footer!.y);
+      await upload.setInputFiles(type === "skill"
+        ? { name: "test.zip", mimeType: "application/zip", buffer: Buffer.from("mock upload only") }
+        : { name: "test.png", mimeType: "image/png", buffer: image });
+      expect(await upload.evaluate((element: HTMLInputElement) => element.files?.length)).toBe(1);
+      await page.screenshot({ path: `test-results/audit-upload-${type}-${viewport.width}.png`, fullPage: true });
+      await dialog.getByRole("button", { name: "Hủy", exact: true }).click();
+    }
+  });
+}
+
+test("audit: all Studio screens fit mobile width with authenticated mocked data", async ({ page }) => {
+  const fixture = await setup(page, { admin: true });
+  fixture.addMockupScene();
+  await page.setViewportSize({ width: 390, height: 844 });
+  for (const route of ["/", "/ideas", "/ideas/new", "/gallery", "/mockups", "/outputs", "/manage/teams", "/manage/stores", "/manage/library", "/manage/budgets", "/manage/schedule", "/guide"]) {
+    await page.goto(route);
+    await expect(page.locator(".studio-main")).toBeVisible();
+    await expect(page.locator(".studio-skeleton")).toHaveCount(0);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), route).toBe(true);
+  }
   expect(fixture.errors).toEqual([]);
 });

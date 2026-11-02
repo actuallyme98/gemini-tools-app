@@ -41,6 +41,12 @@ export function ArtworkResult({
               ? studioLabels[review.decision]
               : "Cần kiểm tra riêng chữ, kích thước, nền và watermark."}
           </p>
+          <p className="studio-muted">
+            Chỉ duyệt thiết kế in phẳng: đúng chữ và motif, không có hình sản
+            phẩm, đường may, bóng đổ hoặc lề trắng ngoài thiết kế. Kiểm tra
+            riêng kích thước, nền và watermark; pixel/DPI đúng chưa đảm bảo
+            chất lượng in.
+          </p>
           <div className="studio-action-row">
             <Button
               size="sm"
